@@ -98,7 +98,7 @@
 - [ ] **补样本**：有消费的建行账单；有明细和应还金额的中行账单；每张卡再补 2 期。缺口详情见[样本覆盖矩阵](docs/banks/README.md#样本覆盖矩阵)。
 - [ ] 主邮箱的自动转发规则怎么设置，以及转发后原邮件会不会被改动（M8 用真实转发件验证）。
 - [ ] 逐张卡检查电子账单投递设置：开通邮件账单，并且带明细。
-- [ ] **git init 和 GitHub 公开仓库**（M0 的第一件事，单独确认）：README（英文 `README.md` 和中文 `README.zh-CN.md` 各一份）、LICENSE（MIT © Larry Row）、CHANGELOG.md；首次推送前再全文搜一遍身份信息。
+- [x] **git init 和 GitHub 公开仓库**（M0 的第一件事，单独确认）：README（**中文为主** `README.md`，英文 `README.en.md`；2026-09-19 改为中文优先，面向中国大陆用户）、LICENSE（MIT © Larry Row）、CHANGELOG.md；首次推送前再全文搜一遍身份信息。
 - [x] ~~中行 PDF 的密码~~：实测未加密。
 - [x] ~~关键金额是不是图片~~：三家都是文字。
 
