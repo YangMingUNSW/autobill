@@ -7,7 +7,7 @@
 
 ```python
 class MailSource(Protocol):
-    def iter_new(self) -> Iterator[RawMail]: ...   # RawMail = (bytes, 来源标识, 游标位置)
+    def iter_new(self) -> Iterator[RawMail]: ...  # RawMail = (bytes, 来源标识, 游标位置)
 ```
 
 | 实现 | 用途 |

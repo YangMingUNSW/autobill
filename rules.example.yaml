@@ -1,0 +1,13 @@
+# 分类规则示例：复制为 rules.yaml 后修改（rules.yaml 不入库）。
+# 关键词匹配，从上往下第一个匹配上的分类生效。见 docs/notify.md#分类规则。
+
+超市: [Woolworths, Coles, IGA, UMALL, Everyday Extra]
+交通: [TFNSW OPAL, "UBER *TRIP"]
+餐饮: [KFC]
+订阅: [APPLE.COM/BILL, SPOTIFY]
+通讯网络: [SUPERLOOP]
+水电燃气: [ORIGIN ENERGY]
+健身: [PlusFitness]
+娱乐: [GREATER UNION]
+微信/支付宝（未细分）: [财付通, 支付宝]
+

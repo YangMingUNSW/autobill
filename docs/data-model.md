@@ -19,63 +19,68 @@
 
 ```python
 class TxnType(StrEnum):
-    PURCHASE = "purchase"        # 消费
-    REFUND = "refund"            # 退款
-    REPAYMENT = "repayment"      # 还款（真实资金流入）
-    FEE = "fee"                  # 手续费、年费
-    INTEREST = "interest"        # 利息（含分期利息，配合 installment 字段）
-    CASH = "cash"                # 取现
+    PURCHASE = "purchase"  # 消费
+    REFUND = "refund"  # 退款
+    REPAYMENT = "repayment"  # 还款（真实资金流入）
+    FEE = "fee"  # 手续费、年费
+    INTEREST = "interest"  # 利息（含分期利息，配合 installment 字段）
+    CASH = "cash"  # 取现
     INSTALLMENT = "installment"  # 分期本金（本期应还部分）
-    REBATE = "rebate"            # 返现（农行计入"本期还款、退货金额"）
-    FX_TRANSFER = "fx_transfer"  # 自动购汇的内部换汇：人民币账户转出、外币账户转入，不是消费也不是还款
-    ADJUSTMENT = "adjustment"    # 调整；未列明细的调整会生成一条 synthetic=True 的合成流水
+    REBATE = "rebate"  # 返现（农行计入"本期还款、退货金额"）
+    FX_TRANSFER = (
+        "fx_transfer"  # 自动购汇的内部换汇：人民币账户转出、外币账户转入，不是消费也不是还款
+    )
+    ADJUSTMENT = "adjustment"  # 调整；未列明细的调整会生成一条 synthetic=True 的合成流水
+
 
 class Transaction(BaseModel):
-    line_no: int                  # 在账单内的顺序，合成流水排在最后
-    txn_id: str                   # 稳定 ID：hash(银行, 账户, 交易日, 金额, 描述, line_no)
+    line_no: int  # 在账单内的顺序，合成流水排在最后
+    txn_id: str  # 稳定 ID：hash(银行, 账户, 交易日, 金额, 描述, line_no)
     trans_date: date
     post_date: date | None
     txn_type: TxnType
-    amount: Decimal               # 结算金额，按上面的符号约定
-    currency: str                 # 结算币种
-    orig_amount: Decimal | None   # 原币金额，只在和结算币种不同时填（如澳元消费按美元入账）
+    amount: Decimal  # 结算金额，按上面的符号约定
+    currency: str  # 结算币种
+    orig_amount: Decimal | None  # 原币金额，只在和结算币种不同时填（如澳元消费按美元入账）
     orig_currency: str | None
-    fx_rate: Decimal | None       # 购汇汇率，如"汇率:6.7648500"
-    description_raw: str          # 账单原文，已做空白规范化
-    group_raw: str | None         # 银行自己的分组名，如农行的"消费/还款/分期/其他"
-    merchant: str | None          # 清洗后的商户名
-    merchant_location: str | None # 境外消费的地点字段
-    card_last4: str | None        # 购汇、分期本金行可能为空
-    installment: str | None       # "3/36"
-    category: str | None          # 规则分类结果
-    synthetic: bool = False       # 对账时生成的合成流水
+    fx_rate: Decimal | None  # 购汇汇率，如"汇率:6.7648500"
+    description_raw: str  # 账单原文，已做空白规范化
+    group_raw: str | None  # 银行自己的分组名，如农行的"消费/还款/分期/其他"
+    merchant: str | None  # 清洗后的商户名
+    merchant_location: str | None  # 境外消费的地点字段
+    card_last4: str | None  # 购汇、分期本金行可能为空
+    installment: str | None  # "3/36"
+    category: str | None  # 规则分类结果
+    synthetic: bool = False  # 对账时生成的合成流水
 
-class BillBalance(BaseModel):     # 每个币种一份
+
+class BillBalance(BaseModel):  # 每个币种一份
     currency: str
-    previous_balance: Decimal     # 上期欠款（≥0）
-    previous_deposit: Decimal = 0 # 上期溢缴款（≥0）
-    new_charges: Decimal          # 本期新增（借方）
-    interest_fees: Decimal = 0    # 只在银行把利息和费用单独列在汇总块时使用
-    payments_credits: Decimal     # 本期还款、退货（贷方，≥0）
-    adjustments: Decimal = 0      # 正数 = 增加欠款；农行"本期调整金额"要取反
-    amount_due: Decimal           # 本期欠款（≥0）
-    deposit: Decimal = 0          # 本期溢缴款（≥0）
+    previous_balance: Decimal  # 上期欠款（≥0）
+    previous_deposit: Decimal = 0  # 上期溢缴款（≥0）
+    new_charges: Decimal  # 本期新增（借方）
+    interest_fees: Decimal = 0  # 只在银行把利息和费用单独列在汇总块时使用
+    payments_credits: Decimal  # 本期还款、退货（贷方，≥0）
+    adjustments: Decimal = 0  # 正数 = 增加欠款；农行"本期调整金额"要取反
+    amount_due: Decimal  # 本期欠款（≥0）
+    deposit: Decimal = 0  # 本期溢缴款（≥0）
     min_payment: Decimal | None
 
-class Bill(BaseModel):            # 一封邮件可以产出多份 Bill（中行合并账单），见 parsing.md 的接口
-    bank: str                     # ABC / CCB / BOC
-    account_id: str               # "ABC:0002"；建行取不到卡号时为 "CCB:unknown"
+
+class Bill(BaseModel):  # 一封邮件可以产出多份 Bill（中行合并账单），见 parsing.md 的接口
+    bank: str  # ABC / CCB / BOC
+    account_id: str  # "ABC:0002"；建行取不到卡号时为 "CCB:unknown"
     cards: list[str]
-    statement_date: date          # 农行没有单独写出，取账单周期结束日
+    statement_date: date  # 农行没有单独写出，取账单周期结束日
     period_start: date | None
     period_end: date | None
-    due_date: date | None         # 不需要还款时可能为空（中行实测）；只用于展示，不做提醒
-    email_date: date              # 账单邮件的 Date 头，决定用哪一天的汇率折算人民币
+    due_date: date | None  # 不需要还款时可能为空（中行实测）；只用于展示，不做提醒
+    email_date: date  # 账单邮件的 Date 头，决定用哪一天的汇率折算人民币
     balances: list[BillBalance]
     transactions: list[Transaction]
     status: Literal["OK", "WARN", "UNVERIFIED"]
     warnings: list[str] = []
-    quality: int = 3              # 以后：3 = 完整明细，2 = 部分成功，1 = 兜底汇总（第一版恒为 3）
+    quality: int = 3  # 以后：3 = 完整明细，2 = 部分成功，1 = 兜底汇总（第一版恒为 3）
     reported_at: datetime | None  # 报表邮件发送成功的时间；为空表示还没发（第一版用它代替 outbox）
     source_message_id: str
     source_sha256: str

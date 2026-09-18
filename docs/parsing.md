@@ -6,9 +6,9 @@
 
 ```python
 class BaseParser(ABC):
-    bank: str        # "ABC" / "CCB" / "BOC"
-    name: str        # "abc_html"
-    version: int     # 模板改版后 +1
+    bank: str  # "ABC" / "CCB" / "BOC"
+    name: str  # "abc_html"
+    version: int  # 模板改版后 +1
 
     @abstractmethod
     def matches(self, msg: RawMessage) -> bool: ...
