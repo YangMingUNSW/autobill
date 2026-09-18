@@ -185,6 +185,9 @@ def test_parse_directed_amount_blank():
         ("澳元", "AUD"),
         ("欧元", "EUR"),
         ("USD", "USD"),
+        ("CHF", "CHF"),  # CCB 2026-06: spending in Switzerland
+        ("瑞士法郎", "CHF"),
+        ("澳门元", "MOP"),
     ],
 )
 def test_parse_currency(raw, expected):

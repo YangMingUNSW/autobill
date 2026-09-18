@@ -13,6 +13,7 @@ from autobill.parse.base import TemplateChanged
 from autobill.parse.ccb import CcbHtmlParser
 
 FIXTURE = Path(__file__).parent / "fixtures" / "ccb" / "ccb_visa_2026-07.eml"
+SPENDING = FIXTURE.with_name("ccb_visa_2026-06.eml")  # 69 rows, travel in Europe
 D = Decimal
 parser = CcbHtmlParser()
 
@@ -262,3 +263,56 @@ def test_blank_card_cell_keeps_row_positions():
         TxnType.INSTALLMENT,
         D("100.00"),
     )
+
+
+# --- the sample with spending (2026-06) -----------------------------------------
+
+
+def spending_bill():
+    return parse_one(RawMessage.from_bytes(SPENDING.read_bytes()))
+
+
+def test_spending_sample_snapshot(snapshot):
+    snapshot("ccb/ccb_visa_2026-06", spending_bill().model_dump(mode="json"))
+
+
+def test_spending_sample_reconciles():
+    bill = spending_bill()
+    assert bill.status == "OK" and bill.warnings == []
+    assert (str(bill.statement_date), str(bill.due_date)) == ("2026-06-10", "2026-07-01")
+    (b,) = bill.balances
+    assert (b.previous_balance, b.new_charges, b.payments_credits, b.amount_due) == (
+        D("0.00"),
+        D("15560.87"),
+        D("110.04"),
+        D("15450.83"),
+    )
+    assert b.min_payment == D("1545.08")
+    types = [t.txn_type for t in bill.transactions]
+    assert (types.count(TxnType.PURCHASE), types.count(TxnType.REBATE)) == (28, 41)
+
+
+def test_apple_pay_device_number_is_folded_into_the_card():
+    # The card cell reads "0004/0007" for Apple Pay: physical card / device number.
+    msg = RawMessage.from_bytes(SPENDING.read_bytes())
+    assert "0004/0007" in msg.html
+    bill = parse_one(msg)
+    assert bill.account_id == "CCB:0004" and bill.cards == ["0004"]
+    assert {t.card_last4 for t in bill.transactions} == {"0004"}
+
+
+def test_foreign_spending_keeps_original_currency():
+    bill = spending_bill()
+    chf = [t for t in bill.transactions if t.orig_currency == "CHF"]
+    assert len(chf) == 8 and all(t.currency == "CNY" and t.amount > 0 for t in chf)
+    assert all(t.orig_amount > 0 for t in chf)
+
+
+def test_rebates_are_rebates_not_refunds():
+    bill = spending_bill()
+    rebates = [t for t in bill.transactions if t.txn_type == TxnType.REBATE]
+    assert all(t.amount < 0 for t in rebates)
+    assert {t.description_raw for t in rebates} == {
+        "Visa 26 Apr-Sep FX RewardCashback",
+        "CCB CXMUSE 1pct Rebate",
+    }

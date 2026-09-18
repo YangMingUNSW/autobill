@@ -167,7 +167,14 @@ def parse_directed_amount(text: str, *, blank_is_zero: bool = False) -> tuple[De
 
 # --- currencies -------------------------------------------------------------
 
-_ISO_CODES = {"CNY", "USD", "AUD", "EUR", "HKD", "JPY", "GBP", "SGD", "NZD", "CAD"}
+# ISO 4217 codes a Chinese card holder is likely to meet (card currencies and travel).
+# A code outside this list is rejected rather than guessed, so a garbled cell never passes
+# for a currency; extend the list when a real statement shows a new one.
+_ISO_CODES = set(
+    "CNY USD AUD EUR HKD JPY GBP SGD NZD CAD CHF KRW THB MYR TWD MOP IDR VND PHP INR "
+    "AED SAR QAR KWD ILS TRY EGP ZAR SEK NOK DKK ISK CZK PLN HUF RUB BRL MXN ARS CLP "
+    "COP PEN LKR NPR KHR LAK MMK MNT KZT FJD XPF".split()
+)
 _CODE_ALIASES = {"RMB": "CNY"}
 _CHINESE_NAMES = {
     "人民币": "CNY",
@@ -180,6 +187,11 @@ _CHINESE_NAMES = {
     "新加坡元": "SGD",
     "新西兰元": "NZD",
     "加元": "CAD",
+    "瑞士法郎": "CHF",
+    "韩元": "KRW",
+    "泰铢": "THB",
+    "新台币": "TWD",
+    "澳门元": "MOP",
 }
 _ASCII_CODE_RE = re.compile(r"(?<![A-Za-z])[A-Z]{3}(?![A-Za-z])")
 

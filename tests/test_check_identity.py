@@ -84,6 +84,13 @@ def test_hits_are_masked_in_output(tmp_path):
     assert all(value not in p for p in problems)
 
 
+def test_adjacent_dates_are_not_a_card_number(tmp_path):
+    # BOC detail rows: transaction date then posting date. Joined, some of these pairs
+    # are 16 digits that pass the Luhn check.
+    text = "\n".join(f"2025-06-{d:02d} 2025-06-{d + 2:02d} 0006 12.34" for d in range(1, 28))
+    assert check(tmp_path, "notes.md", text.encode()) == []
+
+
 def test_random_digit_runs_are_not_flagged(tmp_path):
     # Invalid checksums: a message-id style run and an 18-digit number that is not an ID.
     text = "Message-ID: <1.1234567890123456780.JavaMail>  id 110105194912310021"
@@ -136,7 +143,7 @@ def test_databases_are_always_blocked(tmp_path):
 
 def test_real_fixtures_are_clean():
     files = sorted(FIXTURES.rglob("*.eml"))
-    assert len(files) == 5
+    assert len(files) >= 7
     for path in files:
         rel = PurePosixPath(path.relative_to(FIXTURES.parent.parent).as_posix())
         assert check_file(path, rel) == [], rel
