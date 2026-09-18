@@ -4,12 +4,18 @@
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-19
+离线解析三家银行完成（第一版里程碑 M0–M5）。
+
 ### Changed
+- `pdfplumber` 从开发依赖改为正式依赖（中行解析器要用）。
+- 中行 2025-06 样本：两个第三方个人收款人姓名替换为假名。
 - 建行解析器：卡号栏 `实体/Apple Pay 设备号` 取实体卡；返现识别为 `REBATE`；币种列表扩大到约 50 个（含 CHF）。
 - 身份扫描：卡号只认 16–19 位连写或 4 位一组，不再把相邻日期误报成卡号。
 - README 改为中文为主（`README.md`），英文版移到 `README.en.md`；GitHub 仓库简介同步改成中文在前。
 
 ### Added
+- M5 中行 PDF 解析器 `parse/boc.py`：合并账单按卡拆成多份账单、跨页明细、描述折行拼接、Apple Pay 设备号归入实体卡、总览和卡表交叉校验；加入注册表；两份中行样本快照。
 - 补样本：建行 2026-06（69 笔，Apple Pay、欧洲外币消费、返现）、中行 2025-06（两卡合并、12 页、有明细）；建行快照。
 - M0 项目骨架：`pyproject.toml`（uv + hatchling）、`autobill` 命令行空壳（`--help`、`--version`）、冒烟测试。
 - 身份扫描 `scripts/check_identity.py`，接入 pre-commit 和 GitHub Actions CI（ruff、pytest、gitleaks）。

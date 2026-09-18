@@ -6,14 +6,14 @@ A small, self-hosted tool that turns Chinese credit-card statement e-mails into 
 
 Bank statements are auto-forwarded to a dedicated mailbox. AutoBill reads that mailbox over IMAP (read-only), parses each statement with **deterministic rules (no AI)**, reconciles it item by item against the bank's own totals, stores it in SQLite, converts foreign currencies to CNY, and e-mails a summary report.
 
-> **Status:** first version in development. Parsing, reconciliation, local import and the terminal report work for ABC and CCB statements (milestone M4); the BOC parser and the e-mailed report are in progress. See the roadmap in [project.md](project.md#6-分期路线) (Chinese).
+> **Status:** first version in development. Parsing, reconciliation, local import and the terminal report work for all three banks (ABC, CCB, BOC; `v0.1.0`); categorised reports, e-mailed reports and automatic fetching are in progress. See the roadmap in [project.md](project.md#6-分期路线) (Chinese).
 
 ## Supported banks (first version)
 | Bank | Format | Status |
 |---|---|---|
 | Agricultural Bank of China (ABC) | HTML e-mail | ✅ supported |
 | China Construction Bank (CCB) | HTML e-mail | ✅ supported (spending rows await more samples) |
-| Bank of China (BOC) | PDF attachment | in progress |
+| Bank of China (BOC) | PDF attachment | ✅ supported (incl. combined multi-card statements) |
 
 ## What it does / doesn't do
 - ✅ Summaries and charts: total spend, by category, by card, trends, top merchants; shows the payment due date.

@@ -35,12 +35,13 @@ wheels = [
 
 [[package]]
 name = "autobill"
-version = "0.0.0"
+version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "httpx" },
     { name = "lxml" },
+    { name = "pdfplumber" },
     { name = "platformdirs" },
     { name = "pydantic" },
     { name = "pyyaml" },
@@ -49,7 +50,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "pdfplumber" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "ruff" },
@@ -60,6 +60,7 @@ requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.15.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "lxml", specifier = ">=6.1.3" },
+    { name = "pdfplumber", specifier = ">=0.11.10" },
     { name = "platformdirs", specifier = ">=4.11.10" },
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "pyyaml", specifier = ">=6.0.3" },
@@ -68,7 +69,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "pdfplumber", specifier = ">=0.11.10" },
     { name = "pre-commit", specifier = ">=4.6.2" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "ruff", specifier = ">=0.16.8" },
