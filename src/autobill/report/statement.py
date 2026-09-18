@@ -22,14 +22,14 @@ from markupsafe import Markup
 from autobill.categorize import Rules, load_rules
 from autobill.fx import FxRates, Rate, RateUnavailable
 from autobill.model import ZERO, Bill, BillBalance, Transaction, TxnType
-from autobill.report.mail_report import (
+from autobill.report.monthly import SPENDING_TYPES, cents
+from autobill.report.style import (
     BANK_NAMES,
     COLORS,
     Row,
     category_bar_rows,
     money,
 )
-from autobill.report.monthly import SPENDING_TYPES, cents
 
 TYPE_LABELS = {
     TxnType.PURCHASE: "消费",
@@ -128,6 +128,10 @@ class StatementView:
     generated_at: str
     transaction_count: int = field(default=0)
     currencies: str = ""
+    # Unformatted values, for the progress e-mail that adds bills up
+    due_cny_value: Decimal | None = None
+    spend_cny_value: Decimal = ZERO
+    categories: dict[str, Decimal] = field(default_factory=dict)
 
 
 def _day_label(day: date) -> str:
@@ -342,6 +346,9 @@ def build_view(bill: Bill, fx: FxRates, rules: Rules, now: datetime | None = Non
         generated_at=(now or datetime.now()).strftime("%Y-%m-%d %H:%M"),
         transaction_count=len(bill.transactions),
         currencies="、".join(sorted({t.currency for t in bill.transactions})),
+        due_cny_value=due_cny,
+        spend_cny_value=spend_cny,
+        categories=categories,
     )
 
 

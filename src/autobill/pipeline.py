@@ -102,33 +102,72 @@ def _worst(statuses: list[str]) -> str:
 
 @dataclass
 class SendResult:
-    sent: list[int] = field(default_factory=list)  # bill ids
-    failed: tuple[int, str] | None = None  # the first failure stops the run
+    sent: list[int] = field(default_factory=list)  # bill ids now reported
+    emails: int = 0
+    failed: tuple[str, str] | None = None  # (statement month, error); the first failure stops
 
 
-def send_pending_reports(conn: sqlite3.Connection, mailer, fx, rules=None) -> SendResult:
-    """Send one report per bill that has none yet (reported_at IS NULL), oldest first.
+def send_pending_reports(
+    conn: sqlite3.Connection,
+    mailer,
+    fx,
+    rules=None,
+    *,
+    portfolio=(),
+    attach=None,
+    today=None,
+) -> SendResult:
+    """One progress e-mail per statement month with new statements (docs/notify.md#账单月进度邮件),
+    oldest month first; plus the final e-mail of a month whose missing cards have run out
+    of time without any new statement arriving.
 
     reported_at is written only after the mail server accepted the message, so a failed
     send is retried on the next run and a successful one is never repeated. The first
     failure stops the run: when the login or server is broken, every later send would
     fail the same way.
     """
-    from autobill.report.mail_report import build_email  # heavy imports (matplotlib)
+    from autobill.report.cycle import build_cycle_email, open_cycles, record_sent
 
     result = SendResult()
-    pending = conn.execute(
-        "SELECT id FROM bills WHERE reported_at IS NULL ORDER BY statement_date, id"
-    ).fetchall()
-    for (bill_id,) in pending:
+    months: dict[str, list[int]] = {}
+    for bill_id, statement_date in conn.execute(
+        "SELECT id, statement_date FROM bills WHERE reported_at IS NULL ORDER BY statement_date, id"
+    ):
+        months.setdefault(statement_date[:7], []).append(bill_id)
+    for cycle in open_cycles(conn):
+        months.setdefault(cycle, [])
+
+    for cycle, bill_ids in sorted(months.items()):
         try:
-            message = build_email(
-                conn, bill_id, fx, mailer.config.username, mailer.config.to_addr, rules
+            message, report = build_cycle_email(
+                conn,
+                cycle,
+                bill_ids,
+                fx,
+                mailer.config.username,
+                mailer.config.to_addr,
+                portfolio=portfolio,
+                rules=rules,
+                attach=attach,
+                today=today,
             )
+            if not bill_ids and not report.complete:
+                continue  # an open month with nothing new: wait
             mailer.send(message)
-        except Exception as exc:  # noqa: BLE001 - report the error, keep the bill pending
-            result.failed = (bill_id, f"{type(exc).__name__}: {exc}")
+        except Exception as exc:  # noqa: BLE001 - report the error, keep the bills pending
+            result.failed = (cycle, f"{type(exc).__name__}: {exc}")
             break
-        conn.execute("UPDATE bills SET reported_at = ? WHERE id = ?", (now(), bill_id))
-        result.sent.append(bill_id)
+        conn.execute("BEGIN")
+        try:
+            stamp = now()
+            conn.executemany(
+                "UPDATE bills SET reported_at = ? WHERE id = ?", [(stamp, i) for i in bill_ids]
+            )
+            record_sent(conn, cycle, message["Message-ID"], report.complete)
+            conn.execute("COMMIT")
+        except BaseException:
+            conn.execute("ROLLBACK")
+            raise
+        result.sent += bill_ids
+        result.emails += 1
     return result

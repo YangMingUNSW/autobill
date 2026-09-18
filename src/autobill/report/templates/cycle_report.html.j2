@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+{# iOS Mail would otherwise turn amounts, dates and card numbers into blue links #}
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+<meta name="x-apple-disable-message-reformatting">
+<title>{{ r.subject }}</title>
+<style>
+  :root {
+    --page: {{ c.page }}; --card: {{ c.card }}; --text: {{ c.text }}; --muted: {{ c.muted }};
+    --accent: {{ c.accent }}; --context: {{ c.context }}; --line: #e7e6e2; --track: #e4e3df;
+    --ok-bg: #e6f4ea; --ok-text: #1e5b32; --warn-bg: {{ c.warn_bg }}; --warn-text: {{ c.warn_text }};
+    --tag-bg: #eeedea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page: #111110; --card: #1c1c1b; --text: #f2f2f0; --muted: #b3b2ab;
+      --accent: #3987e5; --context: #5c5b57; --line: #2f2f2d; --track: #34342f;
+      --ok-bg: #173323; --ok-text: #9fd8b1; --warn-bg: #3a2c12; --warn-text: #f1cf8f;
+      --tag-bg: #2c2c2a;
+    }
+  }
+  a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important;
+    font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text);
+         font-family: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+         font-size: 15px; line-height: 1.55; -webkit-text-size-adjust: 100%; }
+  .preheader { display: none !important; max-height: 0; overflow: hidden; opacity: 0; font-size: 1px; line-height: 1px; }
+  .wrap { max-width: 600px; margin: 0 auto; padding: 16px 12px 28px; }
+  .card { background: var(--card); border-radius: 14px; padding: 18px; margin-bottom: 12px; }
+  .eyebrow { font-size: 13px; color: var(--muted); }
+  h1 { font-size: 22px; margin: 2px 0 0; }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .label { font-size: 13px; color: var(--muted); }
+  .hero { font-size: 40px; font-weight: 700; line-height: 1.15; letter-spacing: -0.5px; margin: 2px 0 4px; }
+  .progress { display: flex; gap: 3px; margin: 14px 0 8px; }
+  .seg { flex: 1; height: 8px; border-radius: 4px; background: var(--track); }
+  .seg.arrived { background: var(--accent); }
+  .seg.missing { background: repeating-linear-gradient(135deg, var(--track) 0 3px, transparent 3px 6px); }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .row .main { min-width: 0; }
+  .row .meta { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .row .side { text-align: right; flex-shrink: 0; }
+  .row.pending .title, .row.missing .title { color: var(--muted); }
+  .chip { display: inline-block; font-size: 11px; line-height: 18px; padding: 0 7px; border-radius: 9px; margin-top: 3px; }
+  .chip.arrived { background: var(--ok-bg); color: var(--ok-text); }
+  .chip.pending { background: var(--tag-bg); color: var(--muted); }
+  .chip.missing { background: var(--warn-bg); color: var(--warn-text); }
+  .chip.new { background: var(--accent); color: #ffffff; margin: 0 0 0 6px; vertical-align: 1px; }
+  .pay { display: flex; gap: 12px; margin-top: 12px; }
+  .pay > div { flex: 1; }
+  .pay .value { font-size: 22px; font-weight: 600; }
+  .notice { background: var(--warn-bg); color: var(--warn-text); border-radius: 10px; padding: 8px 12px; font-size: 13px; margin-top: 10px; }
+  svg.daily { width: 100%; height: auto; display: block; margin: 14px 0 4px; }
+  svg.daily .bar { fill: var(--accent); }
+  svg.daily .axis { stroke: var(--line); stroke-width: 2; }
+  svg.daily text { fill: var(--muted); font-size: 20px; font-family: inherit; }
+  svg.daily .value { fill: var(--text); font-weight: 600; }
+  .bars .item { margin-top: 10px; }
+  .bars .head { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+  .bars .fill { height: 8px; border-radius: 4px; background: var(--accent); min-width: 4px; margin-top: 4px; }
+  .bars .fill.context { background: var(--context); }
+  .bars .share { color: var(--muted); font-size: 12px; margin-left: 6px; }
+  .attach { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+  .tl-item { display: flex; gap: 12px; }
+  .tl-date { width: 64px; flex-shrink: 0; text-align: right; font-weight: 600; font-size: 14px; }
+  .tl-date .muted { font-weight: 400; font-size: 12px; }
+  .tl-rail { width: 12px; flex-shrink: 0; position: relative; }
+  .tl-rail::before { content: ""; position: absolute; left: 5px; top: 6px; bottom: -6px; width: 2px; background: var(--line); }
+  .tl-item:last-child .tl-rail::before { display: none; }
+  .tl-dot { position: absolute; left: 1px; top: 6px; width: 10px; height: 10px; border-radius: 5px; background: var(--accent); }
+  .tl-body { flex: 1; display: flex; justify-content: space-between; gap: 12px; padding-bottom: 16px; font-size: 14px; }
+  footer { font-size: 12px; color: var(--muted); text-align: center; padding: 6px 12px; }
+</style>
+</head>
+<body>
+<div class="preheader">{{ r.preview }}{% for _ in range(40) %}&#8199;&#847;{% endfor %}</div>
+<div class="wrap">
+
+  <section class="card">
+    <div class="eyebrow">AutoBill · 信用卡账单月</div>
+    <h1>{{ r.title }}账单</h1>
+    <div class="progress" role="img" aria-label="{{ r.progress }}">{% for s in r.cards %}<span class="seg {{ s.state }}"></span>{% endfor %}</div>
+    <div class="small"><strong>{{ r.progress }}</strong><span class="muted"> · {% if r.complete %}✓ {% endif %}{{ r.status_line }}</span></div>
+    <div class="label" style="margin-top:16px">{% if r.complete %}本月合计应还{% else %}已出账合计应还{% endif %}</div>
+    <div class="hero num">{% if r.due_total is none %}见各卡{% else %}¥ {{ r.due_total }}{% endif %}</div>
+    <div class="muted small">{% if not r.complete %}不含待出账的卡 · {% endif %}外币按账单邮件当天的汇率折合</div>
+  </section>
+
+  <section class="card">
+    <h2>各卡状态</h2>
+    {% for s in r.cards %}
+    <div class="row {{ s.state }}">
+      <div class="main">
+        <div class="title">{{ s.label }}{% if s.is_new %}<span class="chip new">新</span>{% endif %}</div>
+        <div class="meta">{{ s.note }}</div>
+      </div>
+      <div class="side">
+        {% if s.amount %}<div class="num">{{ s.amount }}</div>{% endif %}
+        <span class="chip {{ s.state }}">{{ s.chip }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+
+  {% for n in r.new_bills %}
+  <section class="card">
+    <div class="eyebrow">新到账单</div>
+    <h2 style="margin:2px 0 0">{{ n.label }}</h2>
+    <div class="muted small">{{ n.view.period }}</div>
+    {% if n.view.status[0] != "ok" %}<div class="notice">{{ n.view.status[1] }} {{ n.view.status[2] }}，请以银行原账单为准</div>{% endif %}
+    <div class="pay">
+      <div><div class="label">本期应还</div><div class="value num">{% if n.view.nothing_due %}无需还款{% elif n.view.due_cny %}¥ {{ n.view.due_cny }}{% else %}见附件{% endif %}</div></div>
+      <div><div class="label">本期消费</div><div class="value num">¥ {{ n.view.spend_cny }}</div></div>
+    </div>
+    {% if n.view.daily_chart %}
+    {{ n.view.daily_chart }}
+    <div class="muted small">{{ n.view.daily_caption }}</div>
+    {% endif %}
+    {% if n.view.category_rows %}
+    <div class="bars" style="margin-top:6px">
+      {% for b in n.view.category_rows %}
+      <div class="item">
+        <div class="head"><span>{{ b.name }}</span><span class="num">{{ b.amount }}{% if b.note %}<span class="share">{{ b.note }}</span>{% endif %}</span></div>
+        {% if b.width %}<div class="fill{% if b.color %} context{% endif %}" style="width:{{ b.width }}%"></div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="attach">{% if n.attachment %}📎 全部 {{ n.view.transaction_count }} 笔流水在附件 {{ n.attachment }}{% else %}这次没有附完整账单 PDF（发送的电脑上没找到 Edge 或 Chrome）{% endif %}</div>
+  </section>
+  {% endfor %}
+
+  {% if r.complete and r.due_lines %}
+  <section class="card">
+    <h2>还款日一览</h2>
+    {% for d in r.due_lines %}
+    <div class="tl-item">
+      <div class="tl-date num">{{ d.day }}<div class="muted">{{ d.weekday }}</div></div>
+      <div class="tl-rail"><span class="tl-dot"></span></div>
+      <div class="tl-body"><span>{{ d.label }}</span><span class="num">{{ d.amount }}</span></div>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if r.complete and r.category_rows %}
+  <section class="card">
+    <h2>本月消费 · 所有卡</h2>
+    <div class="hero num" style="font-size:32px">¥ {{ r.spend_total }}</div>
+    <div class="muted small">已扣除返现和退款；分期本金、还款、购汇不算消费</div>
+    <div class="bars" style="margin-top:6px">
+      {% for b in r.category_rows %}
+      <div class="item">
+        <div class="head"><span>{{ b.name }}</span><span class="num">{{ b.amount }}{% if b.note %}<span class="share">{{ b.note }}</span>{% endif %}</span></div>
+        {% if b.width %}<div class="fill{% if b.color %} context{% endif %}" style="width:{{ b.width }}%"></div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <footer>
+    AutoBill 自动生成 · 只展示还款日，不做提醒 · 金额以银行原账单为准<br>
+    生成于 {{ r.generated_at }}
+  </footer>
+</div>
+</body>
+</html>
