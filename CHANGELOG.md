@@ -5,12 +5,14 @@
 ## [Unreleased]
 
 ### Added
+- M7c 账单月进度邮件：按出账月份给每个账单月发邮件（已出账 N/M、待出账、可能无账单；新账单的每日消费图和分类；附标准账单 PDF；已齐时加还款日一览和全部卡的分类），同一个月的邮件用 In-Reply-To 折叠成一个对话；只为 iPhone 苹果邮件排版（深色模式、关闭数字自动识别）。卡包配置 `cards.portfolio`；`preview-email --cycle`；数据库表结构升级到 2（`cycle_threads`，自动迁移）。
 - M7b 标准账单：`autobill statement` 为每份账单生成统一模板的 HTML 和 PDF（账户摘要即对账恒等式、每日消费柱状图、分类、按天分组的全部逐笔流水；PDF 用本机的 Edge/Chrome 打印）。
 - M7 邮件报表：每导入一份账单发一封（本期摘要 + 涉及月份的最新汇总 + 还缺哪些卡 + 各卡还款日），发送成功才记 `reported_at`、不重发；MJML 排版，所有可视化是 HTML 横条（不用图片）；`import-dir --no-send`、`preview-email` 本地预览；SMTP 授权码只从环境变量读取。
 - M6 分类规则 `categorize.py`（关键词匹配原始描述、不分大小写、第一条命中生效；内置默认规则与 `rules.example.yaml` 相同；`rules.yaml` 或 `AUTOBILL_RULES` 覆盖）；终端月报新增分类占比、返现退款、按卡、近 6 个月趋势、Top 10 商户、未分类商户。
 
 ### Changed
 - `rules.example.yaml` 补充常见连锁商户。
+- M7c：报表邮件从"每份账单一封"改为按账单月的进度邮件；去掉 MJML 依赖，删除旧模板 `bill_report.mjml.j2`；`preview-email` 的 `--account` 改为 `--cycle`。
 
 ## [0.1.0] - 2026-09-19
 离线解析三家银行完成（第一版里程碑 M0–M5）。
