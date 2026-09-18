@@ -72,7 +72,7 @@ uv run autobill --help        # 运行程序本身
   - ruff、pytest 配置；`.pre-commit-config.yaml`；`.github/workflows/ci.yml`；
   - `config.example.yaml`（内容见 [security.md](security.md#配置示例configexampleyaml入库实际使用的-configyaml-不入库)）、`rules.example.yaml`（见 [notify.md](notify.md#分类规则)）。
 - **做完的标准**：CI 在 GitHub 上是绿的。
-- **怎么验证**：`uv sync && uv run pytest`，看到 `1 passed`；`uv run autobill --help` 能打印出帮助信息。
+- **怎么验证**：`uv sync`，然后 `uv run pytest` 全部通过（冒烟测试 1 个 + 身份扫描测试 12 个）；`uv run autobill --help` 能打印出帮助信息；`uv run pre-commit run --all-files` 全部 Passed。
 
 ### M1 数据模型和工具函数
 - **交付**：`model.py`（按 [data-model.md](data-model.md)）；`parse/util.py`（金额、日期、空白规范化，按 [parsing.md](parsing.md#通用工具)）。

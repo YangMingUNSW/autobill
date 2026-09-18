@@ -59,14 +59,20 @@ notifier:
 ## 数据隔离
 - **数据目录放在仓库外**，用 platformdirs 定位，Windows 上是 `%LOCALAPPDATA%\autobill\`，里面有 `autobill.db`、`raw/` 原件缓存，以及 `fx_rates` 缓存。
 - 测试用独立的 `AUTOBILL_DATA_DIR`。
-- `.gitignore`（已建立）：`/samples/`、`*.local.yaml`、`.env`、`config.yaml`、`/data/`、`*.db` 及其 `-wal`、`-shm` 文件、Python 缓存。
+- `.gitignore`（已建立）：`/samples/`、`*.local.yaml`、`.env`、`config.yaml`、`rules.yaml`、`/data/`、`*.db` 及其 `-wal`、`-shm` 文件、Python 缓存。
   - 规则以 `/` 开头，只匹配仓库根目录，避免误伤 `tests/data/` 之类的目录。
 - `.gitattributes`（已建立）：`*.eml -text`、`*.pdf binary`。本机开着 `core.autocrlf=true`，不加这两条的话，提交时 Git 会改写样本的 CRLF 换行，样本的字节就变了。
 - `.eml` **没有**全局排除，因为 `tests/fixtures/` 里的样本要入库。
-- pre-commit（M0 建立）：
+- pre-commit（M0 建立，配置在 `.pre-commit-config.yaml`；CI 跑同一套）：
   - gitleaks；
-  - 拦截 18 位身份证号、11 位手机号、16 位以上的卡号；
+  - 身份扫描 `scripts/check_identity.py`：拦截 18 位身份证号、11 位手机号、16 位以上的卡号；
   - `.eml` 和 `.pdf` **只允许出现在 `tests/fixtures/` 下**，`.db` 一律拦截。
+- 身份扫描的几个要点：
+  - **先解码再查**：`.eml` 按 MIME 解码，包括编码过的邮件头、套在里面的 `message/rfc822` 和 PDF 附件（按 `%PDF-` 识别）。只搜原始字节的话，base64 正文里的号码是看不到的。
+  - **用校验位减少误报**：身份证号要通过末位校验码，卡号要通过 Luhn 校验。真号码一定能通过，Message-ID 这类随机数字串基本通不过。手机号没有校验位，11 位都算。
+  - **报错时号码打码显示**：公开仓库的 CI 日志任何人都能看。
+  - `uv.lock` 不查内容：它是工具生成的，满是哈希和文件大小，会误报。
+  - `tests/test_check_identity.py` 用运行时拼出来的假号码，证明每条规则都**真的会报错**。
 - 日志里不打印邮件正文和金额明细。
 - 数据库落盘加密靠 BitLocker，再加上文件权限；SQLCipher 作为以后的可选项。
 
