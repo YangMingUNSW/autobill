@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from collections.abc import Callable
@@ -75,12 +76,27 @@ def html_to_pdf(
             f"--print-to-pdf={pdf_path}",
             html_path.resolve().as_uri(),
         ]
+        if sys.platform.startswith("linux"):
+            # Ubuntu 24.04 blocks the user namespaces Chrome's sandbox needs (GitHub runners,
+            # Oracle servers). The page is our own local HTML without scripts, so printing it
+            # unsandboxed is acceptable.
+            command.insert(1, "--no-sandbox")
         try:
-            run(command, capture_output=True, timeout=TIMEOUT_SECONDS, check=False)
+            done = run(command, capture_output=True, timeout=TIMEOUT_SECONDS, check=False)
         except subprocess.TimeoutExpired:
             raise PdfError(f"browser did not finish within {TIMEOUT_SECONDS}s") from None
         if not _wait_for_pdf(pdf_path, sleep):
-            raise PdfError(f"browser did not write a PDF to {pdf_path}")
+            detail = _tail(getattr(done, "stderr", b""))
+            raise PdfError(
+                f"browser did not write a PDF to {pdf_path}" + (f": {detail}" if detail else "")
+            )
+
+
+def _tail(stderr, limit: int = 300) -> str:
+    """The end of the browser's error output, for the error message."""
+    if isinstance(stderr, bytes):
+        stderr = stderr.decode("utf-8", "replace")
+    return " ".join((stderr or "").split())[-limit:]
 
 
 def _wait_for_pdf(path: Path, sleep: Callable[[float], None], step: float = 0.25) -> bool:

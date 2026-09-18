@@ -45,6 +45,7 @@ uv run autobill statement --account CCB:0004 --date 2026-06-10 --no-pdf
 - 用本机 **Edge 或 Chrome** 的无头模式，把同一份 HTML "打印"成 A4 PDF（`--headless=new --print-to-pdf`）。所以 PDF 和 HTML 内容完全一致，也不需要额外的 PDF 库。
 - 浏览器按这个顺序找：`config.yaml` 的 `statement.pdf_browser` → 常见安装路径 → PATH。找不到就只生成 HTML 并给出提示（CI 上就是这样）。
 - 每次用一个临时的浏览器配置目录，不影响你正在用的浏览器窗口。
+- Linux 上（GitHub CI、以后的 Oracle 服务器）加 `--no-sandbox`：Ubuntu 24.04 不让 Chrome 建沙箱。打印的是我们自己生成、没有脚本的本地 HTML，所以可以接受。打印失败时，错误信息里带上浏览器自己的报错。
 - Windows 上 Edge 的启动程序会先退出、由子进程继续写 PDF，所以程序会等文件写完（最多 30 秒）再判断成功与否。
 - 打印样式：区块尽量不跨页（所以第一页底部可能留白）；每日柱状图限制了高度，免得在 A4 上字被放大。
 
