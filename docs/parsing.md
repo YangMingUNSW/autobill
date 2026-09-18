@@ -71,7 +71,22 @@ class BaseParser(ABC):
 原始邮件永久保存。解析器修好后用 `autobill reparse --bank ABC --since 2025-10` 重新解析。
 
 ## 通用工具
-`autobill/parse/util.py`，三家都要用：
+`autobill/parse/util.py`（M1），三家都要用。**识别不了的格式一律抛错**（`AmountError`、`CurrencyError`、`DateError`，都继承 `FormatError`），不猜。
+
+| 函数 | 用途 |
+|---|---|
+| `normalize_ws()` | 空白规范化 |
+| `parse_amount()` | 单个金额，符号按原样返回（`CR` 后缀视为负数）；转换成我们的符号约定是解析器的事 |
+| `parse_amount_currency()` | 农行 `-28.25/USD` |
+| `parse_currency_amount()` | `AUD 0.00`、`CNY 0.00` |
+| `parse_directed_amount()` | 中行 `存款/CRED 0.07` → 金额 + 方向；中英文标签必须一致，金额不能再带正负号 |
+| `parse_currency()` | `人民币(CNY)`、`人民币 （CNY）`、`外币/AUD`、`RMB`、`美元` → ISO 代码；标签里出现两种币种就报错 |
+| `parse_date()` / `infer_year()` | 完整日期 / 只有月日时按账单周期推断年份 |
+| `is_pdf()` | 按内容识别 PDF |
+
+**"空白或 `-` 算 0"默认关闭**：解析器要显式传 `blank_is_zero=True`（建行的 `-`、中行的空单元格）。否则漏掉一个关键金额也会被当成 0，违反"找不到就报错"。
+
+具体规则：
 
 - **空白规范化**：`U+00A0` 不换行空格（建行用来填充）、`U+3000` 全角空格、`U+FEFF` BOM（农行正文里有）先转成普通空格，再合并连续空白。**例外**：农行定宽描述要在规范化**之前**按位置切分。
 - **金额**：
