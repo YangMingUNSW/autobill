@@ -17,6 +17,20 @@ class MailSource(Protocol):
 
 测试时用 `DirectorySource` 指向 `tests/fixtures/`，不需要真实邮箱，也不需要模拟 IMAP 服务器。
 
+### 解析器看到的邮件：`RawMessage`
+`autobill/fetch/message.py`（M2）。一封邮件解码一次，交给识别和解析：
+
+| 字段 | 内容 |
+|---|---|
+| `raw`、`sha256` | 原始字节和它的 sha256 |
+| `message_id` | `Message-ID` 头；没有时用 `sha256:<哈希>` |
+| `subject`、`from_addr` | 解码后的主题；发件人地址（小写，不含显示名） |
+| `sent_at` / `email_date` | `Date` 头换算成**北京时间**；`email_date` 是那一天，决定用哪天的汇率。用固定的 +08:00（中国没有夏令时），不依赖时区数据库 |
+| `html_parts`、`text_parts` | 解码后的正文，按声明的字符集解码，失败时用 GB18030 兜底 |
+| `attachments` | 其余部件；`is_pdf` 按内容判断 |
+
+转发件里的 `message/rfc822` 要在这之前拆开（M8 的 `ImapSource`），一个 `RawMessage` 永远只对应一封原始邮件。
+
 ## 邮件从哪来
 - **新账单**：主邮箱设置自动转发规则，只按银行发件人转发，转到专用的"中心账单邮箱"。
 - **历史账单**：在网页邮箱里勾选历史账单，**分小批**"作为附件"转发到中心邮箱。一次转发太多，QQ 会把附件变成会过期的"超大附件"链接，程序拿不到原件。

@@ -19,7 +19,10 @@ class BaseParser(ABC):
         找不到关键区块或字段时抛 TemplateChanged，绝不返回空列表。"""
 ```
 
-**分派流程**：
+- 接口在 `autobill/parse/base.py`（M2），`TemplateChanged` 也定义在这里。
+- **`parse()` 返回的账单已经对过账**：解析器最后一步调用 `reconcile()`，所以出来的 `Bill` 一定带着最终的 `status`、`warnings` 和合成流水。
+
+**分派流程**（M3 起）：
 1. 用注册表（[banks/README.md](banks/README.md)）识别出是哪家银行；
 2. 这家银行的解析器按版本从新到旧依次尝试，取第一个通过校验的；
 3. 全部失败时：第一版直接标为 FAILED 并告警；以后交给兜底解析器。
@@ -42,7 +45,7 @@ class BaseParser(ABC):
 ### 找不到就报错
 - 找不到区块标题或表头时抛 `TemplateChanged`。
 - 空流水只有在"本期新增 = 0 且本期还款 = 0"时才合法。
-- 单行解析失败的放进 `unparsed_rows`，账单标为 `WARN`。
+- 单行解析失败的写进 `Bill.warnings`（附上这一行的原文），账单标为 `WARN`，不中断整份账单。
 
 ### 不变量
 - 必填字段：账单日、各币种的应还金额。
@@ -118,6 +121,7 @@ class BaseParser(ABC):
 - **快照**：每封样本对应一个期望输出 `tests/snapshots/<bank>/<文件名>.json`。
   - **第一次生成的快照必须人工核对**：对账三步全部通过是前提；再随便挑几笔，和样本里的原文逐字比对。
   - 之后快照一有变动，就要在代码评审里说明原因。
+  - 快照平时只做比对；只有显式设置 `AUTOBILL_UPDATE_SNAPSHOTS=1` 跑 pytest 才会写入或覆盖，写完必须人工核对。
 - **每个解析器至少要有这几类测试**：
   - 快照一致；
   - 对账三步全部通过；

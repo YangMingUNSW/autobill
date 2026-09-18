@@ -105,6 +105,7 @@ class Bill(BaseModel):  # 一封邮件可以产出多份 Bill（中行合并账�
 2. **分项核对**（排除合成流水）：
    - `Σ(amount > 0) = new_charges + interest_fees`（仅当利息在明细中逐笔列出时才加 interest_fees）
    - `Σ|amount < 0| = payments_credits`
+   - 第 2 步**不计入 ADJUSTMENT 行**：银行把调整单独列在汇总块的"调整"一栏，不在借方、贷方合计里。
 3. **未列明细的调整**：如果 `adjustments` ≠ Σ(明细里的 ADJUSTMENT)，就补一条合成流水：`ADJUSTMENT, amount = 差额, synthetic = True, description = "账单调整（未列明细）"`。补完之后，`Σ全部流水 = 净变化` 必然成立，将来导出 Beancount 时 `balance` 断言才不会差这笔钱。
 
 **判定**：
@@ -114,6 +115,11 @@ class Bill(BaseModel):  # 一封邮件可以产出多份 Bill（中行合并账�
 | 三步全部通过 | `OK` |
 | 汇总块缺字段，无法做第 1 步 | `UNVERIFIED`：不告警，报表里注明"未对账" |
 | 任何一步对不上 | `WARN`：告警，并写明是哪一步、差多少 |
+
+**实现**（`autobill/reconcile.py`，M2）：
+- 可以重复运行：每次先去掉旧的合成流水再重新计算。
+- 警告写进 `Bill.warnings`，以"对账："开头，写明币种、第几步、差多少。解析器自己的警告（比如不认识的交易行）也会让账单保持 `WARN`。
+- 流水里出现了汇总块里没有的币种，也算 `WARN`。
 
 **实测**：6 个币种区块全部通过，明细见 [banks/abc.md](banks/abc.md) 第 8 节和 [banks/ccb.md](banks/ccb.md) 第 4 节。旧设计里的两个公式都被样本否定了：
 
