@@ -2,6 +2,7 @@
 
 import re
 import subprocess
+import sys
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -182,6 +183,7 @@ def test_html_to_pdf_command_and_success(tmp_path):
     assert f"--print-to-pdf={target.resolve()}" in command
     assert any(c.startswith("--user-data-dir=") for c in command)
     assert command[-1] == html.resolve().as_uri()
+    assert ("--no-sandbox" in command) == sys.platform.startswith("linux")
     assert kwargs["timeout"] == pdf.TIMEOUT_SECONDS
 
 
@@ -204,6 +206,12 @@ def test_html_to_pdf_failures(tmp_path):
     html.write_text("x", encoding="utf-8")
     with pytest.raises(pdf.PdfError):  # nothing written
         pdf.html_to_pdf(html, target, Path("e.exe"), run=lambda *a, **k: None, sleep=lambda s: None)
+
+    def complains(command, **kwargs):
+        return subprocess.CompletedProcess(command, 1, b"", b"FATAL: No usable sandbox!")
+
+    with pytest.raises(pdf.PdfError, match="No usable sandbox"):  # the browser's reason is kept
+        pdf.html_to_pdf(html, target, Path("e.exe"), run=complains, sleep=lambda s: None)
 
     def hang(*args, **kwargs):
         raise subprocess.TimeoutExpired("e.exe", 1)
