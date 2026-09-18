@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{{ v.title }}</title>
+<style>
+  :root {
+    --page: {{ c.page }}; --card: {{ c.card }}; --text: {{ c.text }}; --muted: {{ c.muted }};
+    --accent: {{ c.accent }}; --context: {{ c.context }}; --line: #e7e6e2;
+    --ok-bg: #e6f4ea; --ok-text: #1e5b32; --warn-bg: {{ c.warn_bg }}; --warn-text: {{ c.warn_text }};
+    --tag-bg: #eeedea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page: #111110; --card: #1c1c1b; --text: #f2f2f0; --muted: #b3b2ab;
+      --accent: #3987e5; --context: #5c5b57; --line: #2f2f2d;
+      --ok-bg: #173323; --ok-text: #9fd8b1; --warn-bg: #3a2c12; --warn-text: #f1cf8f;
+      --tag-bg: #2c2c2a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text);
+         font-family: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+         font-size: 15px; line-height: 1.55; -webkit-text-size-adjust: 100%; }
+  .wrap { max-width: 680px; margin: 0 auto; padding: 16px 12px 32px; }
+  .card { background: var(--card); border-radius: 14px; padding: 18px 18px; margin-bottom: 12px; }
+  .eyebrow { font-size: 13px; color: var(--muted); }
+  h1 { font-size: 21px; margin: 2px 0 2px; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  .muted { color: var(--muted); }
+  .nowrap { white-space: nowrap; }
+  .small { font-size: 13px; }
+  .num { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 13px; margin-top: 8px; }
+  .badge.ok { background: var(--ok-bg); color: var(--ok-text); }
+  .badge.warn { background: var(--warn-bg); color: var(--warn-text); }
+  .notice { background: var(--warn-bg); color: var(--warn-text); border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-top: 10px; }
+  .pay { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .pay .label { font-size: 13px; color: var(--muted); }
+  .pay .value { font-size: 22px; font-weight: 600; }
+  .hero { font-size: 44px; font-weight: 700; line-height: 1.15; margin: 4px 0 2px; letter-spacing: -0.5px; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { padding: 7px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 400; color: var(--muted); font-size: 13px; text-align: left; }
+  tr:last-child td { border-bottom: 0; }
+  .eq td { padding: 5px 0; }
+  .eq .total td { font-weight: 600; border-top: 1px solid var(--text); }
+  .bars .row { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; font-size: 14px; }
+  .bars .track { height: 8px; margin-top: 4px; }
+  .bars .fill { height: 8px; border-radius: 4px; background: var(--accent); min-width: 4px; }
+  .bars .fill.context { background: var(--context); }
+  .bars .share { color: var(--muted); font-size: 12px; margin-left: 6px; }
+  svg.daily { width: 100%; height: auto; display: block; margin: 14px 0 4px; }
+  svg.daily .bar { fill: var(--accent); }
+  svg.daily .axis { stroke: var(--line); stroke-width: 2; }
+  svg.daily text { fill: var(--muted); font-size: 20px; font-family: inherit; }
+  svg.daily .value { fill: var(--text); font-weight: 600; }
+  .types td:first-child { width: 34%; }
+  .types td:nth-child(2), .types th:nth-child(2) { width: 16%; padding-right: 12px; }
+  .day { font-size: 13px; color: var(--muted); padding: 14px 0 4px; border-bottom: 1px solid var(--line); }
+  .txn { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .txn:last-child { border-bottom: 0; }
+  .txn .main { min-width: 0; }
+  .txn .title { font-size: 15px; overflow-wrap: anywhere; }
+  .txn .meta { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .txn .amount { font-size: 15px; }
+  .txn.excluded .title, .txn.excluded .amount { color: var(--muted); }
+  .tag { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 4px; background: var(--tag-bg); color: var(--muted); margin-right: 6px; vertical-align: 1px; }
+  footer { font-size: 12px; color: var(--muted); text-align: center; padding: 8px 12px; }
+  @media print {
+    @page { size: A4; margin: 14mm 12mm; }
+    body { background: #ffffff; font-size: 12px; }
+    .wrap { max-width: none; padding: 0; }
+    .card { border: 1px solid #e7e6e2; break-inside: avoid; page-break-inside: avoid; }
+    .card.transactions { break-inside: auto; page-break-inside: auto; }
+    .txn, .day { break-inside: avoid; page-break-inside: avoid; }
+    .hero { font-size: 34px; }
+    svg.daily { height: 3.6cm; }  /* A4 is wider than a phone: cap the height so text stays small */
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <section class="card">
+    <div class="eyebrow">AutoBill 标准账单</div>
+    <h1>{{ v.bank_name }} · 尾号 {{ v.card }}</h1>
+    <div class="muted small"><span class="nowrap">账单周期 {{ v.period }}</span></div>
+    <div class="muted small"><span class="nowrap">账单日 {{ v.statement_date }}</span></div>
+    <span class="badge {{ v.status[0] }}">{{ v.status[1] }} {{ v.status[2] }}</span>
+    {% for w in v.warnings %}<div class="notice">⚠ {{ w }}</div>{% endfor %}
+  </section>
+
+  <section class="card">
+    <h2>付款信息</h2>
+    <div class="pay">
+      <div>
+        <div class="label">本期应还</div>
+        <div class="value">{% if v.nothing_due %}无需还款{% elif v.due_cny %}¥ {{ v.due_cny }}{% else %}见下表{% endif %}</div>
+      </div>
+      <div>
+        <div class="label">到期还款日</div>
+        <div class="value">{{ v.due_date or "—" }}</div>
+      </div>
+    </div>
+    <table style="margin-top:12px">
+      <tr><th>币种</th><th class="num">本期应还</th><th class="num">最低还款</th></tr>
+      {% for b in v.balances %}
+      <tr><td>{{ b.currency }}</td><td class="num">{{ b.due }}</td><td class="num">{{ b.minimum }}</td></tr>
+      {% endfor %}
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>账户摘要</h2>
+    {% for b in v.balances %}
+    <table class="eq"{% if not loop.first %} style="margin-top:14px"{% endif %}>
+      <tr><th colspan="2">{{ b.currency }} 账户</th></tr>
+      <tr><td>上期余额</td><td class="num">{{ b.previous }}</td></tr>
+      <tr><td>＋ 本期新增</td><td class="num">{{ b.charges }}</td></tr>
+      <tr><td>－ 还款和退款</td><td class="num">{{ b.credits }}</td></tr>
+      {% if b.adjustments != "0.00" and b.adjustments != "0" %}<tr><td>± 调整</td><td class="num">{{ b.adjustments }}</td></tr>{% endif %}
+      <tr class="total"><td>本期余额</td><td class="num">{{ b.new }}</td></tr>
+    </table>
+    {% endfor %}
+    <div class="muted small" style="margin-top:8px">本期新增含消费、费用、利息、分期和购汇；还款和退款含返现。余额为负表示有溢缴款（多还的钱）。</div>
+  </section>
+
+  <section class="card">
+    <h2>本期消费</h2>
+    <div class="hero">¥ {{ v.spend_cny }}</div>
+    <div class="muted small">{{ v.spend_by_currency or "本期没有消费" }}（已扣除返现和退款）</div>
+    {% if v.daily_chart %}
+    {{ v.daily_chart }}
+    <div class="muted small">{{ v.daily_caption }}</div>
+    {% endif %}
+    {% if v.category_rows %}
+    <div class="bars" style="margin-top:14px">
+      {% for r in v.category_rows %}
+      <div class="row"><span>{{ r.name }}</span><span class="num">{{ r.amount }}{% if r.note %}<span class="share">{{ r.note }}</span>{% endif %}</span></div>
+      {% if r.width %}<div class="track"><div class="fill{% if r.color %} context{% endif %}" style="width:{{ r.width }}%"></div></div>{% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>各类交易</h2>
+    <table class="types">
+      <tr><th>类型</th><th class="num">笔数</th><th class="num">合计</th></tr>
+      {% for t in v.type_totals %}
+      <tr><td>{{ t.label }}</td><td class="num">{{ t.count }}</td><td class="num">{% for a in t.amounts %}{{ a }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td></tr>
+      {% endfor %}
+    </table>
+  </section>
+
+  <section class="card transactions">
+    <h2>交易明细 <span class="muted small">共 {{ v.transaction_count }} 笔{% if v.currencies and "、" not in v.currencies %} · 金额单位 {{ v.currencies }}{% endif %}</span></h2>
+    {% for day in v.days %}
+    <div class="day">{{ day.label }}</div>
+    {% for t in day.lines %}
+    <div class="txn{% if t.excluded %} excluded{% endif %}" data-line="{{ t.line_no }}">
+      <div class="main">
+        <div class="title">{% if t.tag %}<span class="tag">{{ t.tag }}</span>{% endif %}{{ t.title }}</div>
+        {% if t.meta or t.excluded %}<div class="meta">{{ t.meta | join(" · ") }}{% if t.excluded %}{% if t.meta %} · {% endif %}不计入支出{% endif %}</div>{% endif %}
+      </div>
+      <div class="amount num">{{ t.amount }}</div>
+    </div>
+    {% endfor %}
+    {% endfor %}
+    {% if not v.days %}<div class="muted">本期没有交易。</div>{% endif %}
+  </section>
+
+  {% if v.fx_notes %}
+  <section class="card">
+    <h2>外币与汇率</h2>
+    {% for n in v.fx_notes %}<div class="small" style="padding:3px 0">{{ n }}</div>{% endfor %}
+  </section>
+  {% endif %}
+
+  <footer>
+    依据银行电子账单生成，金额以银行原账单为准。<br>
+    {{ v.source }} · 生成于 {{ v.generated_at }}
+  </footer>
+</div>
+</body>
+</html>

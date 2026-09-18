@@ -15,7 +15,9 @@ from autobill.notify.mail import PASSWORD_ENV, Mailer, smtp_password
 from autobill.pipeline import process, send_pending_reports
 from autobill.report.mail_report import preview_html
 from autobill.report.monthly import month_bounds, monthly_summary, render_text
-from autobill.store.db import connect
+from autobill.report.pdf import PdfError, find_browser, html_to_pdf
+from autobill.report.statement import render_statement_html
+from autobill.store.db import connect, load_bill
 
 app = typer.Typer(
     help="AutoBill: summarise credit-card statement e-mails into spending reports.",
@@ -131,3 +133,66 @@ def report(
     conn = _db()
     summary = monthly_summary(conn, month, FxRates(conn, load_config().fx))
     typer.echo(render_text(summary))
+
+
+@app.command()
+def statement(
+    account: Annotated[
+        str | None,
+        typer.Option("--account", help="Card, e.g. ABC:0003 (default with --all: every card)."),
+    ] = None,
+    statement_date: Annotated[
+        str | None, typer.Option("--date", help="Statement date YYYY-MM-DD (default: newest).")
+    ] = None,
+    every: Annotated[bool, typer.Option("--all", help="Every bill in the database.")] = False,
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="Folder to write into.")
+    ] = None,
+    pdf: Annotated[bool, typer.Option("--pdf/--no-pdf", help="Also print a PDF.")] = True,
+) -> None:
+    """Write standard statements (one unified HTML + PDF per bill, every transaction)."""
+    if not every and not account:
+        raise typer.BadParameter("请用 --account 指定一张卡，或用 --all 生成全部账单。")
+    conn = _db()
+    query, args = "SELECT id, account_id, statement_date FROM bills", []
+    conditions = []
+    if account:
+        conditions.append("account_id = ?")
+        args.append(account)
+    if statement_date:
+        conditions.append("statement_date = ?")
+        args.append(statement_date)
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+    query += " ORDER BY account_id, statement_date DESC"
+    rows = conn.execute(query, args).fetchall()
+    if account and not statement_date and not every:
+        rows = rows[:1]  # the newest statement of that card
+    if not rows:
+        raise typer.BadParameter("数据库里没有符合条件的账单，先运行 import-dir。")
+
+    config = load_config()
+    target = output or Path(config.statement.output_dir or data_dir() / "statements")
+    fx = FxRates(conn, config.fx)
+    browser = find_browser(config.statement.pdf_browser) if pdf else None
+    if pdf and browser is None:
+        typer.echo("没有找到 Edge 或 Chrome，这次只生成 HTML。")
+        typer.echo("可以在 config.yaml 的 statement.pdf_browser 里指定浏览器路径。")
+    for row in rows:
+        folder = target / row["account_id"].replace(":", "-")
+        folder.mkdir(parents=True, exist_ok=True)
+        html_path = folder / f"{row['statement_date']}.html"
+        html_path.write_text(
+            render_statement_html(load_bill(conn, row["id"]), fx), encoding="utf-8"
+        )
+        written = [html_path.name]
+        if browser is not None:
+            try:
+                html_to_pdf(html_path, html_path.with_suffix(".pdf"), browser)
+                written.append(html_path.with_suffix(".pdf").name)
+            except PdfError as exc:
+                typer.echo(f"  PDF 生成失败：{exc}")
+        typer.echo(
+            f"{row['account_id']}  {row['statement_date']}  -> {folder.name}/{' + '.join(written)}"
+        )
+    typer.echo(f"\n共 {len(rows)} 份标准账单，保存在 {target}")

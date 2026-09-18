@@ -54,6 +54,15 @@ class NotifierConfig(BaseModel):
     smtp_report: SmtpReportConfig = Field(default_factory=SmtpReportConfig)
 
 
+class StatementConfig(BaseModel):
+    """Standard statements (docs/statement.md). Both settings are optional."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    output_dir: str | None = None  # default: <data dir>/statements
+    pdf_browser: str | None = None  # Edge/Chrome executable; found automatically if unset
+
+
 class Config(BaseModel):
     """Only the sections used so far; unknown sections in config.yaml are ignored."""
 
@@ -61,6 +70,7 @@ class Config(BaseModel):
 
     fx: FxConfig = Field(default_factory=FxConfig)
     notifier: NotifierConfig = Field(default_factory=NotifierConfig)
+    statement: StatementConfig = Field(default_factory=StatementConfig)
 
 
 def data_dir() -> Path:
