@@ -1,0 +1,18 @@
+# Real statements / anything derived from real personal data — never commit
+/samples/
+*.local.yaml
+.env
+config.yaml
+
+# Runtime data (normally lives outside the repo in %LOCALAPPDATA%\autobill)
+/data/
+*.db
+*.db-wal
+*.db-shm
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/

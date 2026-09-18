@@ -1,0 +1,4 @@
+# Statement fixtures must stay byte-identical (CRLF, base64 bodies, DKIM headers).
+# Without this, core.autocrlf=true would rewrite their line endings on commit.
+*.eml -text
+*.pdf binary
