@@ -9,11 +9,13 @@ from __future__ import annotations
 from autobill.fetch.message import RawMessage
 from autobill.parse.abc import AbcHtmlParser
 from autobill.parse.base import BaseParser
+from autobill.parse.boc import BocPdfParser
 from autobill.parse.ccb import CcbHtmlParser
 
 PARSERS: list[BaseParser] = [
     AbcHtmlParser(),
     CcbHtmlParser(),
+    BocPdfParser(),
 ]
 
 

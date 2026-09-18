@@ -1,0 +1,37 @@
+[
+  {
+    "bank": "BOC",
+    "account_id": "BOC:0005",
+    "cards": [
+      "0005"
+    ],
+    "statement_date": "2026-08-22",
+    "period_start": null,
+    "period_end": null,
+    "due_date": null,
+    "email_date": "2026-08-24",
+    "balances": [
+      {
+        "currency": "AUD",
+        "previous_balance": "0",
+        "previous_deposit": "0.07",
+        "new_charges": "0.00",
+        "interest_fees": "0",
+        "payments_credits": "0.00",
+        "adjustments": "0",
+        "amount_due": "0",
+        "deposit": "0.07",
+        "min_payment": "0.00"
+      }
+    ],
+    "transactions": [],
+    "status": "OK",
+    "warnings": [],
+    "quality": 3,
+    "reported_at": null,
+    "source_message_id": "<26967116.1787549729535.JavaMail.appuser@PE18BCSPCCSTSJCL018>",
+    "source_sha256": "ea338de0dc016df44a14610e9e82e117d02338bc3823d895ba0f2bd1b286dfcd",
+    "parser_name": "boc_pdf",
+    "parser_version": 1
+  }
+]
