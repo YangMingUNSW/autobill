@@ -29,3 +29,32 @@ class FakeFrankfurter:
         return json.dumps(
             {"amount": 1.0, "base": currency, "date": day.isoformat(), "rates": {"CNY": rate}}
         ).replace(f'"{rate}"', rate)
+
+
+class FakeSMTP:
+    """Stands in for smtplib.SMTP_SSL: records logins and messages, never connects."""
+
+    instances: list["FakeSMTP"] = []
+
+    def __init__(self, host, port, timeout=None, fail_on_send=False):
+        self.host, self.port, self.timeout = host, port, timeout
+        self.logins: list[tuple[str, str]] = []
+        self.sent = []
+        self.fail_on_send = fail_on_send
+        FakeSMTP.instances.append(self)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def login(self, user, password):
+        self.logins.append((user, password))
+
+    def send_message(self, message):
+        if self.fail_on_send:
+            import smtplib
+
+            raise smtplib.SMTPServerDisconnected("server went away")
+        self.sent.append(message)

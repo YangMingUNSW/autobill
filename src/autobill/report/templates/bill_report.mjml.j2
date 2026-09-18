@@ -1,0 +1,133 @@
+{#- Report e-mail, MJML rendered by mjml-python. Every chart is an HTML table (no images),
+    so the report is complete even when the mail client blocks pictures. Colours: one
+    accent for what matters, grey for context (docs/notify.md#邮件内容). -#}
+{%- macro bar(width, color) -%}
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:separate;"><tr>
+<td width="{{ width }}%" style="background:{{ color }};height:8px;border-radius:4px;font-size:0;line-height:0;">&nbsp;</td>
+<td style="font-size:0;line-height:0;">&nbsp;</td>
+</tr></table>
+{%- endmacro -%}
+{%- macro bar_rows(rows, color) -%}
+{% for row in rows %}
+<tr>
+  <td style="padding:10px 0 4px 0;font-size:14px;color:{{ c.text }};">{{ row.name }}</td>
+  <td align="right" style="padding:10px 0 4px 0;font-size:14px;color:{{ c.text }};white-space:nowrap;">{{ row.amount }}{% if row.note %}<span style="color:{{ c.muted }};font-size:12px;">&nbsp;&nbsp;{{ row.note }}</span>{% endif %}</td>
+</tr>
+{% if row.width %}<tr><td colspan="2" style="padding:0;">{{ bar(row.width, row.color or color) }}</td></tr>{% endif %}
+{% endfor %}
+{%- endmacro -%}
+{%- macro detail_rows(rows) -%}
+{% for row in rows %}
+<tr>
+  <td style="padding:10px 0 0 0;font-size:14px;color:{{ c.text }};">{{ row.name }}</td>
+  <td align="right" style="padding:10px 0 0 0;font-size:14px;color:{{ c.text }};white-space:nowrap;">{{ row.amount }}</td>
+</tr>
+<tr><td colspan="2" style="padding:0 0 2px 0;font-size:12px;color:{{ c.muted }};">{{ row.note }}</td></tr>
+{% endfor %}
+{%- endmacro -%}
+<mjml lang="zh-CN">
+  <mj-head>
+    <mj-title>{{ subject }}</mj-title>
+    <mj-preview>{{ preview }}</mj-preview>
+    <mj-attributes>
+      <mj-all font-family="-apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif" />
+      <mj-text color="{{ c.text }}" font-size="14px" line-height="1.6" padding="0 20px" />
+      <mj-table padding="0 20px" />
+      <mj-section background-color="{{ c.card }}" padding="18px 0" border-radius="12px" />
+    </mj-attributes>
+  </mj-head>
+  <mj-body background-color="{{ c.page }}" width="600px">
+    <mj-wrapper padding="16px 12px 8px 12px">
+
+      {# ---------------- 第一部分：这份账单 ---------------- #}
+      <mj-section>
+        <mj-column>
+          <mj-text font-size="13px" color="{{ c.muted }}">本期账单</mj-text>
+          <mj-text font-size="20px" font-weight="bold" padding="2px 20px 0 20px">{{ digest.bank_name }} · {{ digest.cards_text }}</mj-text>
+          <mj-text font-size="13px" color="{{ c.muted }}" padding="2px 20px 12px 20px">账单日 {{ digest.statement_date }}&nbsp;&nbsp;·&nbsp;&nbsp;到期还款日 {{ digest.due_date or "无（本期无需还款）" }}</mj-text>
+          {% if digest.status_note %}
+          <mj-text padding="0 20px 12px 20px"><span style="background:{{ c.warn_bg }};color:{{ c.warn_text }};padding:4px 8px;border-radius:6px;font-size:13px;">⚠ {{ digest.status_note }}</span></mj-text>
+          {% endif %}
+          <mj-table>
+            <tr>
+              <td style="padding:0 0 4px 0;font-size:13px;color:{{ c.muted }};">本期应还</td>
+              <td style="padding:0 0 4px 0;font-size:13px;color:{{ c.muted }};">本期支出</td>
+            </tr>
+            <tr>
+              <td style="font-size:22px;font-weight:bold;color:{{ c.text }};">{{ digest.due_text }}</td>
+              <td style="font-size:22px;font-weight:bold;color:{{ c.text }};">¥ {{ money(digest.spend_cny) }}</td>
+            </tr>
+            <tr>
+              <td style="padding:2px 0 0 0;font-size:12px;color:{{ c.muted }};">{{ digest.due_detail }}</td>
+              <td style="padding:2px 0 0 0;font-size:12px;color:{{ c.muted }};">{{ digest.spend_detail }}</td>
+            </tr>
+          </mj-table>
+          {% if digest.category_rows %}
+          <mj-text font-size="13px" color="{{ c.muted }}" padding="16px 20px 0 20px">本期支出最多的分类</mj-text>
+          <mj-table>{{ bar_rows(digest.category_rows, c.accent) }}</mj-table>
+          {% endif %}
+          {% if digest.rate_note %}
+          <mj-text font-size="12px" color="{{ c.muted }}" padding="10px 20px 0 20px">{{ digest.rate_note }}</mj-text>
+          {% endif %}
+        </mj-column>
+      </mj-section>
+
+      {# ---------------- 第二部分：涉及的每个月 ---------------- #}
+      {% for s in months %}
+      <mj-section padding="0"><mj-column><mj-spacer height="12px" /></mj-column></mj-section>
+      <mj-section>
+        <mj-column>
+          <mj-text font-size="13px" color="{{ c.muted }}">{{ s.title }} · 所有卡合计</mj-text>
+          <mj-text font-size="32px" font-weight="bold" line-height="1.3" padding="2px 20px 0 20px">¥ {{ money(s.summary.total_cny) }}</mj-text>
+          <mj-text font-size="13px" color="{{ c.muted }}" padding="0 20px 12px 20px">{{ s.delta_text }}</mj-text>
+          {% if s.missing %}
+          <mj-text padding="0 20px 12px 20px"><div style="background:{{ c.warn_bg }};color:{{ c.warn_text }};padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.5;">⚠ 本月数据还不完整，还缺：{{ s.missing | join("、") }}。等这些账单到了，会再发一封最新的汇总。</div></mj-text>
+          {% else %}
+          <mj-text font-size="13px" color="{{ c.muted }}" padding="0 20px 12px 20px">✓ 本月各卡账单已到齐</mj-text>
+          {% endif %}
+
+          <mj-text font-size="15px" font-weight="bold" padding="8px 20px 0 20px">支出分类</mj-text>
+          <mj-table>{{ bar_rows(s.category_rows, c.accent) }}</mj-table>
+          {% if s.credit_rows %}
+          <mj-table>{{ bar_rows(s.credit_rows, c.accent) }}</mj-table>
+          {% endif %}
+
+          {% if s.card_rows | length > 1 %}
+          <mj-text font-size="15px" font-weight="bold" padding="20px 20px 0 20px">按卡</mj-text>
+          <mj-table>{{ bar_rows(s.card_rows, c.accent) }}</mj-table>
+          {% endif %}
+
+          <mj-text font-size="15px" font-weight="bold" padding="20px 20px 0 20px">近 6 个月</mj-text>
+          <mj-table>{{ bar_rows(s.trend_rows, c.context) }}</mj-table>
+
+          {% if s.merchant_rows %}
+          <mj-text font-size="15px" font-weight="bold" padding="20px 20px 0 20px">支出最多的商户</mj-text>
+          <mj-table>{{ bar_rows(s.merchant_rows, c.accent) }}</mj-table>
+          {% endif %}
+
+          {% if s.due_rows %}
+          <mj-text font-size="15px" font-weight="bold" padding="20px 20px 0 20px">各卡还款日</mj-text>
+          <mj-table>{{ detail_rows(s.due_rows) }}</mj-table>
+          {% endif %}
+
+          {% if s.uncategorised_rows %}
+          <mj-text font-size="15px" font-weight="bold" padding="20px 20px 0 20px">还没分类的商户</mj-text>
+          <mj-text font-size="12px" color="{{ c.muted }}" padding="0 20px">把关键词加进 rules.yaml，下次就能归类。</mj-text>
+          <mj-table>{{ bar_rows(s.uncategorised_rows, c.accent) }}</mj-table>
+          {% endif %}
+
+          {% if s.rate_notes %}
+          <mj-text font-size="12px" color="{{ c.muted }}" padding="14px 20px 0 20px">汇率：{{ s.rate_notes | join("；") }}</mj-text>
+          {% endif %}
+        </mj-column>
+      </mj-section>
+      {% endfor %}
+
+      <mj-section background-color="{{ c.page }}" padding="12px 0">
+        <mj-column>
+          <mj-text font-size="12px" color="{{ c.muted }}" align="center">AutoBill 自动生成 · 只有汇总，逐笔明细请看银行原账单<br>汇率按账单邮件当天折算（Frankfurter），仅供参考</mj-text>
+        </mj-column>
+      </mj-section>
+    </mj-wrapper>
+  </mj-body>
+</mjml>
