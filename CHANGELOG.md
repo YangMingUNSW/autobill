@@ -5,6 +5,7 @@
 ## [Unreleased]
 
 ### Added
+- M7b 标准账单：`autobill statement` 为每份账单生成统一模板的 HTML 和 PDF（账户摘要即对账恒等式、每日消费柱状图、分类、按天分组的全部逐笔流水；PDF 用本机的 Edge/Chrome 打印）。
 - M7 邮件报表：每导入一份账单发一封（本期摘要 + 涉及月份的最新汇总 + 还缺哪些卡 + 各卡还款日），发送成功才记 `reported_at`、不重发；MJML 排版，所有可视化是 HTML 横条（不用图片）；`import-dir --no-send`、`preview-email` 本地预览；SMTP 授权码只从环境变量读取。
 - M6 分类规则 `categorize.py`（关键词匹配原始描述、不分大小写、第一条命中生效；内置默认规则与 `rules.example.yaml` 相同；`rules.yaml` 或 `AUTOBILL_RULES` 覆盖）；终端月报新增分类占比、返现退款、按卡、近 6 个月趋势、Top 10 商户、未分类商户。
 

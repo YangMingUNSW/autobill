@@ -10,7 +10,7 @@ AutoBill：读取转发到"中心邮箱"的国内信用卡账单邮件（农行 
 3. 读和这一步有关的设计文档（development.md 每个里程碑下都有链接）。
 4. **先给出计划，等作者确认后再动手。**
 
-**当前里程碑**：M0–M6 已合并（PR #1–#9），`v0.1.0` 已打标签。M7 代码已完成（分支 `feat/m7-mail-report`），等作者审阅、合并；**M7 的最后一步（真实发一封到主邮箱、手机上看）需要作者先定中心邮箱**；之后进入 M8（IMAP 拉取 + 计划任务，打 `v0.2.0`）。每完成一步就更新这一行。
+**当前里程碑**：M0–M7 已合并（PR #1–#10），`v0.1.0` 已打标签。M7 的真实发信验证还要等作者先定中心邮箱。**M7b 标准账单**代码已完成（分支 `feat/m7b-statement`），等作者在 iPhone 上看过、合并；之后进入 M8（IMAP 拉取 + 计划任务，打 `v0.2.0`）。每完成一步就更新这一行。
 
 ## 常用命令
 ```powershell
@@ -33,7 +33,7 @@ uv run autobill --help
   - 不接 AI 解析；
   - 取信方式是中心邮箱加转发（不要改成直接读主邮箱）；
   - 不做还款提醒，只展示还款日；
-  - 报表只做汇总，不列逐笔流水；
+  - 邮件报表只做汇总，不列逐笔流水（逐笔流水在标准账单里，见 docs/statement.md）；
   - 汇率按账单邮件当天的网上汇率（Frankfurter）。
 - **代码**：
   - 金额一律用 `Decimal`；
@@ -55,7 +55,7 @@ uv run autobill --help
 | `docs/development.md` | 开发流程、里程碑 M0–M8、测试规范、Git、CI、版本发布 |
 | `docs/banks/` | 三家银行的格式规格、注册表、样本覆盖矩阵（**写解析器之前必读**） |
 | `docs/data-model.md` | 模型、符号约定、分项对账、汇率、SQLite 表 |
-| `docs/parsing.md` / `fetcher.md` / `pipeline.md` / `notify.md` | 各模块的设计 |
+| `docs/parsing.md` / `fetcher.md` / `pipeline.md` / `notify.md` / `statement.md` | 各模块的设计 |
 | `docs/security.md` | 密钥、配置、数据隔离、新样本脱敏检查清单 |
 | `docs/setup.md` | 作者本人要做的邮箱、银行、计划任务配置 |
 | `tests/fixtures/` | 脱敏后的真实账单样本（见其中的 README） |

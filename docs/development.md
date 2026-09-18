@@ -125,6 +125,20 @@ uv run autobill --help        # 运行程序本身
 - **做完的标准**：用 `import-dir` 导入一份样本后，主邮箱收到报表，**用手机打开**排版正常，图片能显示。
 - **测试**：SMTP 用假对象代替，测试不真正发信；真实发信只在手动验证时做一次。
 
+### M7b 标准账单（2026-09-19 插入）
+- **交付**：`report/statement.py` 和模板 `statement.html.j2`、`report/pdf.py`（用本机的 Edge/Chrome 打印 PDF）、命令 `autobill statement`。设计见 [statement.md](statement.md)。
+- **做完的标准**：
+  - 8 份样本账单都能生成 HTML，本机有浏览器时也生成 PDF；
+  - 每一笔流水都在；账户摘要等于对账恒等式；没有脚本和外部资源；
+  - 作者在 iPhone 的"文件"App 里打开看过并认可。
+- **怎么验证**：
+  ```powershell
+  $env:AUTOBILL_DATA_DIR = "$env:TEMP\autobill-dev"
+  uv run autobill import-dir tests/fixtures --no-send
+  uv run autobill statement --all -o "$env:USERPROFILE\iCloudDrive\AutoBill-预览"
+  ```
+  然后在 iPhone 的"文件"App → iCloud 云盘 → AutoBill-预览 里打开 HTML 和 PDF。
+
 ### M8 IMAP 拉取 + 计划任务 → 打 `v0.2.0`（第一版可用）
 - **交付**：
   - `ImapSource`（只读游标、拆 rfc822 附件、银行识别）；
