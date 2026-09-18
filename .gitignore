@@ -3,6 +3,7 @@
 *.local.yaml
 .env
 config.yaml
+rules.yaml
 
 # Runtime data (normally lives outside the repo in %LOCALAPPDATA%\autobill)
 /data/

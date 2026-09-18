@@ -1,0 +1,39 @@
+# AutoBill 配置示例：复制为 config.yaml 后修改（config.yaml 不入库）。
+# 密码和授权码不写在这里，见 docs/security.md#密钥。
+
+system:
+  timezone: "Asia/Shanghai"          # 账单日期按北京时间理解
+  data_dir: null                     # null 表示用 platformdirs 的默认位置；测试时用 AUTOBILL_DATA_DIR
+  backfill_months: 12
+
+cards:
+  card_aliases:                      # 换卡后的新尾号 → 原账户
+    "CCB:5678": "CCB:1234"
+
+banks:                               # 按银行的策略，取值依据见 docs/banks/README.md
+  ABC: { due_window_days: [15, 30] } # 以后再加：dkim: verify, zero_statement: unknown
+  CCB: { due_window_days: [15, 30] } # 以后再加：dkim: none,   zero_statement: unknown
+  BOC: { due_window_days: [15, 30] } # 以后再加：dkim: verify, zero_statement: always
+
+mail_fetcher:
+  imap_server: "imap.qq.com"
+  imap_port: 993
+  username: "bill_receiver@example.com"
+  folders: ["INBOX", "CreditCard_Raw", "Junk"]
+  poll_minutes: 15
+
+fx:                                  # 折算人民币用的汇率，见 docs/data-model.md#汇率
+  source: "https://api.frankfurter.dev/v1"   # 按账单邮件发出当天取汇率，免费、不需要 key
+  fallback_to_cny: { USD: 7.10, AUD: 4.60, EUR: 7.80 }   # 联网失败时使用，报表里标注"配置汇率"
+
+notifier:
+  smtp_report:
+    enabled: true
+    smtp_server: "smtp.qq.com"
+    smtp_port: 465
+    username: "bill_receiver@example.com"
+    to_addr: "my_primary_mail@example.com"
+  wechat_work:                       # 以后，经 Oracle 中转
+    enabled: false
+    relay_url: "http://10.66.66.1:8787"
+    touser: "YOUR_USERID"            # 只填本人，不用 @all
