@@ -35,7 +35,7 @@ class TxnType(StrEnum):
 
 class Transaction(BaseModel):
     line_no: int  # 在账单内的顺序，合成流水排在最后
-    txn_id: str  # 稳定 ID：hash(银行, 账户, 交易日, 金额, 描述, line_no)
+    txn_id: str  # 稳定 ID，由 make_txn_id() 生成，见下文
     trans_date: date
     post_date: date | None
     txn_type: TxnType
@@ -87,6 +87,14 @@ class Bill(BaseModel):  # 一封邮件可以产出多份 Bill（中行合并账�
     parser_name: str
     parser_version: int
 ```
+
+**实现上的约定**（`autobill/model.py`，M1）：
+- **金额字段只接受 `Decimal`**：传入浮点数、整数或字符串都会报错，赋值时也会检查。这样"金额一律用 Decimal"由代码把关。
+- 文档里注明 ≥0 的字段（上期欠款、上期溢缴款、本期还款退货、本期欠款、本期溢缴款、最低还款）不允许负数；`adjustments`、`new_charges` 可以为负。
+- 币种是 3 个大写字母；`card_last4` 是 4 位数字；`account_id` 形如 `ABC:0002` 或 `CCB:unknown`；`installment` 形如 `3/36`。
+- **拼错字段名会直接报错**，不会被悄悄忽略。
+- `Bill.status` 只有 `OK / WARN / UNVERIFIED`；`FAILED`、`UNRECOGNIZED` 这些是**邮件**的状态，没有对应的 Bill。
+- **`txn_id`**：把 `银行、账户、交易日、金额、描述、line_no` 用分隔符拼起来，取 SHA-256 的前 16 位十六进制。金额先规范化，`28.25` 和 `28.250` 得到同一个 ID。
 
 ## 对账
 
