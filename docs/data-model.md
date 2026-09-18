@@ -135,12 +135,19 @@ class Bill(BaseModel):  # 一封邮件可以产出多份 Bill（中行合并账�
 - **从哪里取**：[Frankfurter](https://api.frankfurter.dev)，欧洲央行参考汇率，免费、不需要 key，支持 CNY、USD、AUD、EUR，可以查历史日期；遇到周末和节假日，会自动返回上一个工作日的汇率。
   - 接口：`GET https://api.frankfurter.dev/v1/<YYYY-MM-DD>?base=<币种>&symbols=CNY`
   - 实测（2026-09-19）：2026-08-24 的 USD→CNY 为 6.7227，和农行账单上的购汇汇率 6.76 很接近，精度足够。
-- **缓存**：取到的汇率写入 `fx_rates` 表，以后不再重复请求。
-- **兜底**：联网失败时，用配置里的 `fx.fallback_to_cny`，并在报表里标注"配置汇率"。
+- **缓存**：取到的汇率写入 `fx_rates` 表，以后不再重复请求。同时记下 `rate_date`，也就是汇率实际发布的日期（周末会早一两天）。
+- **当天还没公布**：查未来或还没公布的日期，Frankfurter 返回 404，程序就往前退一天再查，最多退 7 天。
+- **兜底**：联网失败时，用配置里的 `fx.fallback_to_cny`，并在报表里标注"配置汇率"。**兜底汇率不写进缓存**，下次运行还会再试一次联网。
+- **人民币**不查汇率，直接按 1 计（Frankfurter 查 CNY→CNY 会报错）。
+- 实现在 `autobill/fx.py`（M3），汇率全程用 `Decimal`，JSON 里的数字也按 `Decimal` 解析。
 - **计算**：本期各币种的支出合计 × 当天汇率，再相加得到人民币总额。月报按交易日归到自然月，但每笔金额仍按它所属账单的汇率折算。
 
 ## SQLite 表
-开启 WAL、`busy_timeout` 和外键约束。
+开启 WAL、`busy_timeout` 和外键约束。实现在 `autobill/store/db.py`，表结构版本记在 `PRAGMA user_version`。
+
+- **M3 已建**：`emails`、`bills`、`bill_balances`、`transactions`、`fx_rates`。其余几张表（`folder_cursors`、`accounts`/`cards`、`runs`）到 M8 再建。
+- **金额存成文本**（如 `"28.25"`），读出来变回 `Decimal`。**不要在 SQL 里对金额 `SUM()`**：SQLite 会先转成浮点数。求和一律在 Python 里做。
+- `save_bill()` 更新已有账单时，`reported_at` 保留原值，汇总块和流水整体替换。
 
 | 表 | 用途 | 关键约束 |
 |---|---|---|

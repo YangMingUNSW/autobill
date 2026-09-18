@@ -39,3 +39,13 @@ def snapshot():
         )
 
     return check
+
+
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch):
+    """Tests never reach the real rate service; a test that needs rates passes a fake."""
+
+    def refuse(url: str) -> str:
+        raise RuntimeError(f"network access in a test: {url}")
+
+    monkeypatch.setattr("autobill.fx.http_fetch", refuse)

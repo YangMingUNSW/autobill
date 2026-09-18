@@ -17,6 +17,10 @@
 
 ## 配置示例（`config.example.yaml`，入库；实际使用的 `config.yaml` 不入库）
 
+**配置文件放在哪**：`<数据目录>/config.yaml`，也就是 `%LOCALAPPDATA%\autobill\config.yaml`；可以用环境变量 `AUTOBILL_CONFIG` 指到别处。**没有这个文件也能运行**，这时用和下面示例相同的默认值。M3 只读取 `fx` 一节，其余各节在用到它们的里程碑里接上。
+
+**数据目录**：环境变量 `AUTOBILL_DATA_DIR` 优先（测试一律设成临时目录），否则是 `%LOCALAPPDATA%\autobill\`。
+
 ```yaml
 system:
   timezone: "Asia/Shanghai"          # 账单日期按北京时间理解

@@ -48,8 +48,16 @@ FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表�
 ## CLI
 `autobill run | fetch | process | report --month YYYY-MM | import-dir <路径> | reparse [--bank X --since YYYY-MM] | rebuild | status`
 
-- `import-dir`：直接导入一个目录里的 .eml 文件，离线开发和测试都用它（对应 `DirectorySource`）。
+- `import-dir`：直接导入一个目录里的 .eml 文件（包括子目录），离线开发和测试都用它（对应 `DirectorySource`）。每封邮件输出一行状态，最后给出合计。
 - `report --month`：在终端输出某个月的汇总。M3–M6 先用它看结果，M7 开始发邮件。
+- **M3 已实现** `import-dir` 和 `report --month`，其余命令在后面的里程碑里加。
+
+**M3 的处理流程**（`autobill/pipeline.py`）：
+1. 读出 `RawMessage`；Message-ID 已经在 `emails` 表里的，直接跳过（`SKIPPED`）。所以**同一个目录导入两次，数据库不变**。
+2. 原件写入 `<数据目录>/raw/<sha256>.eml`（先写临时文件再改名）。
+3. 用注册表（`parse/registry.py`）找解析器：找不到是 `UNRECOGNIZED`；解析时抛 `TemplateChanged` 或格式错误是 `FAILED`，原因写进 `emails.error`。
+4. 在**一个事务**里写入 `emails` 行和账单；出错整体回滚。
+- 失败的邮件目前也会被记为"已处理"，修好解析器后要等 `reparse` 命令（以后）才能重新解析。
 - `rebuild`：清空数据库，从中心邮箱全量重新拉取、解析，**不受 12 个月回填范围限制**。
 
 ## 备份
