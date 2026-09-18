@@ -14,6 +14,7 @@
   - `AUTOBILL_BOC_PDF_PASSWORD`：可选，实测中行 PDF 没有加密
   - `AUTOBILL_WECOM_SECRET`：以后接企业微信时使用
 - 授权码一旦泄露，就去邮箱里撤销，再重新生成。
+- **M7 的实现**：发信授权码只从环境变量 `AUTOBILL_SMTP_PASSWORD` 读取，不写进 `config.yaml`、日志、错误信息或任何文件；`Mailer` 的 `repr` 也不含它（有测试）。Windows 凭据管理器（`keyring`）在 M8 接计划任务时再加。
 
 ## 配置示例（`config.example.yaml`，入库；实际使用的 `config.yaml` 不入库）
 
@@ -49,7 +50,7 @@ fx:                                  # 折算人民币用的汇率，见 docs/da
 
 notifier:
   smtp_report:
-    enabled: true
+    enabled: false                   # 填好真实邮箱后改成 true
     smtp_server: "smtp.qq.com"
     smtp_port: 465
     username: "bill_receiver@example.com"

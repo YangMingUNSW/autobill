@@ -98,3 +98,37 @@ _SEVERITY = ["OK", "UNVERIFIED", "WARN"]
 
 def _worst(statuses: list[str]) -> str:
     return max(statuses, key=_SEVERITY.index)
+
+
+@dataclass
+class SendResult:
+    sent: list[int] = field(default_factory=list)  # bill ids
+    failed: tuple[int, str] | None = None  # the first failure stops the run
+
+
+def send_pending_reports(conn: sqlite3.Connection, mailer, fx, rules=None) -> SendResult:
+    """Send one report per bill that has none yet (reported_at IS NULL), oldest first.
+
+    reported_at is written only after the mail server accepted the message, so a failed
+    send is retried on the next run and a successful one is never repeated. The first
+    failure stops the run: when the login or server is broken, every later send would
+    fail the same way.
+    """
+    from autobill.report.mail_report import build_email  # heavy imports (matplotlib)
+
+    result = SendResult()
+    pending = conn.execute(
+        "SELECT id FROM bills WHERE reported_at IS NULL ORDER BY statement_date, id"
+    ).fetchall()
+    for (bill_id,) in pending:
+        try:
+            message = build_email(
+                conn, bill_id, fx, mailer.config.username, mailer.config.to_addr, rules
+            )
+            mailer.send(message)
+        except Exception as exc:  # noqa: BLE001 - report the error, keep the bill pending
+            result.failed = (bill_id, f"{type(exc).__name__}: {exc}")
+            break
+        conn.execute("UPDATE bills SET reported_at = ? WHERE id = ?", (now(), bill_id))
+        result.sent.append(bill_id)
+    return result

@@ -49,3 +49,14 @@ def no_network(monkeypatch):
         raise RuntimeError(f"network access in a test: {url}")
 
     monkeypatch.setattr("autobill.fx.http_fetch", refuse)
+
+
+@pytest.fixture(autouse=True)
+def no_real_smtp(monkeypatch):
+    """Tests never send real mail; a test that sends passes a fake SMTP class."""
+
+    def refuse(*args, **kwargs):
+        raise RuntimeError("real SMTP connection in a test")
+
+    monkeypatch.setattr("smtplib.SMTP_SSL", refuse)
+    monkeypatch.delenv("AUTOBILL_SMTP_PASSWORD", raising=False)

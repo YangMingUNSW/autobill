@@ -31,12 +31,36 @@ class FxConfig(BaseModel):
     )
 
 
+class SmtpReportConfig(BaseModel):
+    """Where report e-mails go. The password (授权码) is never in config.yaml: it is read
+    from the AUTOBILL_SMTP_PASSWORD environment variable at send time."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    enabled: bool = False  # off until the author has filled in a real mailbox
+    smtp_server: str = ""
+    smtp_port: int = 465
+    username: str = ""  # the sending (central) mailbox
+    to_addr: str = ""  # the author's primary mailbox
+
+    @property
+    def ready(self) -> bool:
+        return self.enabled and bool(self.smtp_server and self.username and self.to_addr)
+
+
+class NotifierConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    smtp_report: SmtpReportConfig = Field(default_factory=SmtpReportConfig)
+
+
 class Config(BaseModel):
     """Only the sections used so far; unknown sections in config.yaml are ignored."""
 
     model_config = ConfigDict(extra="ignore")
 
     fx: FxConfig = Field(default_factory=FxConfig)
+    notifier: NotifierConfig = Field(default_factory=NotifierConfig)
 
 
 def data_dir() -> Path:
