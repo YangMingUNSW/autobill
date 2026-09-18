@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### Added
+- M6 分类规则 `categorize.py`（关键词匹配原始描述、不分大小写、第一条命中生效；内置默认规则与 `rules.example.yaml` 相同；`rules.yaml` 或 `AUTOBILL_RULES` 覆盖）；终端月报新增分类占比、返现退款、按卡、近 6 个月趋势、Top 10 商户、未分类商户。
+
+### Changed
+- `rules.example.yaml` 补充常见连锁商户。
+
 ## [0.1.0] - 2026-09-19
 离线解析三家银行完成（第一版里程碑 M0–M5）。
 

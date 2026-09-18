@@ -91,3 +91,70 @@ def test_month_bounds(month, bounds):
 def test_month_bounds_rejects(bad):
     with pytest.raises(ValueError):
         month_bounds(bad)
+
+
+# --- M6: categories, cards, trend, merchants ---------------------------------------
+
+
+def test_categories_and_credits(summary_for):
+    s = summary_for("2026-08")
+    # Recomputed from the raw HTML by a separate script (not through the parser).
+    assert s.categories["超市"] == D("3588.72")
+    assert s.categories["微信/支付宝（未细分）"] == D("150.00")  # the two 财付通 payments
+    assert s.credits == {"返现": D("-220.32")}
+    assert list(s.categories.values()) == sorted(s.categories.values(), reverse=True)
+    # Categories minus credits equal the total, up to rounding of each item.
+    total = sum(s.categories.values()) + sum(s.credits.values())
+    assert abs(total - s.total_cny) <= D("0.05")
+
+
+def test_by_account_and_trend(summary_for):
+    s = summary_for("2026-08")
+    assert s.by_account == {
+        "ABC:0001": D("378.62"),
+        "ABC:0002": D("15097.31"),
+        "ABC:0003": D("150.00"),
+    }
+    assert [m for m, _ in s.trend] == [
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+    ]
+    assert s.trend[-1] == ("2026-08", s.total_cny)
+    assert s.trend[0][1] is None  # no data that month
+
+
+def test_top_and_uncategorised_merchants(summary_for):
+    s = summary_for("2026-08")
+    assert len(s.top_merchants) == 10
+    assert s.top_merchants[0][0] == "Woolworths Online"
+    values = [v for _, v in s.top_merchants]
+    assert values == sorted(values, reverse=True)
+    names = {name for name, _, _ in s.uncategorised}
+    assert "Woolworths Online" not in names and "OLIVE GREEK TAVERNA" in names
+
+
+def test_editing_rules_takes_effect_without_reimport(summary_for, isolated_data_dir):
+    before = summary_for("2026-08")
+    assert "OLIVE GREEK TAVERNA" in {n for n, _, _ in before.uncategorised}
+    (isolated_data_dir / "rules.yaml").write_text("餐饮: [TAVERNA]\n", encoding="utf-8")
+    after = summary_for("2026-08")
+    assert "OLIVE GREEK TAVERNA" not in {n for n, _, _ in after.uncategorised}
+    assert after.categories["餐饮"] >= D("1856.17")
+
+
+def test_render_has_every_section(summary_for):
+    text = render_text(summary_for("2026-08"))
+    for heading in [
+        "一、各卡明细",
+        "二、分类",
+        "三、按卡",
+        "四、近 6 个月",
+        "五、支出最多的商户",
+        "六、未分类",
+    ]:
+        assert heading in text
+    assert "返现（扣减）" in text and "← 本月" in text
