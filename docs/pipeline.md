@@ -26,6 +26,8 @@ FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表�
   - 整体替换这份账单的流水；
   - 更新 `emails.status`。
 - **report**：给还没有 `reported_at` 的账单发报表邮件，发送成功后再写入 `reported_at`。这样重复运行不会重发；发送失败的，下次运行会再发一次。
+  - 实现在 `pipeline.send_pending_reports()`（M7），按账单日从早到晚发；**遇到第一次失败就停下**（授权码错或服务器不通时，后面的也都会失败），命令以非零状态退出。
+  - ⚠ 以后接 IMAP 回填 12 个月历史账单时，一次会发出很多封报表。M8 要决定：回填时是否只给最新一期发，或者先 `--no-send` 导入、再手动发。
 
 ## 三层去重
 1. **邮件层**：Message-ID，缺失时用 sha256。
@@ -51,6 +53,7 @@ FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表�
 - `import-dir`：直接导入一个目录里的 .eml 文件（包括子目录），离线开发和测试都用它（对应 `DirectorySource`）。每封邮件输出一行状态，最后给出合计。
 - `report --month`：在终端输出某个月的汇总。M3–M6 先用它看结果，M7 开始发邮件。
 - **M3 已实现** `import-dir` 和 `report --month`，其余命令在后面的里程碑里加。
+- **M7 起**：`import-dir` 导入完成后，给所有还没发过报表的账单（`reported_at` 为空）逐一发邮件；`--no-send` 跳过发送。没配置邮箱或没有授权码时只提示、不发。`preview-email [--account ABC:0001] [-o 文件]` 把某张卡最新账单的报表写成 HTML 文件，不发信。
 
 **M3 的处理流程**（`autobill/pipeline.py`）：
 1. 读出 `RawMessage`；Message-ID 已经在 `emails` 表里的，直接跳过（`SKIPPED`）。所以**同一个目录导入两次，数据库不变**。
@@ -81,5 +84,5 @@ FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表�
 
 ## 技术栈
 - Python ≥3.12（本机装有 3.12 和 3.14）、uv + hatchling、ruff、pytest。
-- 依赖：pydantic v2、pydantic-settings、imapclient、beautifulsoup4 + lxml、pdfplumber、dkimpy、httpx（汇率）、matplotlib（报表图表）、jinja2、premailer、typer、platformdirs、keyring。
+- 依赖：pydantic v2、pydantic-settings、imapclient、beautifulsoup4 + lxml、pdfplumber、dkimpy、httpx（汇率）、jinja2、mjml（报表邮件排版，M7；最初计划的 matplotlib 和 premailer 已不用）、typer、platformdirs、keyring。
 - **不用 PyMuPDF**：它是 AGPL 许可，而本项目要公开。

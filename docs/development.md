@@ -120,7 +120,8 @@ uv run autobill --help        # 运行程序本身
 - **做完的标准**：用样本跑出来的报表，每一节都有内容；"财付通"等消费归入"微信 / 支付宝（未细分）"。
 
 ### M7 邮件报表
-- **交付**：`report/`（Jinja2 模板 + matplotlib 画 PNG）、`notify/mail.py`（SMTP 465）。每导入一份账单就发一封邮件（见 [notify.md](notify.md#报表什么时候发)）。
+- **交付**：`report/mail_report.py`（Jinja2 + MJML 模板，所有可视化都是 HTML 横条，不用图片）、`notify/mail.py`（SMTP 465）、`autobill preview-email`（本地预览）。每导入一份账单就发一封邮件（见 [notify.md](notify.md#报表什么时候发)）。
+- **先看预览**：真实发信之前，`uv run autobill preview-email -o preview.html` 生成报表，用浏览器打开、按 F12 切到手机尺寸检查排版。
 - **做完的标准**：用 `import-dir` 导入一份样本后，主邮箱收到报表，**用手机打开**排版正常，图片能显示。
 - **测试**：SMTP 用假对象代替，测试不真正发信；真实发信只在手动验证时做一次。
 

@@ -28,7 +28,7 @@ fx:                                  # 折算人民币用的汇率，见 docs/da
 
 notifier:
   smtp_report:
-    enabled: true
+    enabled: false                   # 填好真实邮箱后改成 true
     smtp_server: "smtp.qq.com"
     smtp_port: 465
     username: "bill_receiver@example.com"
