@@ -114,7 +114,7 @@
 | A6 | 伪造账单邮件 | 中心邮箱地址保密、报表不放链接；⏳ 按银行配置 DKIM | [fetcher](docs/fetcher.md#来源校验) |
 | A8 | **未列明细的调整**（农行银联卡 0.62）导致误报 | 分项对账 + 合成调整流水 | [data-model](docs/data-model.md#对账) |
 | A9 | 建行没有 DKIM，无法验证来源 | ⏳ 做 DKIM 校验时，建行跳过，接受残余风险 | [fetcher](docs/fetcher.md#来源校验) |
-| A10 | **建行在没有流水的月份拿不到卡号** | 回退到单卡配置或 `CCB:unknown`，再人工映射 | [banks/ccb](docs/banks/ccb.md) |
+| A10 | **建行在没有流水的月份拿不到卡号** | 回退到 `CCB:unknown` 并标 WARN（M4）；按单卡配置直接指定放到 M8，再人工映射 | [banks/ccb](docs/banks/ccb.md) |
 | A11 | 国内微信、支付宝消费看不到真正的商户 | 账单本身的限制，归入"微信/支付宝（未细分）" | [notify](docs/notify.md#分类规则) |
 | B1 | 交易日没有年份 | 三家都带年份；推断逻辑留给以后接入的银行 | [parsing](docs/parsing.md#通用工具) |
 | B2 | 字符集标错导致乱码 | 失败时用 GB18030 兜底 | [fetcher](docs/fetcher.md#mime-处理) |

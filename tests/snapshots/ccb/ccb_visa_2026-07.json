@@ -1,0 +1,56 @@
+{
+  "bank": "CCB",
+  "account_id": "CCB:0004",
+  "cards": [
+    "0004"
+  ],
+  "statement_date": "2026-07-10",
+  "period_start": "2026-06-11",
+  "period_end": "2026-07-10",
+  "due_date": "2026-08-01",
+  "email_date": "2026-07-11",
+  "balances": [
+    {
+      "currency": "CNY",
+      "previous_balance": "15450.83",
+      "previous_deposit": "0",
+      "new_charges": "0.00",
+      "interest_fees": "0",
+      "payments_credits": "15450.83",
+      "adjustments": "0",
+      "amount_due": "0.00",
+      "deposit": "0.00",
+      "min_payment": "0"
+    }
+  ],
+  "transactions": [
+    {
+      "line_no": 1,
+      "txn_id": "1ce9eb34d6d8365b",
+      "trans_date": "2026-06-11",
+      "post_date": "2026-06-11",
+      "txn_type": "repayment",
+      "amount": "-15450.83",
+      "currency": "CNY",
+      "orig_amount": null,
+      "orig_currency": null,
+      "fx_rate": null,
+      "description_raw": "手机银行 按卡转账还款 张三",
+      "group_raw": null,
+      "merchant": null,
+      "merchant_location": null,
+      "card_last4": "0004",
+      "installment": null,
+      "category": null,
+      "synthetic": false
+    }
+  ],
+  "status": "OK",
+  "warnings": [],
+  "quality": 3,
+  "reported_at": null,
+  "source_message_id": "<348396588.1555121783716921593.JavaMail.ncismigbat@d618cidrtap0055>",
+  "source_sha256": "e4fd5995d382f1e948f09fa0886ff472619e796b678310f1aecca930193b4c22",
+  "parser_name": "ccb_html",
+  "parser_version": 1
+}
