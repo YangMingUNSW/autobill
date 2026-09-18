@@ -37,8 +37,9 @@ CONTENT_EXEMPT = {PurePosixPath("uv.lock")}
 
 ID18_RE = re.compile(r"(?<!\d)(\d{17}[\dXx])(?![\dA-Za-z])")
 MOBILE_RE = re.compile(r"(?<!\d)(1[3-9]\d{9})(?!\d)")
-# 16-19 digits, optionally grouped by single spaces or dashes ("6228 4812 ...").
-CARD_RE = re.compile(r"(?<!\d)(\d(?:[ -]?\d){15,18})(?!\d)")
+# 16-19 digits written in one run, or in groups of four ("6228 4812 3456 7890 123").
+# Dates next to each other ("2025-06-02 2025-06-04") must not read as one card number.
+CARD_RE = re.compile(r"(?<![\d-])(\d{16,19}|\d{4}(?:[ -]\d{4}){3}(?:[ -]?\d{1,3})?)(?![\d-])")
 
 ID18_WEIGHTS = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2]
 ID18_CHECK_CHARS = "10X98765432"

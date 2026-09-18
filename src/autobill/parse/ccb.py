@@ -6,8 +6,8 @@ parser flattens every table row in document order, skips rows that only hold nes
 tables, and locates the data by Chinese anchor text.
 
 CCB transactions already use our sign convention (repayments negative), so amounts are
-taken as printed. Everything about purchases is inferred until a sample with spending
-arrives (docs/banks/ccb.md §7).
+taken as printed. Purchases, rebates and repayments are confirmed by samples; fees,
+interest, cash advances and instalments are still inferred (docs/banks/ccb.md §5).
 """
 
 from __future__ import annotations
@@ -37,7 +37,10 @@ BODY_MARKERS = ("龙卡信用卡对账单", "【交易明细】")
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 SECTION_RE = re.compile(r"^\[(.+?)\]")  # "[人民币账户] RMB Account"
+CARD_CELL_RE = re.compile(r"(\d{4})(?:/\d{4})?")  # "0004" or "0004/0007" (Apple Pay)
 UNKNOWN_ACCOUNT = "CCB:unknown"
+# "Visa 26 Apr-Sep FX RewardCashback", "CCB CXMUSE 1pct Rebate", 返现
+REBATE_RE = re.compile(r"返现|cashback|rebate", re.IGNORECASE)
 
 
 class CcbHtmlParser(BaseParser):
@@ -227,8 +230,12 @@ class _Statement:
         foreign = orig_currency != currency
         txn_type = _classify(description, amount)
         trans_date = parse_date(tdate)
-        if last4 and not re.fullmatch(r"\d{4}", last4):
+        # "0004/0007" = physical card / Apple Pay device number. The spending belongs to the
+        # physical card; the device number is not kept (docs/banks/ccb.md §5).
+        m = CARD_CELL_RE.fullmatch(last4)
+        if last4 and not m:
             raise FormatError(f"unexpected card number {last4!r}")
+        last4 = m.group(1) if m else ""
         return Transaction(
             line_no=line_no,
             txn_id="",  # set in _with_account once the account is known
@@ -259,10 +266,14 @@ class _Statement:
 
 
 def _classify(description: str, amount: Decimal) -> TxnType:
-    """CCB prints no groups, so the type comes from sign and keywords. Only the repayment
-    case is confirmed by a sample; the rest is inferred (docs/banks/ccb.md §5)."""
+    """CCB prints no groups, so the type comes from sign and keywords. Repayments, purchases
+    and rebates are confirmed by samples; the rest is inferred (docs/banks/ccb.md §5)."""
     if amount < 0:
-        return TxnType.REPAYMENT if "还款" in description else TxnType.REFUND
+        if "还款" in description:
+            return TxnType.REPAYMENT
+        if REBATE_RE.search(description):
+            return TxnType.REBATE
+        return TxnType.REFUND
     if "年费" in description or "手续费" in description:
         return TxnType.FEE
     if "利息" in description:
