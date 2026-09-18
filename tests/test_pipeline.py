@@ -37,9 +37,9 @@ def test_import_all_fixtures(env):
         "abc_unionpay_2026-09.eml": "OK",
         "abc_visa_2026-09.eml": "OK",
         "boc_visa_2026-08.eml": "UNRECOGNIZED",  # parser arrives in M5
-        "ccb_visa_2026-07.eml": "UNRECOGNIZED",  # parser arrives in M4
+        "ccb_visa_2026-07.eml": "OK",
     }
-    assert conn.execute("SELECT COUNT(*) FROM bills").fetchone()[0] == 3
+    assert conn.execute("SELECT COUNT(*) FROM bills").fetchone()[0] == 4
     assert conn.execute("SELECT COUNT(*) FROM emails").fetchone()[0] == 5
     assert len(list((data_dir / "raw").glob("*.eml"))) == 5  # originals kept for reparse
 
