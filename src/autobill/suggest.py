@@ -59,6 +59,10 @@ class SuggesterError(RuntimeError):
     """The provider was reached but failed: login, balance, a malformed answer, ..."""
 
 
+class AnswerCutOff(SuggesterError):
+    """The answer hit the output limit: fewer merchants at a time will fit."""
+
+
 Factory = Callable[[AiConfig], CategorySuggester]
 _PROVIDERS: dict[str, Factory] = {}
 

@@ -20,7 +20,7 @@ from autobill.notify import alerts
 from autobill.pipeline import process
 from autobill.report.statement import build_view
 from autobill.store.db import connect, load_bill
-from autobill.suggest import MerchantInfo, SuggesterError, Verdict
+from autobill.suggest import AnswerCutOff, MerchantInfo, SuggesterError, Verdict
 
 FIXTURES = Path(__file__).parent / "fixtures"
 RATES = {("USD", "2026-09-02"): "6.7215", ("USD", "2026-09-04"): "6.7109",
@@ -147,9 +147,27 @@ def test_a_rule_always_wins_over_the_ai(db, isolated_data_dir):
 def test_failure_part_way_keeps_the_answers_before_it(db):
     a, b = names(db, 2)
     model = FakeModel(known={a: Verdict("餐饮", "high")}, fail_on_search=True)
-    with pytest.raises(SuggesterError, match="余额不足"):
-        classify_merchants(db, model, load_rules(db), AiConfig(), limit=2)
+    result = classify_merchants(db, model, load_rules(db), AiConfig(), limit=2)
+    assert "余额不足" in str(result.error) and result.left >= 1
     assert set(stored(db)) == {a}  # b was never answered: asked again next time
+
+
+class CutsOff(FakeModel):
+    """Like DeepSeek thinking at length: more than 3 merchants do not fit one answer."""
+
+    def classify(self, merchants, categories, *, search):
+        if len(merchants) > 3:
+            self.calls.append((merchants, categories, search))
+            raise AnswerCutOff("AI 的回答太长被截断")
+        return super().classify(merchants, categories, search=search)
+
+
+def test_a_batch_whose_answer_is_cut_off_is_asked_in_halves(db):
+    ten = names(db, 10)
+    model = CutsOff(known={n: Verdict("餐饮", "high") for n in ten})
+    result = classify_merchants(db, model, load_rules(db), AiConfig(), limit=10)
+    assert result.error is None and result.used == set(ten)
+    assert [len(ms) for ms, _, _ in model.calls] == [10, 5, 2, 3, 5, 2, 3]
 
 
 def test_transaction_list_marks_ai_categories(db):

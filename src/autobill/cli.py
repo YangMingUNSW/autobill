@@ -29,7 +29,7 @@ from autobill.report.pdf import PdfError, find_browser, html_to_pdf
 from autobill.report.statement import render_statement_html
 from autobill.report.uncategorised import rules_snippet, uncategorised_merchants
 from autobill.store.db import connect, load_bill
-from autobill.suggest import SuggesterError, SuggesterUnavailable, get_suggester
+from autobill.suggest import SuggesterUnavailable, get_suggester
 
 _sleep = time.sleep  # tests replace it
 
@@ -272,15 +272,19 @@ def _auto_classify(conn, config) -> None:
         return
     try:
         suggester = get_suggester(config.ai)
-        result = classify_merchants(conn, suggester, load_rules(conn), config.ai)
-    except (SuggesterUnavailable, SuggesterError) as exc:
+    except SuggesterUnavailable as exc:
         typer.echo(f"AI 分类没有完成：{exc}")
         alerts.record(conn, [alerts.ai(str(exc))])
         return
-    alerts.clear(conn, "ai", "error")
+    result = classify_merchants(conn, suggester, load_rules(conn), config.ai)
     if result.verdicts:
         line = f"AI 分类：问了 {len(result.verdicts)} 个新商户，分好 {len(result.used)} 个"
         typer.echo(line + (f"，还有 {result.left} 个下次再问" if result.left else ""))
+    if result.error is not None:
+        typer.echo(f"AI 分类没有完成：{result.error}")
+        alerts.record(conn, [alerts.ai(str(result.error))])
+    else:
+        alerts.clear(conn, "ai", "error")
 
 
 def _send_alerts(conn) -> None:
@@ -463,33 +467,29 @@ def classify(
         raise typer.Exit(1) from None
     if retry and not dry_run:
         typer.echo(f"重新询问之前没把握的 {forget_unsure(conn)} 个商户。")
-    failed = None
-    try:
-        result = classify_merchants(
-            conn, suggester, load_rules(conn), config.ai, limit=limit, save=not dry_run
-        )
-    except SuggesterError as exc:
-        failed, result = exc, None
-    if result is not None:
-        if not result.verdicts:
-            typer.echo("没有需要 AI 分类的新商户。")
-        for name, v in result.verdicts.items():
-            answer = v.category if name in result.used else f"不确定（猜 {v.category or '无'}）"
-            how = "联网查过" if v.searched else "凭知识"
-            typer.echo(f"{answer:<8} {name}  [{v.confidence}，{how}] {v.reason}")
-        typer.echo("")
-        summary = f"问了 {len(result.verdicts)} 个，分好 {len(result.used)} 个"
-        if result.left:
-            summary += f"；还有 {result.left} 个，再运行一次继续"
-        typer.echo(summary + ("（--dry-run：没有保存）" if dry_run else "。"))
+    result = classify_merchants(
+        conn, suggester, load_rules(conn), config.ai, limit=limit, save=not dry_run
+    )
+    if not result.verdicts and result.error is None:
+        typer.echo("没有需要 AI 分类的新商户。")
+    for name, v in result.verdicts.items():
+        answer = v.category if name in result.used else f"不确定（猜 {v.category or '无'}）"
+        how = "联网查过" if v.searched else "凭知识"
+        typer.echo(f"{answer:<8} {name}  [{v.confidence}，{how}] {v.reason}")
+    typer.echo("")
+    summary = f"问了 {len(result.verdicts)} 个，分好 {len(result.used)} 个"
+    if result.left:
+        summary += f"；还有 {result.left} 个，再运行一次继续"
+    typer.echo(summary + ("（--dry-run：没有保存）" if dry_run else "。"))
     usage = getattr(suggester, "usage", None)
     if usage:
         typer.echo(
             f"用量：输入 {usage['input_tokens']} tokens，输出 {usage['output_tokens']} tokens，"
             f"联网搜索 {usage['web_searches']} 次。"
         )
-    if failed is not None:
-        typer.echo(f"AI 分类中断：{failed}（已经得到的结果都保存了）")
+    if result.error is not None:
+        kept = "" if dry_run else "（上面这些已经保存）"
+        typer.echo(f"AI 分类中断：{result.error}{kept}")
         raise typer.Exit(1)
 
 

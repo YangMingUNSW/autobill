@@ -21,7 +21,14 @@ from autobill.categorize import UNCATEGORISED, Rules
 from autobill.config import AiConfig
 from autobill.model import TxnType
 from autobill.store.db import now
-from autobill.suggest import CategorySuggester, MerchantInfo, Verdict, keep_valid
+from autobill.suggest import (
+    AnswerCutOff,
+    CategorySuggester,
+    MerchantInfo,
+    SuggesterError,
+    Verdict,
+    keep_valid,
+)
 
 BATCH = 10  # merchants per step-1 request: the model thinks at length about each
 USE_UNSEARCHED = {"high"}
@@ -33,6 +40,7 @@ class ClassifyResult:
     verdicts: dict[str, Verdict] = field(default_factory=dict)  # merchant -> final answer
     used: set[str] = field(default_factory=set)  # merchants whose answer now categorises them
     left: int = 0  # merchants still waiting for a later run (ai.per_run)
+    error: SuggesterError | None = None  # the model failed part way; the rest wait
 
 
 def choosable(categories: list[str]) -> list[str]:
@@ -73,21 +81,37 @@ def classify_merchants(
     save: bool = True,
 ) -> ClassifyResult:
     """Ask about up to `limit` (default ai.per_run) new merchants. Answers are saved one
-    by one, so a failure part way (raised as SuggesterError) keeps the ones before it."""
+    by one; when the model fails part way, the answers before it are kept, the error is
+    in `result.error` and the merchants not answered are asked on a later run."""
     pending = pending_merchants(conn, rules)
     todo = pending[: limit or config.per_run]
     result = ClassifyResult(left=len(pending) - len(todo))
     categories = choosable(rules.categories)
-    for start in range(0, len(todo), BATCH):
-        batch = todo[start : start + BATCH]
-        first = keep_valid(suggester.classify(batch, categories, search=False), batch, categories)
-        for merchant in batch:
-            verdict = first.get(merchant.name) or Verdict(None, "low", "AI 没有回答")
-            if not _usable(verdict) and config.web_search:
-                asked = suggester.classify([merchant], categories, search=True)
-                verdict = keep_valid(asked, [merchant], categories).get(merchant.name, verdict)
-            _record(conn, result, merchant, verdict, suggester.model, save)
+    try:
+        for start in range(0, len(todo), BATCH):
+            batch = todo[start : start + BATCH]
+            first = _ask(suggester, batch, categories)
+            for merchant in batch:
+                verdict = first.get(merchant.name) or Verdict(None, "low", "AI 没有回答")
+                if not _usable(verdict) and config.web_search:
+                    asked = suggester.classify([merchant], categories, search=True)
+                    verdict = keep_valid(asked, [merchant], categories).get(merchant.name, verdict)
+                _record(conn, result, merchant, verdict, suggester.model, save)
+    except SuggesterError as exc:
+        result.error = exc
+        result.left += len(todo) - len(result.verdicts)
     return result
+
+
+def _ask(suggester, batch: list[MerchantInfo], categories: list[str]) -> dict[str, Verdict]:
+    """Step 1 for a batch; one the model's answer does not fit is asked in halves."""
+    try:
+        return keep_valid(suggester.classify(batch, categories, search=False), batch, categories)
+    except AnswerCutOff:
+        if len(batch) == 1:
+            raise
+        half = len(batch) // 2
+        return _ask(suggester, batch[:half], categories) | _ask(suggester, batch[half:], categories)
 
 
 def _usable(verdict: Verdict) -> bool:

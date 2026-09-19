@@ -19,6 +19,7 @@ from autobill.config import AiConfig
 from autobill.suggest import (
     API_KEY_ENV,
     CONFIDENCE,
+    AnswerCutOff,
     MerchantInfo,
     SuggesterError,
     SuggesterUnavailable,
@@ -32,7 +33,8 @@ DEFAULTS: dict[str, tuple[str, str | None]] = {  # provider -> (base_url, defaul
 }
 WEB_SEARCH_TOOL = "web_search_20250305"
 MAX_CONTINUES = 3  # a long server-side search may pause the turn; resume at most this often
-TIMEOUT = 120.0
+TIMEOUT = 180.0
+MAX_OUTPUT = 32000  # tokens, thinking included
 
 # What each built-in category means, so the model does not guess from the name alone.
 HINTS = {
@@ -114,8 +116,9 @@ class AnthropicClassifier:
     ) -> dict[str, Verdict]:
         body: dict = {
             "model": self.model,
-            # DeepSeek thinks before answering (better answers; ~1,000 tokens a merchant).
-            "max_tokens": 4000 + 500 * len(merchants),
+            # DeepSeek thinks before answering: better answers, and on the author's data up
+            # to ~1,000 tokens a merchant. A cut-off batch is split and asked again.
+            "max_tokens": min(MAX_OUTPUT, 4000 + 1500 * len(merchants)),
             "temperature": 0,
             "system": SYSTEM,
             "messages": [{"role": "user", "content": _prompt(merchants, categories, search)}],
@@ -138,7 +141,7 @@ class AnthropicClassifier:
                 break
             body["messages"] = [*body["messages"], {"role": "assistant", "content": content}]
         if response.get("stop_reason") == "max_tokens":
-            raise SuggesterError(f"AI 的回答太长被截断（{len(merchants)} 个商户一批）")
+            raise AnswerCutOff(f"AI 的回答太长被截断（{len(merchants)} 个商户一批）")
         searched = any(b.get("type") == "server_tool_use" for b in content)
         return parse_answer(content, searched)
 
