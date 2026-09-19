@@ -123,7 +123,7 @@ class AiConfig(BaseModel):
     base_url: str | None = None  # default: the provider's own
     auto_classify: bool = True  # run / serve classify new merchants before reporting
     web_search: bool = True  # a merchant the model is unsure of is looked up on the web
-    max_searches: int = Field(default=3, ge=1, le=10)  # web searches per merchant, at most
+    max_searches: int = Field(default=1, ge=1, le=10)  # web searches per merchant, at most
     per_run: int = Field(default=20, ge=1)  # merchants asked per run, at most (cost cap)
 
 
