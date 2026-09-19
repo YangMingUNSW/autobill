@@ -5,12 +5,17 @@
 ## [Unreleased]
 
 ### Added
+- 分类规则大扩充：中国大陆、澳洲和全球主流连锁品牌，加上中文、英文、日文（假名和罗马字）的行业通用词；新分类"旅行""购物""医药"。作者 816 笔真实消费里未分类的从 358 笔降到 124 笔。
 - `autobill reparse [--all]`：用现在的解析器和卡号别名，从保存的原件重新解析已经入库的邮件（默认只处理有警告或失败的），账单原地更新，不重发报表。
 - M8b 提醒邮件：不认识的邮件、账单解析失败、发现新卡号、邮箱登录失败时发一封提醒到 iCloud，同一个问题只提醒一次（`alerts` 表，表结构升级到 4）；`run --no-send` 时提醒留到下次一起发。
 - M8b Docker 部署：`Dockerfile`、`compose.yaml`、`autobill.env.example`；新命令 `autobill serve`（每隔几分钟运行一次，单次出错不退出）；GitHub Actions 构建并冒烟测试镜像，main 和版本标签发布 amd64 + arm64 镜像到 ghcr.io。备选：`deploy/systemd/` 的定时器。`docs/deploy.md` 操作步骤。
 - Linux 上打印 PDF 时 Chrome 加 `--disable-dev-shm-usage`。
 - 进度邮件默认不再附标准账单 PDF（2026-09-19 作者决定：原始账单直接在邮箱里看，进度邮件不再附 PDF）：新配置 `statement.email_pdf`（默认 false）；不附时邮件里没有附件那一行。Docker 镜像因此不带浏览器和中文字体，两阶段构建，从 1.72 GB 降到约 330 MB。
 - 卡号别名 `cards.card_aliases`：换卡或一户两卡时，账单记在同一个账户下；全部卡号都合并到一个账户时，去掉建行"多个卡号"的告警。
+
+### Changed
+- 分类匹配不再管空格、标点和全角半角：`MC DONALD'S`、`SEVEN-ELEVEN`、`7 ELEVEN` 都能匹配上已有的规则。
+- 自己的 `rules.yaml` 排在内置规则前面，内置规则照样生效（以前是整个替换）。
 
 ### Fixed
 - 中行：余额正好是 0 时账单只印 `0.00`、不带 `存款/CRED`/`欠款/DEBT` 标签，以前整份解析失败（作者 3 份历史账单）；现在按 0 处理，不带标签的非零金额仍报错。

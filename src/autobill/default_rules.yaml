@@ -1,31 +1,106 @@
-# 分类规则示例：复制为 rules.yaml 放进数据目录后修改（rules.yaml 不入库，数据目录见 docs/security.md）。
-# 拿每笔消费的原始描述和商户名去匹配关键词：不分大小写，分类从上往下，第一个匹配上的分类生效。
-# 所以具体的规则放前面，"微信/支付宝（未细分）"放最后。见 docs/notify.md#分类规则。
+# 内置分类规则（和包里的 default_rules.yaml 完全相同）。见 docs/notify.md#分类规则。
+# 想补自己的规则：在数据目录新建 rules.yaml，格式和这里一样，只写你要加的。
+# 你的 rules.yaml 排在前面、先匹配，这里的内置规则排在后面，照样生效。
+#
+# 拿每笔消费的原始描述和商户名去匹配关键词，分类从上往下，第一个匹配上的分类生效。
+# 所以容易混淆的分类放前面（烟酒、旅行、住宿……），"微信/支付宝（未细分）"放最后。
+# 匹配时不分大小写，也不管空格和标点："MC DONALD'S"、"SEVEN-ELEVEN" 也能匹配上。
 #
 # 两种关键词：
-#   Woolworths      描述里任何位置出现就算（连锁品牌名用这种）
+#   Woolworths      描述里任何位置出现就算（连锁品牌名、行业词用这种）
 #   word:BAR        只算完整的单词：匹配 "LS BAR PLANET"，不匹配 "BARBER"（短的通用词用这种）
 #
-# 每个分类先写连锁品牌，再写"行业通用词"（KITCHEN、CAFE、SUPERMARKET……），
-# 这样没见过的独立小店也能按店名里的行业词归类。还没分类的商户：autobill uncategorised
+# 银行常把店名截断（"RESTAURA"、"NOODL"、"WOOLWORT"），所以很多词只写前半截。
+# 每个分类先写中国大陆、澳洲和全球的连锁品牌，再写中、英、日（罗马字）等语言的行业通用词。
+# 有歧义的词不放：HOTEL（澳洲的 Hotel 大多是酒吧）、METRO、SHOP、TOTAL。
+# 还没分类的商户：autobill uncategorised
 
-超市: [Woolworths, WW METRO, Coles, IGA, UMALL, Everyday Extra, FRANPRIX, ALDI,
-       SUPERMARKET, CONVENIENCE, "7-ELEVEN", LAWSON, FAMILYMART, GROCER,
-       "word:MART", "word:MARKET"]
-交通: [TFNSW OPAL, "UBER *TRIP", Suica, TICKET_COUNTER, RAILWAY, AIRPORT, KUUKOU, STAZIONE,
-       PETROL, PARKING, "word:TAXI", "word:AGIP", "word:FUEL"]
-餐饮: [KFC, MCDONALDS, STARBUCKS, "UBER * EATS", HungryPanda, SUKIYA, DOMINO, "JONATHAN'S",
-       KITCHEN, GRILL, KEBAB, KEBAP, BBQ, CAFFE, COFFEE, PIZZA, PIZA, NOODLE, RESTAURANT,
-       RISTORANTE, TRATTORIA, BUFFET, HOTPOT, SUSHI, YAKINIKU, RAMEN, TAVERNA, BISTRO,
-       BAKERY, BREWING, PASTA, MALATANG, DUMPLING, HUNAN,
-       "word:CAFE", "word:THAI", "word:BAKE", "word:BAR", "word:WOK", "word:FOODS"]
-烟酒: [TOBACCO, CELLARS, LIQUOR, BOTTLESHOP, DAN MURPHY, "word:BWS"]
-住宿: [AIRBNB]
-订阅: [APPLE.COM/BILL, SPOTIFY]
-通讯网络: [SUPERLOOP, OPTUS]
-水电燃气: [ORIGIN ENERGY]
-健身: [PlusFitness]
-娱乐: [GREATER UNION, EVENT CINEMAS, DISNEY, CINEMA, MUSEUM, THEATRE, THEATER,
-       "word:TIX", "word:GOLF", "word:ZOO"]
-网购: [TEMU, AMAZON]
-微信/支付宝（未细分）: [财付通, 支付宝, 微信]
+手续费: [增值服务费, 年费]
+
+烟酒: [TOBAC, CELLARS, LIQUOR, BOTTLESHOP, BOTTLE SHOP, DAN MURPHY, "word:BWS", "word:WINE",
+       "word:WINES", CIGAR, 烟酒, 烟草, 名酒, 酒行, 啤酒]
+
+旅行: [携程, 程支付, 程付通, 旅行社, 旅游, 环游, 飞猪, 同程, 去哪儿, TRIP.COM, CTRIP, KLOOK, EXPEDIA,
+       TRAVEL, "word:TOUR", "word:TOURS", VIATOR, GETYOURGUIDE,
+       航空, 机票, AIRLINE, AIRWAYS, AIR CHINA, CHINA EASTERN, CHINA SOUTHERN, HAINAN AIR,
+       QANTAS AIR, JETSTAR, VIRGIN AUSTRALIA, AIR NEW ZEALAND, CATHAY, SINGAPORE AIR, "word:EMIRATES",
+       QATAR AIR, AIRASIA, VIETJET, PEACH AVIATION, "word:SCOOT", RYANAIR, EASYJET, VUELING,
+       LUFTHANSA, "word:KLM", AIR FRANCE, TURKISH AIR, ETIHAD,
+       签证, "word:VFS", CONSULAR, IMMIGRATION, SCHENGEN]
+
+住宿: [AIRBNB, AGODA, BOOKING.COM, HOTELS.COM, 酒店, 宾馆, 民宿, 旅馆, 客栈, 如家, 汉庭, 全季, 亚朵,
+       "word:APARTMENT", APARTMENTS, RYOKAN, HOSTEL, "word:INN", NOVOTEL, "word:IBIS",
+       MERCURE, SOFITEL, PULLMAN, HILTON, MARRIOTT, SHERATON, WESTIN, HYATT, INTERCONTINENTAL,
+       HOLIDAY INN, CROWNE PLAZA, RADISSON, MERITON, "APA HOTEL", TOYOKO, DORMY INN, ホテル, 旅館]
+
+医药: [CHEMIST, "word:CWH", PHARMAC, PHARMACIE, FARMACI, APOTHEKE, "word:DRUG", DRUGSTORE, DORATSUGU,
+       PRICELINE, TERRY WHITE, MATSUMOTO KIYOSHI, MATSUKIYO, TSURUHA, WELCIA, SUNDRUG, COCOKARA,
+       "word:HOSPITAL", EMERGENCY, MEDICAL, "word:CLINIC", "word:DENTAL", "word:GP", 医院, 药房, 药店, 诊所, 牙科,
+       ドラッグ, 薬局]
+
+超市: [WOOLWORT, WW METRO, COLES, "word:IGA", UMALL, Everyday Extra, "word:ALDI", HARRIS FARM,
+       FOODWORKS, COSTCO, LIDL, CARREFOUR, FRANPRIX, MONOPRIX, TESCO, SAINSBURY, ALBERT HEIJN,
+       "word:SPAR", CONAD, "word:COOP", MERCADONA, COALIMENT, EDEKA, "word:REWE",
+       7-ELEVEN, SEVEN ELEVEN, "word:7-11", LAWSON, FAMILYMART, MINISTOP, SEICOMART, DAILY YAMAZAKI,
+       BAITEN, 超市, 便利店, 罗森, 全家, 美宜佳, 盒马, 永辉, 华润万家, 零食, 市場, 沃尔玛, WALMART, 大润发, 物美,
+       SUPERMARKET, SUPERSTORE, SUPERMERCA, SUPERMARCHE, CONVENIENCE, GROCER,
+       "word:MART", "word:MARKET", スーパー, コンビニ]
+
+订阅: [APPLE.COM/BILL, ICLOUD, SPOTIFY, NETFLIX, YOUTUBE, DISNEY PLUS, DISNEYPLUS, OPENAI, CHATGPT,
+       ANTHROPIC, CLAUDE.AI, OPENROUTER, GITHUB, MICROSOFT, MSBILL, ADOBE, NOTION,
+       爱奇艺, 腾讯视频, 优酷, 哔哩哔哩, BILIBILI, 网易云, QQ音乐, 会员]
+
+通讯网络: [SUPERLOOP, OPTUS, TELSTRA, VODAFONE, AUSSIE BROADBAND, BOOST MOBILE, AMAYSIM,
+          LYCAMOBILE, "word:BELONG", T MOBILE, HOTSPOT, AIRALO, "word:ESIM", DOCOMO, SOFTBANK,
+          中国移动, 中移, 中国联通, 中国电信, 话费]
+
+水电燃气: [ORIGIN ENERGY, "word:AGL", ENERGYAUSTRALIA, SYDNEY WATER, 电费, 水费, 燃气, 国家电网]
+
+餐饮: [MCDONALD, KFC, KENTUCKY FRIED, FURAIDOCHIKIN, HUNGRY JACK, BURGER, STARBUCKS, SUBWAY,
+       DOMINO, PIZZA HUT, NANDO, GUZMAN, OPORTO, ELJANNAH, "RIBS & BURGERS", STEAK N SHAKE,
+       "UBER * EATS", UBEREATS, DOORDASH, MENULOG, DELIVEROO, HungryPanda, EATCLUB,
+       SUKIYA, MATSUYA, YOSHINOYA, IPPUDO, ICHIRAN, SAIZERIYA, "JONATHAN'S", CHATIME, GONG CHA,
+       肯德基, 麦当劳, 金拱门, 必胜客, 汉堡王, 星巴克, 瑞幸, 喜茶, 奈雪, 古茗, 蜜雪, 1点点, 一点点, 茶百道,
+       霸王茶姬, 沪上阿姨, 老乡鸡, 海底捞, 饿了么, 美团, 外卖,
+       餐, 饭店, 酒家, 酒楼, 食堂, 小吃, 快餐, 菜馆, 面馆, 汤包, 鸡煲, 拉面, 面条, 米粉, 肠粉, 螺蛳粉, 火锅, 串串,
+       烧烤, 烤肉, 烤鸭, 麻辣, 炸鸡, 龙虾, 奶茶, 茶饮, 茶点, 咖啡, 面包, 蛋糕, 烘焙, 甜品, 早餐,
+       RESTAUR, RISTORANT, TRATTORIA, OSTERIA, BRASSERIE, BISTRO, TAVERNA, "word:PUB", TAVERN,
+       KITCHEN, GRILL, KEBAB, KEBAP, BBQ, STEAK, "word:RIBS", CHICKEN, "word:BEEF", SEAFOOD,
+       PIZZ, PIZA, PASTA, NOODL, DUMPL, SUSHI, RAMEN, "word:UDON", "word:SOBA", IZAKAYA, YAKITORI,
+       YAKINIKU, TEPPAN, TONKATSU, SHOKUDO, TEMPURA, WAGYU, MALATANG, HOTPOT, HUNAN, LANZHOU, YUM CHA,
+       DIM SUM, "word:PHO", BANH MI, TAPAS, BUFFET, CATERIN, EATERY, DINER, DINING, CANTEEN,
+       "word:FEAST", TAKEAWA, "word:DELI", DELICATESSEN, IMBISS, "word:EATS", "word:EAT", FOOD,
+       CAFFE, "word:CAFE", "word:CAFÉ", COFFEE, ESPRESSO, ROASTER, "word:TEA", BUBBLE TEA, BOBA,
+       JUICE, GELATO, DESSERT, DONUT, BAKERY, "word:BAKE", BOULANGERIE, PATISSERIE, CREPE,
+       BREWING, "word:BAR", "word:WOK", "word:FOODS", "word:THAI", JAPANESE, KOREAN, CHINESE,
+       TAIWANESE, VIETNAM, ITALIAN, INDIAN, MEXICAN, SPANISH, LEBANESE, TURKISH,
+       VENDING, COCACOLA, INRYO, 售货机,
+       ラーメン, 寿司, 居酒屋, 焼肉, 定食, 喫茶, 珈琲, カフェ, レストラン, うどん, そば]
+
+交通: [TRANSPORT, TFNSW, "word:OPAL", "UBER *TRIP", "word:UBER", "word:UBR", "word:DIDI", 滴滴,
+       13CABS, TAXI, "word:CAB", "word:JR", SHINKANSEN, "word:SUICA", "word:ICOCA", "word:PASMO", "word:KITACA", TOKYO METRO,
+       OSAKA METRO, RAILWAY, "word:RAIL", "word:BUS", FERRY, "word:TRAM", ROPEWAY, TICKET_COUNTER,
+       SNCF, "word:RATP", TRENITALIA, RENFE, "word:SBB", EUROSTAR, "word:GVB", "word:TFL", OYSTER,
+       AIRPORT, KUUKO, STAZIONE, 地铁, 公交, 铁路, "12306", 高铁, 交通卡, 公共交通, 机场, 高德, 出行, 停车, 高速, 加油, 中石化, 中石油, OVPAY,
+       PARKING, PARKEN, "word:LINKT", PETROL, "word:FUEL", "word:BP", "word:SHELL", CALTEX, AMPOL,
+       "word:ESSO", REPSOL, "word:AGIP", "word:ENI", ENEOS, IDEMITSU, 駅, 鉄道, 空港]
+
+健身: [PlusFitness, FITNESS, "word:GYM", ANYTIME FIT, "word:F45", YOGA, PILATES, AQUATIC, 健身]
+
+娱乐: [GREATER UNION, "word:EVENT", CINEMA, HOYTS, DENDY, IMAX, 电影, 影城, 影院, 猫眼, 淘票票, 大麦,
+       TICKETEK, TICKETMASTER, "word:TIX", ARENA, STADIUM, "word:OPERA", CONCERT, THEATRE, THEATER,
+       MUSEUM, MUSEO, MUSEE, LOUVRE, GALLERY, AQUARIUM, "word:ZOO", DISNEY, DEIZUNI, UNIVERSAL STUDIO,
+       KARAOKE, "word:KTV", ESCAPE, BOWLING, ARCADE, TIMEZONE, "word:GOLF",
+       STEAM, PLAYSTATION, NINTENDO, XBOX, 游戏, 游乐, 景区, 门票]
+
+网购: [TEMU, AMAZON, SHEIN, ALIEXPRESS, EBAY, 淘宝, 天猫, 京东, 拼多多, 抖音, 唯品会]
+
+购物: [UNIQLO, "word:GU", "word:ZARA", "word:H&M", COTTON ON, KMART, "word:TARGET", BIG W, MYER, DAVID JONES,
+       JB HI, HARVEY NORMAN, OFFICEWORKS, BUNNINGS, IKEA, APPLE STORE, DYSON, LULULEMON, "word:NIKE",
+       ADIDAS, NORTH FACE, "word:TNF", MACPAC, KATHMANDU, CALVIN KLEIN, VIVIENNE WESTWOOD, SEPHORA,
+       MECCA, "word:MUJI", DAISO, DON QUIJOTE, DONKI, TOKYU HANDS, BIC CAMERA, YODOBASHI, PARCO,
+       ISETAN, TAKASHIMAYA, MITSUKOSHI, DAIMARU, HANKYU, LUMINE,
+       DUTY FREE, "word:DFS", 免税, HEINEMANN, EVER RICH, DUFRY, AVOLTA, SOUVENIR, JEWEL, JUWELIER,
+       BOUTIQUE, CLOTHING, APPAREL, FASHION, OUTLET, 服装, 服饰, 鞋, 商场, 百货, 旗舰店, 专卖店]
+
+微信/支付宝（未细分）: [财付通, 支付宝, 微信, TENPAY, WECHAT, ALIPAY]
