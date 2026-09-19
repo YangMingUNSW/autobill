@@ -77,12 +77,13 @@ def import_dir(
 def _import(conn, mails) -> int:
     """Process each mail (forwarded-as-attachment ones unwrapped first); print one line per
     original e-mail and a summary. Returns how many were processed."""
+    aliases = load_config().cards.card_aliases
     counts: dict[str, int] = {}
     for mail in mails:
         parts = split_forwarded(mail.data)
         for i, data in enumerate(parts):
             source = mail.source if len(parts) == 1 else f"{mail.source}#{i + 1}"
-            outcome = process(conn, data_dir(), RawMail(data, source))
+            outcome = process(conn, data_dir(), RawMail(data, source), aliases)
             counts[outcome.status] = counts.get(outcome.status, 0) + 1
             name = source.rsplit("/", 1)[-1]
             accounts = ", ".join(b.account_id for b in outcome.bills)

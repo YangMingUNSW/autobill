@@ -41,7 +41,33 @@ def save_raw(data_dir: Path, msg: RawMessage) -> Path:
     return target
 
 
-def process(conn: sqlite3.Connection, data_dir: Path, mail: RawMail) -> Outcome:
+MULTI_CARD_WARNING = "这份账单里有多个卡号"
+
+
+def apply_aliases(bill: Bill, aliases: dict[str, str]) -> Bill:
+    """File the bill under its canonical account (config cards.card_aliases).
+
+    When every card number on the bill belongs to that one account, the parser's
+    "several card numbers" warning is expected, so it is dropped; a bill whose only
+    warning it was becomes OK again.
+    """
+    if not aliases:
+        return bill
+    account = aliases.get(bill.account_id, bill.account_id)
+    same = {aliases.get(f"{bill.bank}:{c}", f"{bill.bank}:{c}") for c in bill.cards} <= {account}
+    warnings = [w for w in bill.warnings if not (same and w.startswith(MULTI_CARD_WARNING))]
+    status = bill.status
+    if status == "WARN" and not warnings:
+        status = "OK"
+    return bill.model_copy(update={"account_id": account, "warnings": warnings, "status": status})
+
+
+def process(
+    conn: sqlite3.Connection,
+    data_dir: Path,
+    mail: RawMail,
+    aliases: dict[str, str] | None = None,
+) -> Outcome:
     msg = RawMessage.from_bytes(mail.data)
     known = conn.execute(
         "SELECT id, status FROM emails WHERE message_id = ?", (msg.message_id,)
@@ -63,6 +89,7 @@ def process(conn: sqlite3.Connection, data_dir: Path, mail: RawMail) -> Outcome:
             bills = parser.parse(msg)
             if not bills:  # parsers must raise instead; never accept a silent empty result
                 raise TemplateChanged(f"{parser.name} returned no bills")
+            bills = [apply_aliases(b, aliases or {}) for b in bills]
             status = _worst([b.status for b in bills])
         except (TemplateChanged, FormatError) as exc:
             status, error = "FAILED", f"{type(exc).__name__}: {exc}"

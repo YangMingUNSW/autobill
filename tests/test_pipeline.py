@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from autobill.fetch.message import RawMessage
 from autobill.fetch.source import DirectorySource, RawMail
 from autobill.pipeline import process
 from autobill.store.db import connect
@@ -111,3 +112,55 @@ def test_directory_source_reads_only_eml(tmp_path):
 def test_directory_source_rejects_missing_dir(tmp_path):
     with pytest.raises(NotADirectoryError):
         DirectorySource(tmp_path / "nope")
+
+
+# --- card aliases (config cards.card_aliases) -----------------------------------------
+
+
+def _ccb_bill(cards, warnings, status="WARN"):
+    from autobill.parse.registry import find_parser
+
+    path = FIXTURES / "ccb" / "ccb_visa_2026-07.eml"
+    msg = RawMessage.from_bytes(path.read_bytes())
+    (bill,) = find_parser(msg).parse(msg)
+    return bill.model_copy(update={"cards": cards, "warnings": warnings, "status": status,
+                                   "account_id": f"CCB:{cards[0]}"})  # fmt: skip
+
+
+def test_alias_files_a_two_card_statement_under_one_account():
+    """The author's CCB 2025-06 statement lists two card numbers of one account (a UnionPay
+    and an overseas card); config names the canonical one."""
+    from autobill.pipeline import apply_aliases
+
+    bill = _ccb_bill(["0009", "0004"], ["这份账单里有多个卡号 ['0009', '0004']，账户取 0009"])
+    out = apply_aliases(bill, {"CCB:0009": "CCB:0004"})
+    assert out.account_id == "CCB:0004" and out.cards == ["0009", "0004"]
+    assert out.warnings == [] and out.status == "OK"
+
+
+def test_alias_keeps_other_warnings_and_unrelated_cards():
+    from autobill.pipeline import apply_aliases
+
+    multi = "这份账单里有多个卡号 ['0009', '0004']，账户取 0009"
+    bill = _ccb_bill(["0009", "0004"], [multi, "对账：差 1.00"])
+    out = apply_aliases(bill, {"CCB:0009": "CCB:0004"})
+    assert out.warnings == ["对账：差 1.00"] and out.status == "WARN"
+    # a third, unaliased card: the multi-card warning must stay
+    bill = _ccb_bill(["1111", "0009", "0004"], [multi])
+    out = apply_aliases(bill, {"CCB:0009": "CCB:0004"})
+    assert out.warnings == [multi] and out.status == "WARN"
+    assert apply_aliases(bill, {}) is bill
+
+
+def test_import_dir_uses_aliases_from_config(isolated_data_dir):
+    """End to end: the alias in config.yaml decides the stored account."""
+    from typer.testing import CliRunner
+
+    from autobill.cli import app
+
+    (isolated_data_dir / "config.yaml").write_text(
+        'cards:\n  card_aliases:\n    "CCB:0004": "CCB:9999"\n', encoding="utf-8"
+    )
+    result = CliRunner().invoke(app, ["import-dir", "--no-send", str(FIXTURES / "ccb")])
+    assert result.exit_code == 0, result.output
+    assert "CCB:9999" in result.output and "CCB:0004" not in result.output
