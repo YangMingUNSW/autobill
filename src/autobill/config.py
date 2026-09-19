@@ -90,7 +90,6 @@ class StatementConfig(BaseModel):
     # Attach each new statement's PDF to the progress e-mail. Off by default (2026-09-19):
     # the original statements are in the mailbox anyway, and printing needs a browser,
     # which the Docker image does not carry.
-    email_pdf: bool = False
 
 
 class PortfolioCard(BaseModel):

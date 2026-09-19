@@ -111,7 +111,7 @@ def test_union_pay_instalment_and_synthetic_adjustment(db):
 def test_foreign_amounts_and_fx_rate(db):
     conn, fx = db
     html = render(conn, fx, "ABC:0001")
-    assert "AUD 39.90" in html  # original currency of the Mastercard purchases
+    assert "A$39.90" in html  # what the shop charged, in the currency it charged in
     assert "汇率 6.76485" in html  # automatic currency purchase
     assert "USD 按 6.7215 折算人民币" in html
 

@@ -27,6 +27,7 @@ from autobill.report.style import (
     BANK_NAMES,
     COLORS,
     Row,
+    amount_with_symbol,
     category_bar_rows,
     money,
 )
@@ -62,6 +63,12 @@ class TxnLine:
     tag: str = ""  # 还款 / 返现 / 购汇 ... ; empty for plain purchases
     excluded: bool = False  # listed but not counted as spending
     category: str = ""
+    local: str = ""  # what was paid, in the currency it was paid in: "JP¥12,345"
+    cny: str = ""  # "≈¥612"; empty when the line is already in CNY or has no rate
+    # For the month's merged list, where lines from every card sit together:
+    when: date | None = None
+    card: str = ""  # "农业银行 0003"
+    cny_value: Decimal | None = None  # unformatted, to find the month's largest purchase
 
 
 @dataclass
@@ -138,12 +145,18 @@ class StatementView:
     daily_values: dict[date, Decimal] = field(default_factory=dict)
 
 
-def _day_label(day: date) -> str:
+def day_label(day: date) -> str:
     return f"{day.month} 月 {day.day} 日 · 周{WEEKDAYS[day.weekday()]}"
 
 
 def _line(
-    t: Transaction, category: str, show_card: bool, show_currency: bool, by_ai: bool = False
+    t: Transaction,
+    category: str,
+    show_card: bool,
+    show_currency: bool,
+    by_ai: bool = False,
+    card: str = "",
+    cny: Decimal | None = None,
 ) -> TxnLine:
     title = t.merchant or t.description_raw
     meta: list[str] = []
@@ -151,8 +164,6 @@ def _line(
         meta.append(f"{category}（AI）" if by_ai else category)
     if t.merchant and t.merchant_location:
         meta.append(t.merchant_location)
-    if t.orig_amount is not None and t.orig_currency:
-        meta.append(f"{t.orig_currency} {money(t.orig_amount)}")
     if t.fx_rate is not None:
         meta.append(f"汇率 {t.fx_rate.normalize()}")
     if t.installment and t.installment not in title:
@@ -165,6 +176,10 @@ def _line(
         meta.append(f"{t.post_date:%m-%d} 入账")
     excluded = t.txn_type in NOT_SPENDING
     tag = "" if t.txn_type == TxnType.PURCHASE else TYPE_LABELS[t.txn_type]
+    if t.orig_amount is not None and t.orig_currency:  # what the shop actually charged
+        local = amount_with_symbol(t.orig_amount, t.orig_currency)
+    else:
+        local = amount_with_symbol(t.amount, t.currency)
     return TxnLine(
         line_no=t.line_no,
         title=title,
@@ -173,6 +188,11 @@ def _line(
         tag=tag,
         excluded=excluded,
         category=category,
+        local=local,
+        cny=f"≈¥{money(cents(cny))}" if cny is not None and t.currency != "CNY" else "",
+        when=t.trans_date,
+        card=card,
+        cny_value=cny,
     )
 
 
@@ -308,13 +328,16 @@ def build_view(bill: Bill, fx: FxRates, rules: Rules, now: datetime | None = Non
 
     show_card = len({t.card_last4 for t in bill.transactions if t.card_last4}) > 1
     show_currency = len({t.currency for t in bill.transactions}) > 1  # else the header says it
+    card_name = f"{BANK_NAMES.get(bill.bank, bill.bank)} {bill.account_id.partition(':')[2]}"
     groups: dict[date, list[TxnLine]] = {}
     for t in sorted(bill.transactions, key=lambda t: (t.trans_date, t.line_no)):
         category = rules.categorize(t.description_raw, t.txn_type, t.merchant)
         by_ai = rules.by_ai(t.description_raw, t.txn_type, t.merchant)
-        line = _line(t, category, show_card, show_currency, by_ai)
+        line = _line(
+            t, category, show_card, show_currency, by_ai, card_name, cny(t.amount, t.currency)
+        )
         groups.setdefault(t.trans_date, []).append(line)
-    days = [DayGroup(_day_label(d), lines) for d, lines in groups.items()]
+    days = [DayGroup(day_label(d), lines) for d, lines in groups.items()]
 
     due_cny: Decimal | None = ZERO
     for b in bill.balances:

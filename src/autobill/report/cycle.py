@@ -24,14 +24,12 @@ from __future__ import annotations
 import json
 import math
 import sqlite3
-import tempfile
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
-from pathlib import Path
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 from markupsafe import Markup
@@ -41,14 +39,15 @@ from autobill.config import PortfolioCard
 from autobill.fx import FxRates
 from autobill.model import ZERO, Bill, TxnType
 from autobill.report.monthly import cents, month_bounds
-from autobill.report.pdf import PdfError, html_to_pdf
 from autobill.report.statement import (
+    DayGroup,
     StatementView,
+    TxnLine,
     build_view,
     daily_svg,
-    render_statement_html,
+    day_label,
 )
-from autobill.report.style import card_label, emoji_for, money, share
+from autobill.report.style import amount_with_symbol, card_label, emoji_for, money, share
 from autobill.store.db import load_bill
 from autobill.store.db import now as db_now
 
@@ -58,8 +57,6 @@ EXPECTED_WINDOW = timedelta(days=62)  # without a portfolio: cards with a statem
 WEEKDAYS = "一二三四五六日"
 CHIPS = {"arrived": "已出账", "pending": "待出账", "missing": "可能无账单"}
 NAMED = 4  # categories named in the stacked bar; 4 + grey passes the palette validator
-
-Attacher = Callable[[Bill], "bytes | None"]
 
 
 def cycle_of(statement_date: date) -> str:
@@ -123,8 +120,8 @@ class CardState:
     last4: str  # "0003"
     state: str  # "arrived" / "pending" / "missing"
     note: str
-    amount: str = ""
-    is_new: bool = False
+    amount: str = ""  # what is owed, in CNY when a rate is known
+    amount_orig: str = ""  # a foreign card also shows what the bank itself asks for
 
     @property
     def chip(self) -> str:
@@ -144,35 +141,32 @@ class Segment:
 
 
 @dataclass
-class NewBill:
-    label: str
-    view: StatementView
-    chart: Markup  # daily bars with the average line
-    average: str  # the dashed line's value, named in the caption
-    top: list[Segment]  # the bill's largest categories, in the month's colours
-    attachment: str = ""  # file name of the attached PDF; "" when there is none
+class Highlight:
+    """The month's largest single purchase."""
 
-
-@dataclass
-class DueLine:
-    month: str  # "9月"
-    day: int
-    weekday: str  # "周日"
-    label: str
-    amount: str
+    title: str
+    local: str  # what was paid, in the currency it was paid in
+    cny: str  # "≈¥612"; empty when it was already in CNY
+    when: str  # "10月8日"
+    card: str
+    emoji: str
 
 
 @dataclass
 class CycleReport:
     cycle: str
     cards: list[CardState]
-    new_bills: list[NewBill]
-    due_total: str | None  # CNY owed on the statements issued so far; None: a rate is missing
-    due_lines: list[DueLine]
+    due_total: str | None  # CNY owed across the month's cards; None: a rate is missing
     spend_total: str
-    segments: list[Segment]
-    merchants: list[Segment]
+    segments: list[Segment]  # the month's categories, largest first
+    merchants: list[Segment]  # where the money went, across every card
+    days: list[DayGroup]  # every card's transactions in one list, by date
+    transaction_count: int
+    daily_chart: Markup  # one bar per day, all cards added up
+    daily_caption: str
     generated_at: str
+    spend_change: str = ""  # "比 9 月 +12%"; empty when last month has no statements
+    biggest: Highlight | None = None
 
     def _count(self, state: str) -> int:
         return sum(1 for c in self.cards if c.state == state)
@@ -215,47 +209,58 @@ class CycleReport:
     @property
     def preview(self) -> str:
         """The grey line Mail shows under the subject."""
-        total = f"¥ {self.due_total}" if self.due_total is not None else "见邮件"
-        return f"{self.progress} · 合计应还 {total} · {self.status_line}"
+        total = f"¥{self.due_total}" if self.due_total is not None else "见邮件"
+        return f"本月合计应还 {total} · {self.arrived} 张卡 · 消费 ¥{self.spend_total}"
 
     @property
-    def ring(self) -> Markup:
-        return progress_ring([c.state for c in self.cards], f"{self.arrived}/{len(self.cards)}")
+    def category_donut(self) -> Markup:
+        return donut_svg(self.segments, f"¥{self.spend_total}", "本月消费")
+
+    @property
+    def merchant_donut(self) -> Markup:
+        """The top merchants as a share of everything spent, so the ring is honest about
+        how much of the month these few shops are."""
+        top = sum((m.weight for m in self.merchants), ZERO)
+        total = sum((s.weight for s in self.segments), ZERO)
+        center = share(top, total) if total > 0 else ""
+        return donut_svg(self.merchants, center, f"前 {len(self.merchants)} 名占比")
 
 
-def progress_ring(states: list[str], center: str) -> Markup:
-    """An Activity-ring style progress: one arc per card, clockwise from 12 o'clock, in
-    the order of the card list. Colours come from CSS classes (light and dark mode)."""
-    size, stroke = 96, 10
+def donut_svg(segments: list[Segment], center: str, caption: str) -> Markup:
+    """The shares as a ring, one arc per segment, clockwise from 12 o'clock in the order of
+    the legend below it. Colours come from CSS classes, so the chart follows light and dark
+    mode; a 2px gap keeps neighbouring slices apart. Every slice is named with its share in
+    the legend, so a slice too thin to see is never the only place a number appears.
+    """
+    total = sum((s.weight for s in segments), ZERO)
+    if not segments or total <= 0:
+        return Markup("")
+    size, stroke = 180, 30
     r = (size - stroke) / 2
     c = 2 * math.pi * r
-    n = max(len(states), 1)
-    step = c / n
-    gap = 5.0  # visible gap between arcs, on top of the round caps
-    dash = step - gap - stroke
+    gap = 2.0
+    said = "，".join(f"{s.name} {s.share}" for s in segments)
     parts = [
-        f'<svg class="ring" viewBox="0 0 {size} {size}" width="{size}" height="{size}" '
-        f'role="img" aria-label="已出账 {center}">',
+        f'<svg class="donut" viewBox="0 0 {size} {size}" width="{size}" height="{size}" '
+        f'role="img" aria-label="{caption}：{said}">',
+        f'<circle class="track" cx="{size / 2}" cy="{size / 2}" r="{r}" />',
         f'<g transform="rotate(-90 {size / 2} {size / 2})">',
     ]
-    if dash < 2:  # too many cards for separate arcs: one arc for the share issued
-        done = sum(1 for s in states if s == "arrived") / n
-        parts.append(f'<circle class="track" cx="{size / 2}" cy="{size / 2}" r="{r}" />')
-        if done:
-            parts.append(
-                f'<circle class="arc arrived" cx="{size / 2}" cy="{size / 2}" r="{r}" '
-                f'stroke-dasharray="{c * done:.2f} {c:.2f}" />'
-            )
-    else:
-        for i, state in enumerate(states):
-            offset = -(i * step + (gap + stroke) / 2)
-            parts.append(
-                f'<circle class="arc {state}" cx="{size / 2}" cy="{size / 2}" r="{r}" '
-                f'stroke-dasharray="{dash:.2f} {c - dash:.2f}" stroke-dashoffset="{offset:.2f}" />'
-            )
+    offset = 0.0
+    for segment in segments:
+        length = float(segment.weight / total) * c
+        dash = max(length - gap, 1.0)
+        parts.append(
+            f'<circle class="slice {segment.tone}" cx="{size / 2}" cy="{size / 2}" r="{r}" '
+            f'stroke-dasharray="{dash:.2f} {c - dash:.2f}" stroke-dashoffset="{-offset:.2f}" />'
+        )
+        offset += length
     parts.append("</g>")
-    parts.append(f'<text class="ring-num" x="50%" y="47%" text-anchor="middle">{center}</text>')
-    parts.append('<text class="ring-cap" x="50%" y="66%" text-anchor="middle">已出账</text>')
+    if center:
+        parts.append(
+            f'<text class="donut-num" x="50%" y="49%" text-anchor="middle">{center}</text>'
+            f'<text class="donut-cap" x="50%" y="63%" text-anchor="middle">{caption}</text>'
+        )
     parts.append("</svg>")
     return Markup("".join(parts))
 
@@ -284,15 +289,6 @@ def category_segments(categories: dict[str, Decimal]) -> list[Segment]:
     return segments
 
 
-def _top_of_bill(view: StatementView, tones: dict[str, str], count: int = 3) -> list[Segment]:
-    """A bill's largest categories, coloured as in the month's bar so a colour always
-    means the same category within one e-mail."""
-    values = {k: v for k, v in view.categories.items() if v > 0}
-    total = sum(values.values(), ZERO)
-    top = sorted(values.items(), key=lambda kv: -kv[1])[:count]
-    return [_segment(name, v, total, tones.get(name, "other")) for name, v in top]
-
-
 def _top_merchants(
     merchants: dict[str, Decimal], rules: Rules, tones: dict[str, str], count: int = 5
 ) -> list[Segment]:
@@ -308,25 +304,97 @@ def _top_merchants(
     return rows
 
 
-def _daily_average(view: StatementView) -> str:
-    days = len(view.chart_days)
-    total = sum(view.daily_values.values(), ZERO)
-    return f"¥{total / days:,.0f}" if days and total > 0 else ""
-
-
 def _amount_text(bill: Bill, view: StatementView) -> str:
     if view.nothing_due:
         return "无需还款"
     if view.due_cny is not None:
         return f"¥{view.due_cny}"
-    return "；".join(f"{b.currency} {money(b.amount_due)}" for b in bill.balances if b.amount_due)
+    return "；".join(
+        amount_with_symbol(b.amount_due, b.currency) for b in bill.balances if b.amount_due
+    )
+
+
+def _amount_orig(bill: Bill, view: StatementView) -> str:
+    """What a foreign card itself asks for, next to the converted CNY: the author repays
+    the bank in that currency, so the number the bank shows has to be in the e-mail too."""
+    if view.nothing_due or view.due_cny is None:  # nothing owed, or the CNY is missing and
+        return ""  # _amount_text already shows the original
+    owed = [b for b in bill.balances if b.amount_due and b.currency != "CNY"]
+    return " + ".join(amount_with_symbol(b.amount_due, b.currency) for b in owed)
+
+
+def merge_transactions(
+    views: list[tuple[str, StatementView]],
+) -> tuple[list[DayGroup], int, Highlight | None]:
+    """Every card's transactions as one list by date - the month read as one statement -
+    and the largest single purchase in it."""
+    lines = [line for _, view in views for day in view.days for line in day.lines]
+    lines.sort(key=lambda t: (t.when or date.min, t.card, t.line_no))
+    groups: dict[date, list[TxnLine]] = {}
+    for line in lines:
+        if line.when is not None:
+            groups.setdefault(line.when, []).append(line)
+    days = [DayGroup(day_label(when), rows) for when, rows in groups.items()]
+    spent = [t for t in lines if not t.excluded and not t.tag and t.cny_value is not None]
+    top = max(spent, key=lambda t: t.cny_value or ZERO, default=None)
+    biggest = None
+    if top is not None and top.when is not None:
+        biggest = Highlight(
+            top.title,
+            top.local,
+            top.cny,
+            f"{top.when.month}月{top.when.day}日",
+            top.card,
+            emoji_for(top.category),
+        )
+    return days, len(lines), biggest
+
+
+def month_spend_cny(
+    conn: sqlite3.Connection, cycle: str, fx: FxRates, rules: Rules
+) -> Decimal | None:
+    """CNY spent in a statement month, for the month-on-month line; None when that month
+    has no statements at all."""
+    bills = latest_bills(conn, cycle)
+    if not bills:
+        return None
+    total = ZERO
+    for bill_id in bills.values():
+        total += build_view(load_bill(conn, bill_id), fx, rules).spend_cny_value
+    return total
+
+
+def _change(spend: Decimal, before: Decimal | None, cycle: str) -> str:
+    """ "比 9 月 +12%", the way Screen Time compares weeks. Nothing to compare: nothing said."""
+    if before is None or before <= 0 or spend <= 0:
+        return ""
+    ratio = (spend - before) / before
+    return f"比 {cycle_title(cycle)} {'+' if ratio >= 0 else '-'}{abs(ratio):.0%}"
+
+
+def previous_cycle(cycle: str) -> str:
+    start, _ = month_bounds(cycle)
+    return (start - timedelta(days=1)).strftime("%Y-%m")
+
+
+def latest_bills(conn: sqlite3.Connection, cycle: str) -> dict[str, int]:
+    """Account -> the id of its statement in this month (the newest, if a card issued twice)."""
+    start, end = month_bounds(cycle)
+    return {
+        row["account_id"]: row["id"]
+        for row in conn.execute(
+            "SELECT id, account_id FROM bills WHERE statement_date >= ? AND statement_date < ?"
+            " ORDER BY statement_date, id",
+            (start.isoformat(), end.isoformat()),
+        )
+    }
 
 
 def _arrived_note(bill: Bill, view: StatementView) -> str:
     parts = [f"{bill.statement_date.month}月{bill.statement_date.day}日出账"]
     if not view.nothing_due:
         due = bill.due_date
-        parts.append(f"{due.month}月{due.day}日前还款" if due else "还款日未知")
+        parts.append(f"{due.month}月{due.day}日还款" if due else "还款日未知")
     if bill.status != "OK":
         parts.append(view.status[2])
     return " · ".join(parts)
@@ -339,27 +407,17 @@ def build_cycle_report(
     rules: Rules,
     *,
     portfolio: Iterable[PortfolioCard] = (),
-    new_bill_ids: Iterable[int] = (),
-    attachments: dict[int, str] | None = None,
     today: date | None = None,
     now: datetime | None = None,
 ) -> CycleReport:
+    """The whole statement month: every expected card, the spending across all of them,
+    and their transactions in one list."""
     today = today or today_in_china()
-    new_ids = set(new_bill_ids)
-    attachments = attachments or {}
-    start, end = month_bounds(cycle)
-    latest: dict[str, int] = {}
-    for row in conn.execute(
-        "SELECT id, account_id FROM bills WHERE statement_date >= ? AND statement_date < ?"
-        " ORDER BY statement_date, id",
-        (start.isoformat(), end.isoformat()),
-    ):
-        latest[row["account_id"]] = row["id"]
+    latest = latest_bills(conn, cycle)
 
     expected = expected_cards(conn, cycle, portfolio)
     cards: list[CardState] = []
-    new_views: list[tuple[str, StatementView, str]] = []
-    due_lines: list[tuple[date, DueLine]] = []
+    views: list[tuple[str, StatementView]] = []
     due_total: Decimal | None = ZERO
     spend = ZERO
     categories: dict[str, Decimal] = {}
@@ -380,11 +438,18 @@ def build_cycle_report(
 
         bill = load_bill(conn, bill_id)
         view = build_view(bill, fx, rules, now)
-        amount = _amount_text(bill, view)
-        note = _arrived_note(bill, view)
-        cards.append(CardState(label, bank, last4, "arrived", note, amount, bill_id in new_ids))
-        if bill_id in new_ids:
-            new_views.append((label, view, attachments.get(bill_id, "")))
+        cards.append(
+            CardState(
+                label,
+                bank,
+                last4,
+                "arrived",
+                _arrived_note(bill, view),
+                _amount_text(bill, view),
+                _amount_orig(bill, view),
+            )
+        )
+        views.append((label, view))
         if due_total is not None:
             due_total = None if view.due_cny_value is None else due_total + view.due_cny_value
         spend += view.spend_cny_value
@@ -392,34 +457,36 @@ def build_cycle_report(
             categories[name] = categories.get(name, ZERO) + value
         for name, value in view.merchants.items():
             merchants[name] = merchants.get(name, ZERO) + value
-        if not view.nothing_due and bill.due_date:
-            d = bill.due_date
-            line = DueLine(f"{d.month}月", d.day, f"周{WEEKDAYS[d.weekday()]}", label, amount)
-            due_lines.append((d, line))
 
     segments = category_segments(categories)
     tones = {s.name: s.tone for s in segments}
-    new_bills = [
-        NewBill(
-            label,
-            view,
-            daily_svg(view.chart_days, view.daily_values, average=True),
-            _daily_average(view),
-            _top_of_bill(view, tones),
-            attachment,
-        )
-        for label, view, attachment in new_views
-    ]
+    days, count, biggest = merge_transactions(views)
+
+    chart_days = sorted({day for _, view in views for day in view.chart_days})
+    daily: dict[date, Decimal] = {}
+    for _, view in views:
+        for when, value in view.daily_values.items():
+            daily[when] = daily.get(when, ZERO) + value
+    peak = max(daily.values(), default=ZERO)
+    active = sum(1 for day in chart_days if daily.get(day, ZERO) > 0)
+    caption = f"{len(chart_days)} 天里有 {active} 天有消费" + (
+        f"，最多的一天 ¥{money(cents(peak))}" if peak else ""
+    )
+    before = previous_cycle(cycle)
     return CycleReport(
         cycle=cycle,
         cards=cards,
-        new_bills=new_bills,
         due_total=money(cents(due_total)) if due_total is not None else None,
-        due_lines=[line for _, line in sorted(due_lines, key=lambda x: x[0])],
         spend_total=money(cents(spend)),
         segments=segments,
         merchants=_top_merchants(merchants, rules, tones),
+        days=days,
+        transaction_count=count,
+        daily_chart=daily_svg(chart_days, daily, average=True),
+        daily_caption=caption,
         generated_at=(now or datetime.now(CHINA)).strftime("%Y-%m-%d %H:%M"),
+        spend_change=_change(spend, month_spend_cny(conn, before, fx, rules), before),
+        biggest=biggest,
     )
 
 
@@ -447,45 +514,25 @@ def render_cycle_html(report: CycleReport) -> str:
 
 def plain_text(report: CycleReport) -> str:
     """For mail apps that show no HTML."""
-    out = [f"{report.title} 信用卡账单", f"{report.progress} · {report.status_line}"]
+    out = [f"{report.title} 信用卡账单", report.status_line]
     if report.due_total is not None:
-        out.append(f"已出账合计应还：¥ {report.due_total}")
+        out.append(f"本月合计应还：¥{report.due_total}")
+    spent = f"本月消费：¥{report.spend_total}"
+    out.append(f"{spent}（{report.spend_change}）" if report.spend_change else spent)
     out.append("")
     for card in report.cards:
-        out.append(f"{card.label}：{card.chip} {card.amount}".rstrip() + f"（{card.note}）")
-    for new in report.new_bills:
-        out += ["", f"新到账单：{new.label}，本期消费 ¥ {new.view.spend_cny}"]
-        if new.attachment:
-            out.append(f"完整账单见附件 {new.attachment}")
-    if report.complete and report.due_lines:
-        out += ["", "还款日一览："]
-        out += [f"{d.month}{d.day}日 {d.weekday} {d.label} {d.amount}" for d in report.due_lines]
+        line = f"{card.label}：{card.chip} {card.amount}".rstrip()
+        if card.amount_orig:
+            line += f"（{card.amount_orig}）"
+        out.append(f"{line}（{card.note}）")
+    if report.segments:
+        out += ["", "分类："]
+        out += [f"{s.name} {s.share} ¥{s.amount}" for s in report.segments]
+    if report.biggest:
+        big = report.biggest
+        out += ["", f"最大的一笔：{big.title} {big.local} · {big.when} · {big.card}"]
+    out += ["", f"全部 {report.transaction_count} 笔流水见 HTML 版本。"]
     return "\n".join(out)
-
-
-def attachment_name(bill: Bill) -> str:
-    return f"AutoBill-{bill.account_id.replace(':', '-')}-{bill.statement_date}.pdf"
-
-
-def pdf_attacher(fx: FxRates, rules: Rules, browser: Path) -> Attacher:
-    """Prints each new bill's standard statement to PDF; None when printing fails."""
-
-    def attach(bill: Bill) -> bytes | None:
-        with tempfile.TemporaryDirectory(
-            prefix="autobill-mail-", ignore_cleanup_errors=True
-        ) as tmp:
-            html, pdf = Path(tmp) / "statement.html", Path(tmp) / "statement.pdf"
-            html.write_text(render_statement_html(bill, fx, rules), encoding="utf-8")
-            try:
-                html_to_pdf(html, pdf, browser)
-            except PdfError:
-                return None
-            return pdf.read_bytes()
-
-    return attach
-
-
-# --- threads: all e-mails of one month form one conversation -------------------------
 
 
 def thread_ids(conn: sqlite3.Connection, cycle: str) -> list[str]:
@@ -536,34 +583,17 @@ def cycle_complete(
 def build_cycle_email(
     conn: sqlite3.Connection,
     cycle: str,
-    new_bill_ids: list[int],
     fx: FxRates,
     sender: str,
     to_addr: str,
     *,
     portfolio: Iterable[PortfolioCard] = (),
     rules: Rules | None = None,
-    attach: Attacher | None = None,
     today: date | None = None,
 ) -> tuple[EmailMessage, CycleReport]:
-    """The progress e-mail for one month, with the new statements attached as PDF."""
+    """The month's e-mail: the whole statement month as it stands now."""
     rules = rules or load_rules(conn)
-    pdfs: dict[int, tuple[str, bytes]] = {}
-    for bill_id in new_bill_ids:
-        bill = load_bill(conn, bill_id)
-        data = attach(bill) if attach else None
-        if data:
-            pdfs[bill_id] = (attachment_name(bill), data)
-    report = build_cycle_report(
-        conn,
-        cycle,
-        fx,
-        rules,
-        portfolio=portfolio,
-        new_bill_ids=new_bill_ids,
-        attachments={k: name for k, (name, _) in pdfs.items()},
-        today=today,
-    )
+    report = build_cycle_report(conn, cycle, fx, rules, portfolio=portfolio, today=today)
     msg = EmailMessage()
     msg["Subject"] = report.subject
     msg["From"] = sender
@@ -577,8 +607,6 @@ def build_cycle_email(
     msg["X-AutoBill-Report"] = "true"  # second guard against ever parsing our own reports
     msg.set_content(plain_text(report))
     msg.add_alternative(render_cycle_html(report), subtype="html")
-    for name, data in pdfs.values():
-        msg.add_attachment(data, maintype="application", subtype="pdf", filename=name)
     return msg, report
 
 
@@ -591,27 +619,8 @@ def preview_cycle_html(
     rules: Rules | None = None,
     today: date | None = None,
 ) -> str:
-    """The HTML of the month's next e-mail, as if the unreported statements (or else the
-    latest one) had just arrived, each with its PDF attached. Sends nothing."""
-    start, end = month_bounds(cycle)
-    rows = conn.execute(
-        "SELECT id, account_id, statement_date, reported_at FROM bills"
-        " WHERE statement_date >= ? AND statement_date < ? ORDER BY statement_date, id",
-        (start.isoformat(), end.isoformat()),
-    ).fetchall()
-    new = [r for r in rows if r["reported_at"] is None] or rows[-1:]
-    names = {
-        r["id"]: f"AutoBill-{r['account_id'].replace(':', '-')}-{r['statement_date']}.pdf"
-        for r in new
-    }
+    """The HTML of the month's e-mail, exactly as it would be sent. Sends nothing."""
     report = build_cycle_report(
-        conn,
-        cycle,
-        fx,
-        rules or load_rules(conn),
-        portfolio=portfolio,
-        new_bill_ids=list(names),
-        attachments=names,
-        today=today,
+        conn, cycle, fx, rules or load_rules(conn), portfolio=portfolio, today=today
     )
     return render_cycle_html(report)
