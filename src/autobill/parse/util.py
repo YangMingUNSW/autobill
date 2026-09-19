@@ -141,6 +141,7 @@ _DIRECTION_LABELS = {
     "DEBT": Direction.DEBIT,
     "DEBIT": Direction.DEBIT,
 }
+_BARE_ZERO_RE = re.compile(r"^0+(?:\.0+)?$")
 _DIRECTED_RE = re.compile(r"^(?P<zh>\S+?)\s*/\s*(?P<en>[A-Z]+)\s+(?P<amount>.+)$")
 
 
@@ -148,13 +149,17 @@ def parse_directed_amount(text: str, *, blank_is_zero: bool = False) -> tuple[De
     """BOC style "存款/CRED 0.07" -> (Decimal("0.07"), Direction.CREDIT).
 
     The label gives the direction, so the amount itself must not carry a sign.
-    A blank cell (when allowed) is zero and reported as DEBIT.
+    A blank cell (when allowed) is zero and reported as DEBIT. So is a bare zero: BOC
+    prints an exactly-zero balance as plain "0.00", since zero has no direction (seen on
+    the author's 2025-12 to 2026-02 statements). A bare non-zero amount is still an error.
     """
     s = _clean(text)
     if s in _BLANK_AMOUNTS and blank_is_zero:
         return Decimal("0"), Direction.DEBIT
     m = _DIRECTED_RE.match(s)
     if not m:
+        if _BARE_ZERO_RE.match(s):
+            return Decimal("0"), Direction.DEBIT
         raise AmountError(f"expected '存款/CRED amount' style: {text!r}")
     zh, en = _DIRECTION_LABELS.get(m["zh"]), _DIRECTION_LABELS.get(m["en"])
     if zh is None or en is None or zh != en:
