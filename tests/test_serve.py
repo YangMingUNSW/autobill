@@ -53,3 +53,22 @@ def test_not_configured_yet_keeps_waiting(monkeypatch, sleeps):
 def test_real_run_once_without_config_says_what_is_missing(sleeps):
     result = runner.invoke(app, ["serve", "--times", "1"])
     assert result.exit_code == 1 and "mail_fetcher" in result.output
+
+
+def test_unreadable_config_explains_itself(isolated_data_dir, monkeypatch):
+    """Docker running as another uid than the config's owner: a plain message, no traceback."""
+    from pathlib import Path
+
+    (isolated_data_dir / "config.yaml").write_text("fx: {}", encoding="utf-8")
+    real = Path.read_text
+
+    def denied(self, *args, **kwargs):
+        if self.name == "config.yaml":
+            raise PermissionError(13, "Permission denied")
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", denied)
+    result = runner.invoke(app, ["check-mailbox"])
+    assert result.exit_code != 0
+    assert "没有权限读取" in result.output and "AUTOBILL_UID" in result.output
+    assert "Traceback" not in result.output

@@ -3,6 +3,8 @@
 # Next to this file:
 #   data/config.yaml   copied from config.example.yaml and filled in
 #   autobill.env       copied from autobill.env.example, with your mailbox password (chmod 600)
+#   .env               your user id, so the container can read and write data/:
+#                      printf "AUTOBILL_UID=%s\nAUTOBILL_GID=%s\n" "$(id -u)" "$(id -g)" > .env
 # then:  docker compose up -d        logs:  docker compose logs -f
 #        docker compose pull && docker compose up -d     (update to the newest version)
 services:
@@ -10,6 +12,7 @@ services:
     image: ghcr.io/yangmingunsw/autobill:latest
     command: ["serve", "--interval", "30"]  # fetch, process and report every 30 minutes
     restart: unless-stopped
+    user: "${AUTOBILL_UID:-1000}:${AUTOBILL_GID:-1000}"  # the owner of data/ (see .env above)
     env_file: ./autobill.env
     volumes:
       - ./data:/data  # config.yaml, database, original e-mails, statements

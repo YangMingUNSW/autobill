@@ -25,13 +25,17 @@ curl -fsSLO https://raw.githubusercontent.com/YangMingUNSW/autobill/main/compose
 curl -fsSL https://raw.githubusercontent.com/YangMingUNSW/autobill/main/config.example.yaml -o data/config.yaml
 curl -fsSL https://raw.githubusercontent.com/YangMingUNSW/autobill/main/autobill.env.example -o autobill.env
 chmod 600 autobill.env
+printf "AUTOBILL_UID=%s\nAUTOBILL_GID=%s\n" "$(id -u)" "$(id -g)" > .env
 ```
+
+最后一行把你自己的用户编号写进 `.env`，让容器以你的身份读写 `data/`：配置和数据库只有你能读，容器也必须是"你"才读得到。**不写这一行、而你的编号又不是 1000 时，会报"没有权限读取 config.yaml"**（2026-09-19 在作者的 Oracle 服务器上遇到：那台机器的 1000 号是 Oracle 自带的 `opc` 用户，`ubuntu` 是 1001）。
 
 文件夹里是这样的：
 
 ```
 autobill-docker/
 ├── compose.yaml        # 怎么运行（每 30 分钟一次）
+├── .env                # 你的用户编号（AUTOBILL_UID / AUTOBILL_GID）
 ├── autobill.env        # 邮箱密码，只有你能读（600）
 └── data/
     ├── config.yaml     # 你的配置
@@ -63,7 +67,7 @@ docker compose up -d                               # 启动：立刻跑一次，
 | 其他命令 | `docker compose run --rm autobill <命令>`，比如 `uncategorised`、`report --month 2026-09` |
 
 - **数据都在 `data/` 里**：换镜像、更新版本都不会丢。备份就是复制这个文件夹。
-- 容器以普通用户（uid 1000）运行，不是 root。
+- 容器以普通用户运行，不是 root：默认 uid 1000，`.env` 里的 `AUTOBILL_UID` / `AUTOBILL_GID` 可以改成你自己的。
 - 出问题时会发**提醒邮件**到你的邮箱（见 [notify.md](notify.md#提醒邮件)），不用盯着日志。只有"收信和发信用同一个密码，而这个密码失效了"时发不出提醒，这时看日志，或者注意到进度邮件不来了。
 - 内存：`compose.yaml` 限制容器最多用 300 MB，实际用得更少；1 GB 的服务器绰绰有余。
 
