@@ -55,6 +55,7 @@ FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表�
 - `report --month`：在终端输出某个月的汇总。M3–M6 先用它看结果，M7 开始发邮件。
 - **M3 已实现** `import-dir` 和 `report --month`，其余命令在后面的里程碑里加。
 - **M7 起**：`import-dir` 导入完成后，给所有还没发过报表的账单（`reported_at` 为空）逐一发邮件；`--no-send` 跳过发送。没配置邮箱或没有授权码时只提示、不发。`preview-email [--cycle 2026-09] [-o 文件]` 把某个账单月（默认最新）的下一封进度邮件写成 HTML 文件，不发信。
+- **`reparse [--all]`**（2026-09-20）：用现在的解析器和卡号别名，把已经入库的邮件**从 `raw/` 里的原件重新解析**，默认只处理 WARN、UNVERIFIED、FAILED、UNRECOGNIZED 的，`--all` 全部。账单原地更新（同一行，保留 `reported_at`，所以不会重发报表）；因为别名换了账户的，旧账户那一行删掉。解析器修好后，已经入库的账单就用它更新。
 - **M8b 起**：`serve [--interval 30]` 一直运行，每隔几分钟跑一次 `run` 的全部步骤（Docker 默认用它）；某一次出错只记日志，不退出。
 - **M8a 起**：`check-mailbox` 登录收信和发信邮箱、列出文件夹里的邮件数，不改动也不发送任何东西；`run [--no-send]` 从邮箱拉取新邮件（"作为附件"转发的会先拆开）、解析，再发进度邮件。
 - **M7d 起**：`uncategorised [--cycle 2026-09] [--limit 20] [--suggest]` 列出还没分类的商户，生成可以复制进 `rules.yaml` 的 YAML；`--suggest` 让配置好的 AI 给建议（见 [notify.md](notify.md#分类建议与-ai-接口)）。

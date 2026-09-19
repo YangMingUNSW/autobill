@@ -62,6 +62,7 @@ docker compose up -d                               # 启动：立刻跑一次，
 | 退回某个版本 | 把 `compose.yaml` 里的 `:latest` 改成版本号（如 `:0.2.0`），再 `docker compose up -d` |
 | 马上跑一次 | `docker compose restart`（重启后会立刻运行一次） |
 | 程序修好后补处理失败的账单 | `docker compose run --rm autobill run --rescan` |
+| 程序修好后重新解析有警告的账单 | `docker compose pull && docker compose up -d`，再 `docker compose run --rm autobill reparse` |
 | 停止 / 启动 | `docker compose down` / `docker compose up -d` |
 | 换了 App 专用密码 | 改 `autobill.env`，然后 `docker compose up -d` |
 | 其他命令 | `docker compose run --rm autobill <命令>`，比如 `uncategorised`、`report --month 2026-09` |

@@ -21,7 +21,7 @@ from autobill.fetch.source import DirectorySource, RawMail
 from autobill.fx import FxRates
 from autobill.notify import alerts
 from autobill.notify.mail import PASSWORD_ENV, Mailer, smtp_password
-from autobill.pipeline import process, send_pending_reports
+from autobill.pipeline import process, reparse, send_pending_reports
 from autobill.report.cycle import CHINA, pdf_attacher, preview_cycle_html
 from autobill.report.monthly import month_bounds, monthly_summary, render_text
 from autobill.report.pdf import PdfError, find_browser, html_to_pdf
@@ -363,6 +363,34 @@ def report(
     conn = _db()
     summary = monthly_summary(conn, month, FxRates(conn, load_config().fx))
     typer.echo(render_text(summary))
+
+
+@app.command("reparse")
+def reparse_command(
+    every: Annotated[
+        bool, typer.Option("--all", help="Every stored e-mail, not only WARN / FAILED ones.")
+    ] = False,
+) -> None:
+    """Parse stored e-mails again with the current parsers and card aliases (after a fix)."""
+    conn = _db()
+    aliases = load_config().cards.card_aliases
+    query = "SELECT id FROM emails"
+    if not every:
+        query += " WHERE status IN ('WARN', 'UNVERIFIED', 'FAILED', 'UNRECOGNIZED')"
+    ids = [r[0] for r in conn.execute(query + " ORDER BY id")]
+    if not ids:
+        typer.echo("没有需要重新解析的邮件。")
+        return
+    counts: dict[str, int] = {}
+    for email_id in ids:
+        outcome = reparse(conn, data_dir(), email_id, aliases)
+        counts[outcome.status] = counts.get(outcome.status, 0) + 1
+        accounts = ", ".join(f"{b.account_id} {b.statement_date}" for b in outcome.bills)
+        name = outcome.source.rsplit("/", 1)[-1]
+        typer.echo(f"{outcome.status:<12} {name}  {accounts or outcome.error or ''}")
+    summary = "，".join(f"{status} {n}" for status, n in sorted(counts.items()))
+    typer.echo("")
+    typer.echo(f"重新解析了 {len(ids)} 封：{summary}。已经发过报表的账单不会再发。")
 
 
 @app.command()

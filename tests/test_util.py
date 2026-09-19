@@ -168,6 +168,13 @@ def test_parse_directed_amount_blank():
     assert parse_directed_amount("", blank_is_zero=True) == (D("0"), Direction.DEBIT)
 
 
+@pytest.mark.parametrize("raw", ["0.00", "0", "0.0"])
+def test_parse_directed_amount_bare_zero(raw):
+    """BOC prints an exactly-zero balance without a direction label (author's statements
+    2025-12 to 2026-02): zero has no direction. "0.07" without a label is still rejected."""
+    assert parse_directed_amount(raw) == (D("0"), Direction.DEBIT)
+
+
 # --- currencies -------------------------------------------------------------
 
 
