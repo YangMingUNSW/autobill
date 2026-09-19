@@ -45,6 +45,21 @@ def forwarded(*originals: bytes, to: str = ALIAS) -> bytes:
     return wrapper.as_bytes()
 
 
+def qq_forwarded(original: bytes, to: str = ALIAS) -> bytes:
+    """QQ Mail's "作为附件转发": the original as an application/octet-stream file whose
+    name is RFC 2047 encoded Chinese ending in .eml (seen on the author's real mail)."""
+    wrapper = EmailMessage()
+    wrapper["From"] = "someone@qq.example"
+    wrapper["To"] = to
+    wrapper["Subject"] = "转发：中国农业银行金穗信用卡电子对账单"
+    wrapper.set_content("转发的邮件")
+    wrapper.add_attachment(
+        original, maintype="application", subtype="octet-stream",
+        filename="中国农业银行金穗信用卡电子对账单.eml",
+    )  # fmt: skip
+    return wrapper.as_bytes()
+
+
 def readdress(data: bytes, to: str = ALIAS) -> bytes:
     """An original statement as if auto-forwarded to the alias (only To changes)."""
     msg = email.message_from_bytes(data, policy=email.policy.compat32)
@@ -69,6 +84,23 @@ def test_forwarded_attachments_become_separate_originals():
         a = email.message_from_bytes(original, policy=email.policy.default)
         b = email.message_from_bytes(part, policy=email.policy.default)
         assert a["Message-ID"] == b["Message-ID"] and str(a["Subject"]) == str(b["Subject"])
+
+
+def test_qq_eml_file_attachment_is_unwrapped_byte_for_byte():
+    original = ABC[0].read_bytes()
+    wrapped = qq_forwarded(original)
+    assert b"=?utf-8?" in wrapped.lower()  # the file name really is encoded
+    assert split_forwarded(wrapped) == [original]  # exact bytes: same sha256 as the original
+
+
+def test_an_eml_named_file_that_is_not_mail_is_left_alone():
+    wrapper = EmailMessage()
+    wrapper["From"], wrapper["To"], wrapper["Subject"] = "a@x.example", ALIAS, "notes"
+    wrapper.set_content("see file")
+    wrapper.add_attachment(b"just some notes", maintype="application", subtype="octet-stream",
+                           filename="notes.eml")  # fmt: skip
+    data = wrapper.as_bytes()
+    assert split_forwarded(data) == [data]
 
 
 def test_plain_mail_is_left_alone():
@@ -309,3 +341,40 @@ def test_run_reports_login_failure(cli_env, monkeypatch):
     monkeypatch.setenv("AUTOBILL_IMAP_PASSWORD", "wrong")
     result = runner.invoke(app, ["run"])
     assert result.exit_code == 1 and "收信失败" in result.output
+
+
+def test_failed_mail_is_retried_and_rescan_rereads(cli_env, monkeypatch):
+    """The author's first real run: QQ's .eml attachment was not unwrapped yet, so the mail
+    was UNRECOGNIZED and the cursor moved on. After a fix, --rescan reads it again and the
+    earlier failure is retried instead of skipped."""
+    write_config(cli_env, smtp=False)
+    use_folders(monkeypatch, folders_with({1: qq_forwarded(ABC[0].read_bytes())}))
+    from autobill import cli as cli_module
+
+    fixed = cli_module.split_forwarded
+    monkeypatch.setattr("autobill.cli.split_forwarded", lambda data: [data])  # the old bug
+    first = runner.invoke(app, ["run", "--no-send"])
+    assert "共 1 封：UNRECOGNIZED 1" in first.output
+    # Put the fix back by hand: monkeypatch.undo() would also drop the isolated data dir.
+    monkeypatch.setattr("autobill.cli.split_forwarded", fixed)
+    again = runner.invoke(app, ["run", "--no-send"])
+    assert "处理了 0 封" in again.output  # without --rescan the cursor is past it
+    rescan = runner.invoke(app, ["run", "--no-send", "--rescan"])
+    assert rescan.exit_code == 0, rescan.output
+    assert "共 1 封：OK 1" in rescan.output
+    twice = runner.invoke(app, ["run", "--no-send", "--rescan"])
+    assert "共 1 封：SKIPPED 1" in twice.output  # a processed statement is never redone
+
+
+def test_known_failures_are_retried_but_successes_skipped(isolated_data_dir):
+    from autobill.fetch.source import RawMail
+
+    conn = connect(isolated_data_dir / "autobill.db")
+    junk = b"From: a@x.example\r\nMessage-ID: <junk@x>\r\nSubject: hi\r\n\r\nhello"
+    assert process(conn, isolated_data_dir, RawMail(junk, "t")).status == "UNRECOGNIZED"
+    assert process(conn, isolated_data_dir, RawMail(junk, "t")).status == "UNRECOGNIZED"
+    rows = conn.execute("SELECT COUNT(*) FROM emails WHERE message_id = '<junk@x>'").fetchone()
+    assert rows[0] == 1  # retried, not duplicated
+    good = ABC[0].read_bytes()
+    assert process(conn, isolated_data_dir, RawMail(good, "t")).status == "OK"
+    assert process(conn, isolated_data_dir, RawMail(good, "t")).status == "SKIPPED"

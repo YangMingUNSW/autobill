@@ -66,6 +66,7 @@ class MailSource(Protocol):
 
 ## MIME 处理
 - **拆附件**：每个 `message/rfc822` 部件都当作一封独立的原始邮件，递归处理、各自去重。
+  - **QQ 邮箱的"作为附件转发"不用 `message/rfc822`**，而是把原邮件当成普通文件附件（`application/octet-stream`），文件名是编码过的中文 `<主题>.eml`（2026-09-19 作者第一次实测发现）。所以文件名以 `.eml` 结尾、内容开头是邮件头的附件也当作原始邮件，**原样取出**，字节和银行原件完全一样。
 - **解码**：按部件声明的 charset 解码，失败时用 GB18030 兜底。三家样本都是 UTF-8 + base64，其他银行可能是 GBK 并且标错字符集。
 - **PDF 按内容识别**（`%PDF-` 开头），原因见 [parsing.md](parsing.md#通用工具)。
 - 原始邮件以 sha256 命名落盘，见 [pipeline.md](pipeline.md)。

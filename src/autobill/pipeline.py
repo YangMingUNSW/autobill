@@ -44,10 +44,13 @@ def save_raw(data_dir: Path, msg: RawMessage) -> Path:
 def process(conn: sqlite3.Connection, data_dir: Path, mail: RawMail) -> Outcome:
     msg = RawMessage.from_bytes(mail.data)
     known = conn.execute(
-        "SELECT status FROM emails WHERE message_id = ?", (msg.message_id,)
+        "SELECT id, status FROM emails WHERE message_id = ?", (msg.message_id,)
     ).fetchone()
     if known is not None:
-        return Outcome(mail.source, "SKIPPED")  # e-mail-level dedupe: already processed
+        if known["status"] not in RETRY_STATUSES:
+            return Outcome(mail.source, "SKIPPED")  # e-mail-level dedupe: already processed
+        # It failed or was not recognised before; the code may have been fixed since.
+        conn.execute("DELETE FROM emails WHERE id = ?", (known["id"],))
 
     save_raw(data_dir, msg)
     parser = find_parser(msg)
@@ -93,6 +96,7 @@ def process(conn: sqlite3.Connection, data_dir: Path, mail: RawMail) -> Outcome:
     return Outcome(mail.source, status, parser.bank if parser else None, bills, error)
 
 
+RETRY_STATUSES = {"FAILED", "UNRECOGNIZED"}  # met again: processed again, not skipped
 _SEVERITY = ["OK", "UNVERIFIED", "WARN"]
 
 

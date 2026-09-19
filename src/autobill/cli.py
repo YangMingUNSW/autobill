@@ -159,10 +159,20 @@ def run(
     send: Annotated[
         bool, typer.Option("--send/--no-send", help="E-mail the progress reports.")
     ] = True,
+    rescan: Annotated[
+        bool,
+        typer.Option(
+            "--rescan", help="Read the folders from the start again (after a fix or rule change)."
+        ),
+    ] = False,
 ) -> None:
     """Fetch new statements from the mailbox, process them and send the reports."""
     config = load_config()
     conn = _db()
+    if rescan:
+        # Harmless: e-mails already processed are skipped by Message-ID; failed ones retried.
+        conn.execute("DELETE FROM folder_cursors")
+        typer.echo("从头重读文件夹：处理过的邮件会跳过，之前失败或不认识的会重新处理。")
     try:
         with _mailbox(config) as box:
             source = ImapSource(box, conn)

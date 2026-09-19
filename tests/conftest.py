@@ -5,6 +5,21 @@ from pathlib import Path
 import pytest
 
 
+@pytest.fixture(autouse=True, scope="session")
+def never_the_real_data_dir():
+    """Last line of defence, outside the per-test monkeypatch (so monkeypatch.undo() in a
+    test cannot remove it): without AUTOBILL_DATA_DIR, data_dir() falls back to the real
+    AutoBill folder under %LOCALAPPDATA%; make that fail loudly instead."""
+    guard = pytest.MonkeyPatch()
+
+    def refuse(*args, **kwargs):
+        raise RuntimeError("a test tried to use the real AutoBill data directory")
+
+    guard.setattr("platformdirs.user_data_dir", refuse)
+    yield
+    guard.undo()
+
+
 @pytest.fixture(autouse=True)
 def isolated_data_dir(tmp_path, monkeypatch):
     """Every test gets a fresh, empty AUTOBILL_DATA_DIR; never the real database."""
@@ -59,4 +74,16 @@ def no_real_smtp(monkeypatch):
         raise RuntimeError("real SMTP connection in a test")
 
     monkeypatch.setattr("smtplib.SMTP_SSL", refuse)
+    monkeypatch.setattr("smtplib.SMTP", refuse)  # the STARTTLS path (iCloud, port 587)
     monkeypatch.delenv("AUTOBILL_SMTP_PASSWORD", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def no_real_imap(monkeypatch):
+    """Tests never log in to a real mailbox; a test that fetches passes a FakeIMAP."""
+
+    def refuse(*args, **kwargs):
+        raise RuntimeError("real IMAP connection in a test")
+
+    monkeypatch.setattr("imaplib.IMAP4_SSL", refuse)
+    monkeypatch.delenv("AUTOBILL_IMAP_PASSWORD", raising=False)
