@@ -153,6 +153,20 @@ uv run autobill --help        # 运行程序本身
   ```
   用 WebKit 内核（Playwright WebKit，和 iOS 同内核）在 390 像素宽下截浅色、深色图检查。
 
+### M7d 分类覆盖率和 AI 接口（2026-09-19 插入）
+- **交付**：
+  - 分类规则支持整词匹配 `word:`，原始描述和商户名一起匹配；
+  - 默认规则加上行业通用词和"烟酒"分类；
+  - `autobill uncategorised`：列出未分类的商户，生成可以复制进 `rules.yaml` 的 YAML；
+  - AI 接口 `autobill/suggest.py` + `config.yaml` 的 `ai`，`--suggest` 调用；这一步不接任何 AI。
+  - 设计见 [notify.md](notify.md#分类规则)。
+- **做完的标准**：样本里未分类的消费从 86 笔降到 40 笔以内；每条新词都核对过没有误分；AI 只收到商户名和分类名，建议不会自动写进 `rules.yaml`。
+- **怎么验证**：
+  ```powershell
+  uv run autobill import-dir tests/fixtures --no-send
+  uv run autobill uncategorised --limit 10
+  ```
+
 ### M8 IMAP 拉取 + 定时运行 → 打 `v0.2.0`（第一版可用）
 - **先做**：`autobill check-mailbox`，在要部署的机器上试登录中心邮箱、列出新邮件数，**第一天就验证能不能从那台机器（例如海外的 Oracle 服务器）登录**。IMAP 登录后发 `ID` 命令（163 不发会报 "Unsafe Login"）。
 - **部署**：Windows 计划任务或 Linux cron/systemd（Oracle 服务器），见 project.md 的"部署"决策；服务器上装 Chromium 和 `fonts-noto-cjk`，时区按北京时间。

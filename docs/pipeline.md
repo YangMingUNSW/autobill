@@ -55,6 +55,7 @@ FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表�
 - `report --month`：在终端输出某个月的汇总。M3–M6 先用它看结果，M7 开始发邮件。
 - **M3 已实现** `import-dir` 和 `report --month`，其余命令在后面的里程碑里加。
 - **M7 起**：`import-dir` 导入完成后，给所有还没发过报表的账单（`reported_at` 为空）逐一发邮件；`--no-send` 跳过发送。没配置邮箱或没有授权码时只提示、不发。`preview-email [--cycle 2026-09] [-o 文件]` 把某个账单月（默认最新）的下一封进度邮件写成 HTML 文件，不发信。
+- **M7d 起**：`uncategorised [--cycle 2026-09] [--limit 20] [--suggest]` 列出还没分类的商户，生成可以复制进 `rules.yaml` 的 YAML；`--suggest` 让配置好的 AI 给建议（见 [notify.md](notify.md#分类建议与-ai-接口)）。
 
 **M3 的处理流程**（`autobill/pipeline.py`）：
 1. 读出 `RawMessage`；Message-ID 已经在 `emails` 表里的，直接跳过（`SKIPPED`）。所以**同一个目录导入两次，数据库不变**。
