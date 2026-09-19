@@ -114,7 +114,8 @@ class AnthropicClassifier:
     ) -> dict[str, Verdict]:
         body: dict = {
             "model": self.model,
-            "max_tokens": 1500 + 150 * len(merchants),
+            # DeepSeek thinks before answering (better answers; ~1,000 tokens a merchant).
+            "max_tokens": 4000 + 500 * len(merchants),
             "temperature": 0,
             "system": SYSTEM,
             "messages": [{"role": "user", "content": _prompt(merchants, categories, search)}],
@@ -136,6 +137,8 @@ class AnthropicClassifier:
             if response.get("stop_reason") != "pause_turn":
                 break
             body["messages"] = [*body["messages"], {"role": "assistant", "content": content}]
+        if response.get("stop_reason") == "max_tokens":
+            raise SuggesterError(f"AI 的回答太长被截断（{len(merchants)} 个商户一批）")
         searched = any(b.get("type") == "server_tool_use" for b in content)
         return parse_answer(content, searched)
 

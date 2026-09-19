@@ -75,6 +75,13 @@ def test_search_uses_the_server_side_web_search_tool_and_resumes_a_paused_turn()
     assert model.usage == {"input_tokens": 3500, "output_tokens": 90, "web_searches": 1}
 
 
+def test_a_cut_off_answer_is_an_error():
+    post = Recorder({"content": [{"type": "thinking", "thinking": "..."}],
+                     "stop_reason": "max_tokens"})  # fmt: skip
+    with pytest.raises(SuggesterError, match="截断"):
+        classifier(post).classify(MERCHANTS, ["餐饮"], search=False)
+
+
 def test_answer_parsing():
     assert parse_answer([text("好的。\n" + ANSWER)], False)["ICHIKAKUYA"].category == "餐饮"
     odd = '{"results": [{"merchant": "X", "category": "餐饮", "confidence": "sure"}, 5]}'

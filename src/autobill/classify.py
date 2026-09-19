@@ -23,7 +23,7 @@ from autobill.model import TxnType
 from autobill.store.db import now
 from autobill.suggest import CategorySuggester, MerchantInfo, Verdict, keep_valid
 
-BATCH = 20  # merchants per step-1 request
+BATCH = 10  # merchants per step-1 request: the model thinks at length about each
 USE_UNSEARCHED = {"high"}
 USE_SEARCHED = {"high", "medium"}
 
