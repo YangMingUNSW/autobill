@@ -1,67 +1,89 @@
-# 部署到 Linux 服务器（M8b）
+# 部署到服务器（M8b）
 
-对应文件：`deploy/systemd/autobill.service`、`deploy/systemd/autobill.timer`。作者用的是一台 Oracle Cloud 免费服务器（Ubuntu 24.04，1 核 1 GB）；别的 Linux 服务器同理。
+**推荐用 Docker**（2026-09-19 定）：镜像由 GitHub Actions 自动构建，发布在 `ghcr.io/yangmingunsw/autobill`，同时有 x86（amd64）和 ARM（arm64）两种，Linux 服务器、群晖这类 NAS、苹果芯片的 Mac 都能跑。镜像里已经带好 Python、Chromium（打印 PDF）和中文字体，**服务器上只需要装 Docker**。
+
+作者用的是一台 Oracle Cloud 免费服务器（Ubuntu 24.04，1 核 1 GB）。
 
 **在服务器上跑起来以后，就不要再在自己电脑上运行 `autobill run` 了**（`--no-send` 除外），否则两边会各发一遍报表。
 
-## 服务器上要有的东西
-- Python 3.12（Ubuntu 24.04 自带）、`git`、[`uv`](https://docs.astral.sh/uv/)（装在 `~/.local/bin`）。
-- **Google Chrome**（打印标准账单 PDF 用）：用 Google 官方的 `.deb` 源安装，不要用 snap 版 chromium（1 GB 内存的机器上 snap 太重）。
-- **中文字体** `fonts-noto-cjk`：不装的话，PDF 里的中文会变成方框。
-- 可选但推荐：`fail2ban`，把反复试 SSH 密码的 IP 自动拉黑（服务器只能用密钥登录，它们本来也进不来，只是让日志清净）。
+## 用 Docker（推荐）
+
+### 1. 装 Docker
+Ubuntu：
 
 ```bash
-sudo apt install -y git fonts-noto-cjk fail2ban
+sudo apt install -y docker.io docker-compose-v2
+sudo usermod -aG docker $USER      # 之后重新登录一次，就不用每条命令都 sudo
+```
+
+其他系统见 Docker 官方文档；群晖在套件中心装 Container Manager。
+
+### 2. 准备一个文件夹
+```bash
+mkdir -p ~/autobill-docker/data && cd ~/autobill-docker
+curl -fsSLO https://raw.githubusercontent.com/YangMingUNSW/autobill/main/compose.yaml
+curl -fsSL https://raw.githubusercontent.com/YangMingUNSW/autobill/main/config.example.yaml -o data/config.yaml
+curl -fsSL https://raw.githubusercontent.com/YangMingUNSW/autobill/main/autobill.env.example -o autobill.env
+chmod 600 autobill.env
+```
+
+文件夹里是这样的：
+
+```
+autobill-docker/
+├── compose.yaml        # 怎么运行（每 30 分钟一次）
+├── autobill.env        # 邮箱密码，只有你能读（600）
+└── data/
+    ├── config.yaml     # 你的配置
+    └── ...             # 程序自己生成：数据库、原始邮件、标准账单
+```
+
+### 3. 填配置和密码
+- `data/config.yaml`：改 `mail_fetcher` 和 `notifier.smtp_report` 两节，见 [setup.md 第 5 步](setup.md#5-运行m8a-手动m8b-放到服务器上定时运行)。
+- `autobill.env`：`AUTOBILL_IMAP_PASSWORD=` 后面填邮箱密码（iCloud 用 App 专用密码），不加引号。
+
+### 4. 先检查，再启动
+```bash
+docker compose run --rm autobill check-mailbox     # 应该"全部正常"
+docker compose run --rm autobill run --no-send     # 看解析结果，不发邮件
+docker compose up -d                               # 启动：立刻跑一次，之后每 30 分钟一次
+```
+
+### 日常
+| 想做的事 | 命令（在 `~/autobill-docker` 里） |
+|---|---|
+| 看运行记录 | `docker compose logs --tail 50`（持续看：`-f`） |
+| 看在不在运行 | `docker compose ps` |
+| **更新到最新版** | `docker compose pull && docker compose up -d` |
+| 退回某个版本 | 把 `compose.yaml` 里的 `:latest` 改成版本号（如 `:0.2.0`），再 `docker compose up -d` |
+| 马上跑一次 | `docker compose restart`（重启后会立刻运行一次） |
+| 程序修好后补处理失败的账单 | `docker compose run --rm autobill run --rescan` |
+| 停止 / 启动 | `docker compose down` / `docker compose up -d` |
+| 换了 App 专用密码 | 改 `autobill.env`，然后 `docker compose up -d` |
+| 其他命令 | `docker compose run --rm autobill <命令>`，比如 `uncategorised`、`report --month 2026-09` |
+
+- **数据都在 `data/` 里**：换镜像、更新版本都不会丢。备份就是复制这个文件夹。
+- 容器以普通用户（uid 1000）运行，不是 root。
+- 出问题时会发**提醒邮件**到你的邮箱（见 [notify.md](notify.md#提醒邮件)），不用盯着日志。只有"收信和发信用同一个密码，而这个密码失效了"时发不出提醒，这时看日志，或者注意到进度邮件不来了。
+- 内存：`compose.yaml` 限制容器最多用 700 MB，给 1 GB 的服务器留余量；打印 PDF 时 Chromium 用得最多。
+
+## 不用 Docker（备选）
+直接在服务器上装 Python 环境，用 systemd 定时运行。文件在 `deploy/systemd/`。
+
+```bash
+sudo apt install -y git chromium fonts-noto-cjk      # Ubuntu 上 chromium 是 snap 版，1 GB 的机器建议改装 Google Chrome 的 .deb
 curl -LsSf https://astral.sh/uv/install.sh | sh
 git clone https://github.com/YangMingUNSW/autobill.git ~/autobill
 cd ~/autobill && uv sync --frozen
+# 配置：~/.local/share/autobill/config.yaml；密码：~/.config/autobill.env（600）
+set -a; . ~/.config/autobill.env; set +a
+uv run autobill check-mailbox
+sudo cp deploy/systemd/autobill.* /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now autobill.timer
 ```
 
-## 一次性设置
-1. **配置文件** `~/.local/share/autobill/config.yaml`：从仓库里的 `config.example.yaml` 复制，填好 `mail_fetcher`、`notifier.smtp_report` 和（需要的话）`cards.card_aliases`。见 [setup.md 第 5 步](setup.md#5-运行m8a-手动m8b-放到服务器上定时运行)。
-2. **密码文件** `~/.config/autobill.env`，**只有你自己能读**：
+日志用 `journalctl -u autobill -n 50`；更新用 `git pull && uv sync --frozen`。
 
-   ```bash
-   install -m 600 /dev/null ~/.config/autobill.env   # 已经有了就跳过
-   nano ~/.config/autobill.env
-   ```
-
-   里面写一行（换成你的 App 专用密码，不要引号）：
-
-   ```
-   AUTOBILL_IMAP_PASSWORD=abcd-efgh-ijkl-mnop
-   ```
-
-3. **先手动检查一次**：
-
-   ```bash
-   cd ~/autobill
-   set -a; . ~/.config/autobill.env; set +a     # 把密码读进当前窗口
-   uv run autobill check-mailbox                # 应该"全部正常"
-   uv run autobill run --no-send                # 看解析结果
-   ```
-
-4. **装上定时运行**：
-
-   ```bash
-   sudo cp ~/autobill/deploy/systemd/autobill.* /etc/systemd/system/
-   sudo systemctl daemon-reload
-   sudo systemctl enable --now autobill.timer
-   sudo systemctl start autobill.service        # 马上跑一次，不等 30 分钟
-   ```
-
-## 日常
-| 想做的事 | 命令 |
-|---|---|
-| 看下一次什么时候跑 | `systemctl list-timers autobill` |
-| 看最近几次的输出 | `journalctl -u autobill -n 50 --no-pager` |
-| 马上跑一次 | `sudo systemctl start autobill.service` |
-| 暂停 / 恢复定时运行 | `sudo systemctl disable --now autobill.timer` / `enable --now` |
-| 更新程序 | `cd ~/autobill && git pull && uv sync --frozen`（下次定时运行就是新版本） |
-| 程序修好后补处理失败的账单 | `set -a; . ~/.config/autobill.env; set +a; uv run autobill run --rescan` |
-| 换了 App 专用密码 | 改 `~/.config/autobill.env`，不用重启任何东西 |
-
-出问题时不用盯着日志：收信失败、账单解析失败、不认识的邮件、新卡号，都会发**提醒邮件**到你的 iCloud（见 [notify.md](notify.md#提醒邮件)）。只有"收信和发信用的是同一个密码，而这个密码失效了"时发不出提醒，这时只能看日志，或者注意到进度邮件不来了。
-
-## 为什么不用 Docker
-2026-09-19 讨论过：这台机器只有 1 GB 内存，Docker 守护进程和带 Chrome 的镜像（约 1 GB）都是负担，Chrome 在容器里打印 PDF 还要额外调共享内存和权限；而直接部署只需要上面几条命令和两个 systemd 文件，更新是 `git pull`。以后要搬到别的机器（NAS、Mac）或者给别人一键部署时，再加 Dockerfile，代码不用改。
+## 其他
+- 推荐同时装 `fail2ban`（`sudo apt install fail2ban`），把反复乱试 SSH 的 IP 自动拉黑。服务器只允许密钥登录，它们本来也进不来，只是让日志清净。
+- **为什么 2026-09-19 先说不用 Docker、后来又改用**：一开始担心 1 GB 的机器构建和运行带浏览器的镜像太吃力。改成"镜像在 GitHub 上构建、服务器只下载运行"后，这个顾虑基本消失了：服务器上只多一个约 100 MB 常驻的 Docker。而对开源项目来说，别人能一条命令部署才是最重要的。

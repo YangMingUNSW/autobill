@@ -2,11 +2,11 @@
 
 **中文** · [English](README.en.md)
 
-把分散在各家银行邮件里的信用卡账单，自动汇总成一份每月消费报表。自己部署，数据只留在你自己的电脑上。
+把分散在各家银行邮件里的信用卡账单，自动整理成一封封好看的月度进度邮件。自己部署（Docker 一条命令），数据只在你自己的服务器和邮箱里。
 
-银行账单邮件自动转发到一个专用邮箱，AutoBill 通过 IMAP **只读**拉取，用**固定规则**（不接 AI）解析每一份账单，和银行自己印在账单上的汇总数逐项对账，存进本地 SQLite，把外币折算成人民币，再把汇总报表发到你的邮箱。
+银行把电子账单发到一个专用邮箱，AutoBill 定时通过 IMAP **只读**拉取，用**固定规则**解析每一份账单（金额不经过 AI），和银行自己印在账单上的汇总数逐项对账，把外币折算成人民币，然后按"账单月"给你发进度邮件：哪些卡已出账、合计应还多少、钱花在哪，附上每份账单统一格式的 PDF。
 
-> **开发进度**：第一版开发中。三家银行（农行、建行、中行）账单的解析、对账、本地导入，以及带分类、趋势、Top 商户的终端月报已经可以使用；邮件报表和自动收信正在开发。路线见 [project.md](project.md#6-分期路线)。
+> **开发进度**：第一版（M0–M8）的功能都已完成：三家银行的解析和对账、标准账单 PDF、账单月进度邮件、提醒邮件、Docker 部署。正在作者自己的服务器上做最后验证，之后发布 `v0.2.0`。路线见 [project.md](project.md#6-分期路线)。
 
 ## 支持的银行（第一版）
 | 银行 | 账单格式 | 状态 |
@@ -16,12 +16,29 @@
 | 中国银行 | PDF 附件 | ✅ 已支持（含多卡合并账单） |
 
 ## 做什么，不做什么
-- ✅ **汇总和图表**：总支出、分类、按卡分布、趋势、Top 商户；展示还款日。
+- ✅ **账单月进度邮件**：为 iPhone 自带的邮件 App 排版（深色模式），每月一个对话：已出账几张卡、合计应还、每日消费图、分类；逐笔流水折叠在邮件里，轻点展开。
+- ✅ **标准账单**：每份账单一份统一格式的 HTML 和 PDF，包含全部流水，作为邮件附件。
 - ✅ **逐项对账**：每份账单都和银行自己的汇总数核对，对不上会告诉你差在哪。
 - ✅ **多币种**：每笔保留原币种，按账单邮件当天的汇率折算人民币。
-- ❌ 不做还款提醒，报表不列逐笔流水，不接银行接口，不接 AI。
+- ✅ **提醒**：不认识的邮件、解析失败、新卡号、邮箱登录失败时发一封提醒，同一个问题只提醒一次。
+- ❌ 不做还款提醒（只展示还款日），不接银行接口；金额和解析不用 AI（AI 以后只用来建议分类）。
 
-## 试一试（开发版）
+## 部署（Docker）
+服务器上只需要 Docker：
+
+```bash
+mkdir -p autobill/data && cd autobill
+curl -fsSLO https://raw.githubusercontent.com/YangMingUNSW/autobill/main/compose.yaml
+curl -fsSL https://raw.githubusercontent.com/YangMingUNSW/autobill/main/config.example.yaml -o data/config.yaml
+curl -fsSL https://raw.githubusercontent.com/YangMingUNSW/autobill/main/autobill.env.example -o autobill.env
+# 填好 data/config.yaml 和 autobill.env（邮箱密码），然后：
+docker compose run --rm autobill check-mailbox
+docker compose up -d
+```
+
+镜像有 x86 和 ARM 两种（服务器、NAS、苹果芯片 Mac 都能跑）。完整步骤、邮箱设置和日常命令见 [docs/deploy.md](docs/deploy.md) 和 [docs/setup.md](docs/setup.md)。
+
+## 试一试（不用邮箱）
 需要 [uv](https://docs.astral.sh/uv/) 和 Git。下面用仓库自带的脱敏样本，不需要真实邮箱：
 
 ```powershell

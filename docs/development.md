@@ -182,11 +182,12 @@ uv run autobill --help        # 运行程序本身
 ### M8b 服务器定时运行和提醒 → 打 `v0.2.0`（第一版可用）
 - **交付**：
   - `notify/alerts.py`：不认识的邮件、解析失败、新卡号、邮箱登录失败时发提醒邮件，同一个问题只发一次（`alerts` 表，表结构版本 4）；
-  - `deploy/systemd/`：oneshot 服务 + 每 30 分钟的定时器（不会同时跑两个，所以不需要文件锁）；
-  - [deploy.md](deploy.md)：服务器上的安装、密码文件、日常命令；
-  - 服务器上装 `fail2ban`。
-- **做完的标准**：服务器上 `check-mailbox` 全部正常；定时器按时运行；一封真实账单被银行发到别名后，30 分钟内收到进度邮件；重复运行不会重复发送；故意用错密码时收到"登录邮箱失败"的提醒（发信密码单独设置时）。
-- **完成后**：打 `v0.2.0` 标签，**第一版可用**。
+  - **Docker**：`Dockerfile`（Python 3.12 + Chromium + 中文字体，普通用户运行）、`compose.yaml`、`autobill.env.example`，`autobill serve` 每 30 分钟运行一次；
+  - `.github/workflows/docker.yml`：每个 PR 构建并做冒烟测试（导入样本、打印 PDF、检查中文、确认镜像里没有个人文件）；合并到 main 和打版本标签时发布 amd64 + arm64 镜像到 ghcr.io；
+  - 备选：`deploy/systemd/` 的 oneshot 服务和定时器；
+  - [deploy.md](deploy.md)：两种部署方式、日常命令。
+- **做完的标准**：服务器上 `docker compose run --rm autobill check-mailbox` 全部正常；`docker compose up -d` 后按时运行；一封真实账单发到别名后，30 分钟内收到进度邮件；重复运行不会重复发送。
+- **完成后**：打 `v0.2.0` 标签（会自动发布 `0.2.0` 版镜像），**第一版可用**。
 
 **补样本（P1b）**：随时穿插进行，不单独占一个步骤。拿到新样本后按 [security.md 的检查清单](security.md#以后加入新样本时的检查清单) 脱敏，加进 `tests/fixtures/`，补上快照，并更新[样本覆盖矩阵](banks/README.md#样本覆盖矩阵)。
 

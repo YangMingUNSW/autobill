@@ -1,0 +1,17 @@
+# AutoBill with Docker Compose (docs/deploy.md).
+#
+# Next to this file:
+#   data/config.yaml   copied from config.example.yaml and filled in
+#   autobill.env       copied from autobill.env.example, with your mailbox password (chmod 600)
+# then:  docker compose up -d        logs:  docker compose logs -f
+#        docker compose pull && docker compose up -d     (update to the newest version)
+services:
+  autobill:
+    image: ghcr.io/yangmingunsw/autobill:latest
+    command: ["serve", "--interval", "30"]  # fetch, process and report every 30 minutes
+    restart: unless-stopped
+    env_file: ./autobill.env
+    volumes:
+      - ./data:/data  # config.yaml, database, original e-mails, statements
+    shm_size: 256m  # room for Chromium when printing PDFs
+    mem_limit: 700m  # fits a 1 GB server; Chromium is the big one

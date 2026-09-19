@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import smtplib
+import time
+import traceback
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -19,13 +22,15 @@ from autobill.fx import FxRates
 from autobill.notify import alerts
 from autobill.notify.mail import PASSWORD_ENV, Mailer, smtp_password
 from autobill.pipeline import process, send_pending_reports
-from autobill.report.cycle import pdf_attacher, preview_cycle_html
+from autobill.report.cycle import CHINA, pdf_attacher, preview_cycle_html
 from autobill.report.monthly import month_bounds, monthly_summary, render_text
 from autobill.report.pdf import PdfError, find_browser, html_to_pdf
 from autobill.report.statement import render_statement_html
 from autobill.report.uncategorised import rules_snippet, uncategorised_merchants
 from autobill.store.db import connect, load_bill
 from autobill.suggest import SuggesterUnavailable, get_suggester, suggest_categories
+
+_sleep = time.sleep  # tests replace it
 
 app = typer.Typer(
     help="AutoBill: summarise credit-card statement e-mails into spending reports.",
@@ -187,6 +192,39 @@ def run(
     ] = False,
 ) -> None:
     """Fetch new statements from the mailbox, process them and send the reports."""
+    code = _run_once(send, rescan)
+    if code:
+        raise typer.Exit(code)
+
+
+@app.command()
+def serve(
+    interval: Annotated[int, typer.Option("--interval", min=1, help="Minutes between runs.")] = 30,
+    times: Annotated[
+        int, typer.Option("--times", hidden=True, help="Stop after this many runs (tests).")
+    ] = 0,
+) -> None:
+    """Keep running: fetch, process and report every INTERVAL minutes (the Docker default)."""
+    done = 0
+    while True:
+        started = datetime.now(CHINA).strftime("%Y-%m-%d %H:%M")
+        typer.echo(f"—— {started}（北京时间）开始运行 ——")
+        try:
+            code = _run_once()
+        except typer.Exit as exc:  # e.g. no mailbox configured yet: say so, keep waiting
+            code = exc.exit_code
+        except Exception:  # noqa: BLE001 - one bad run must not stop the service
+            traceback.print_exc()
+            code = 1
+        done += 1
+        if times and done >= times:
+            raise typer.Exit(code)
+        typer.echo(f"下次运行在 {interval} 分钟后。")
+        _sleep(interval * 60)
+
+
+def _run_once(send: bool = True, rescan: bool = False) -> int:
+    """One fetch-process-report cycle, shared by run and serve. Returns the exit code."""
     config = load_config()
     conn = _db()
     if rescan:
@@ -212,14 +250,17 @@ def run(
         alerts.record(conn, [alerts.mailbox(str(exc))])
         if send:
             _send_alerts(conn)  # may fail too when both use the same password
-        raise typer.Exit(1) from None
-    if send:
-        try:
-            _send_reports(conn)
-        finally:
-            _send_alerts(conn)
-    else:
+        return 1
+    if not send:
         typer.echo("按 --no-send 的要求，没有发送报表和提醒邮件。")
+        return 0
+    try:
+        _send_reports(conn)
+    except typer.Exit as exc:  # a report could not be sent; it is retried next run
+        _send_alerts(conn)
+        return exc.exit_code
+    _send_alerts(conn)
+    return 0
 
 
 def _send_alerts(conn) -> None:

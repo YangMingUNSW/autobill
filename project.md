@@ -23,7 +23,7 @@
 | 分类规则 | DKIM 来源校验 |
 | 报表：先终端输出，再发邮件；按账单月发进度邮件，附标准账单 PDF | 缺账单心跳 |
 | IMAP 只读游标拉取，含拆附件和银行识别 | 企业微信、Oracle 中转和看门狗 |
-| Windows 计划任务，出错时发告警邮件 | Beancount 导出、Fava 查账网页 |
+| Docker 部署（`autobill serve` 每 30 分钟一次），出错时发提醒邮件 | Beancount 导出、Fava 查账网页 |
 | | Docker 打包（可选，第一版跑通后再做；代码尽量不依赖 Windows 特有功能） |
 
 第一版拆成 **M0–M8 九个小步骤**，每一步都写明了做完的标准和怎么验证，见 [docs/development.md §5](docs/development.md#5-里程碑第一版m0m8)。
@@ -41,7 +41,7 @@
 | 收报表的客户端 | **只有 iPhone 上的苹果邮件（iCloud 邮箱）**（2026-09-19 作者说明）：排版只针对 WebKit，可以用 `<style>`、深色模式、内嵌 SVG |
 | 币种 | 每笔记原币种；总支出 = 账单上各币种入账金额分别相加，再按**账单邮件当天的网上汇率**（Frankfurter）折算成人民币，不追求精确 |
 | 推送渠道 | 第一版只有邮件；企业微信以后再说（只推摘要、只推本人），不用第三方推送服务 |
-| 部署 | **Oracle 免费服务器 + systemd 定时器，每 30 分钟运行一次**（M8b，2026-09-19 定）；银行把账单发到 iCloud 别名，服务器只读拉取。服务器上装 Chrome 和中文字体 `fonts-noto-cjk`（打印 PDF）；程序内部固定用北京时间。**不用 Docker**（1 GB 内存的机器上是负担；以后换机器或给别人用时再加）。出问题发提醒邮件，同一个问题只提醒一次。见 [docs/deploy.md](docs/deploy.md) |
+| 部署 | **Docker**（2026-09-19 定）：镜像由 GitHub Actions 构建（amd64 + arm64），发布在 `ghcr.io/yangmingunsw/autobill`；`docker compose up -d` 运行 `autobill serve`，每 30 分钟一次。别人也能用同样的方式部署到自己的服务器或 NAS。作者放在 Oracle 免费服务器上；银行把账单发到 iCloud 别名，服务器只读拉取。出问题发提醒邮件，同一个问题只提醒一次。不用 Docker 时可以用 `deploy/systemd/` 的定时器。见 [docs/deploy.md](docs/deploy.md) |
 | 银行范围 | 农行（HTML）、建行（HTML）、中行（PDF） |
 | 公开仓库 | 整个项目公开；测试样本就是作者本人的真实账单，**一次性脱敏**（没有脱敏脚本） |
 | 隐私边界 | 只清理身份信息：姓名、住址、卡号、证件号、手机号、邮箱/QQ；消费记录、金额、商户、额度保持原样 |
@@ -81,7 +81,7 @@
 | [docs/data-model.md](docs/data-model.md) | 模型、符号约定、对账算法、汇率、SQLite 表、Beancount 映射 | `autobill/model.py`、`autobill/reconcile.py`、`autobill/fx.py` |
 | [docs/pipeline.md](docs/pipeline.md) | 状态机、去重、运行层、CLI、备份、部署、技术栈 | `autobill/pipeline.py`、`autobill/store/`、`autobill/cli.py` |
 | [docs/statement.md](docs/statement.md) | 标准账单：设计参考、版面、PDF 生成 | `autobill/report/statement.py`、`autobill/report/pdf.py` |
-| [docs/deploy.md](docs/deploy.md) | 部署到 Linux 服务器：依赖、密码文件、systemd 定时器、日常命令、为什么不用 Docker | `deploy/systemd/` |
+| [docs/deploy.md](docs/deploy.md) | 部署：Docker（推荐）和 systemd（备选）、密码文件、日常命令 | `Dockerfile`、`compose.yaml`、`deploy/systemd/` |
 | [docs/notify.md](docs/notify.md) | 统计口径、分类规则、报表时机和内容、邮件、⏳ 企业微信 | `autobill/report/`、`autobill/notify/` |
 | [docs/security.md](docs/security.md) | 密钥、配置示例、数据隔离、.gitignore/.gitattributes/pre-commit、新样本脱敏清单 | `autobill/config.py` |
 | [docs/setup.md](docs/setup.md) | **操作手册**（你本人要做的）：银行电子账单、中心邮箱、转发规则、历史账单、计划任务 | — |
