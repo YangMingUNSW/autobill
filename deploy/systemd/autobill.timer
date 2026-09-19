@@ -1,0 +1,12 @@
+# Runs autobill.service every 30 minutes (docs/deploy.md). Persistent: a run missed while
+# the server was off happens right after it starts again.
+[Unit]
+Description=Run AutoBill every 30 minutes
+
+[Timer]
+OnCalendar=*:00/30
+RandomizedDelaySec=120
+Persistent=true
+
+[Install]
+WantedBy=timers.target

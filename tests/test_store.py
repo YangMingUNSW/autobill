@@ -72,10 +72,12 @@ def test_version_1_database_is_migrated(tmp_path):
     save_bill(old, parse(ABC[0]), None)
     old.execute("DROP TABLE cycle_threads")
     old.execute("DROP TABLE folder_cursors")
+    old.execute("DROP TABLE alerts")
     old.execute("PRAGMA user_version = 1")
     old.close()
     conn = connect(path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 3
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 4
+    assert conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0] == 0
     assert conn.execute("SELECT COUNT(*) FROM cycle_threads").fetchone()[0] == 0
     assert conn.execute("SELECT COUNT(*) FROM folder_cursors").fetchone()[0] == 0
     assert conn.execute("SELECT COUNT(*) FROM bills").fetchone()[0] == 1

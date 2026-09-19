@@ -16,6 +16,7 @@ from autobill.fetch.imap import ImapSource, Mailbox, MailboxError, imap_password
 from autobill.fetch.mime import split_forwarded
 from autobill.fetch.source import DirectorySource, RawMail
 from autobill.fx import FxRates
+from autobill.notify import alerts
 from autobill.notify.mail import PASSWORD_ENV, Mailer, smtp_password
 from autobill.pipeline import process, send_pending_reports
 from autobill.report.cycle import pdf_attacher, preview_cycle_html
@@ -74,16 +75,18 @@ def import_dir(
         typer.echo("按 --no-send 的要求，没有发送报表邮件。")
 
 
-def _import(conn, mails) -> int:
+def _import(conn, mails) -> list:
     """Process each mail (forwarded-as-attachment ones unwrapped first); print one line per
-    original e-mail and a summary. Returns how many were processed."""
+    original e-mail and a summary. Returns the outcomes."""
     aliases = load_config().cards.card_aliases
     counts: dict[str, int] = {}
+    outcomes = []
     for mail in mails:
         parts = split_forwarded(mail.data)
         for i, data in enumerate(parts):
             source = mail.source if len(parts) == 1 else f"{mail.source}#{i + 1}"
             outcome = process(conn, data_dir(), RawMail(data, source), aliases)
+            outcomes.append(outcome)
             counts[outcome.status] = counts.get(outcome.status, 0) + 1
             name = source.rsplit("/", 1)[-1]
             accounts = ", ".join(b.account_id for b in outcome.bills)
@@ -93,7 +96,23 @@ def _import(conn, mails) -> int:
         summary = "，".join(f"{status} {n}" for status, n in sorted(counts.items()))
         typer.echo("")
         typer.echo(f"共 {sum(counts.values())} 封：{summary}")
-    return sum(counts.values())
+    return outcomes
+
+
+def _alerts_for(outcomes, known_accounts: set[str]) -> list[alerts.Alert]:
+    """What the author should hear about from this run (docs/notify.md#提醒邮件)."""
+    found: list[alerts.Alert] = []
+    for o in outcomes:
+        if o.status == "UNRECOGNIZED":
+            found.append(alerts.unrecognized(o.message_id, o.subject, o.from_addr))
+        elif o.status == "FAILED":
+            found.append(alerts.failed(o.message_id, o.subject, o.bank, o.error))
+        # On the very first import every card is new: that is not news.
+        if known_accounts:
+            for bill in o.bills:
+                if bill.account_id not in known_accounts:
+                    found.append(alerts.new_card(bill.account_id))
+    return found
 
 
 def _mailbox(config) -> Mailbox:
@@ -174,10 +193,14 @@ def run(
         # Harmless: e-mails already processed are skipped by Message-ID; failed ones retried.
         conn.execute("DELETE FROM folder_cursors")
         typer.echo("从头重读文件夹：处理过的邮件会跳过，之前失败或不认识的会重新处理。")
+    known = {r[0] for r in conn.execute("SELECT DISTINCT account_id FROM bills")}
     try:
         with _mailbox(config) as box:
+            alerts.clear(conn, "mailbox", "login")  # logged in: an old login alert is over
             source = ImapSource(box, conn)
-            total = _import(conn, source.iter_new())
+            outcomes = _import(conn, source.iter_new())
+            total = len(outcomes)
+            alerts.record(conn, _alerts_for(outcomes, known))
             if source.stats.missing_folders:
                 names = "、".join(source.stats.missing_folders)
                 typer.echo(f"邮箱里还没有这些文件夹，已跳过：{names}")
@@ -186,11 +209,35 @@ def run(
             typer.echo(line + (f"；跳过：{skipped}" if skipped else ""))
     except MailboxError as exc:
         typer.echo(f"收信失败：{exc}")
+        alerts.record(conn, [alerts.mailbox(str(exc))])
+        if send:
+            _send_alerts(conn)  # may fail too when both use the same password
         raise typer.Exit(1) from None
     if send:
-        _send_reports(conn)
+        try:
+            _send_reports(conn)
+        finally:
+            _send_alerts(conn)
     else:
-        typer.echo("按 --no-send 的要求，没有发送报表邮件。")
+        typer.echo("按 --no-send 的要求，没有发送报表和提醒邮件。")
+
+
+def _send_alerts(conn) -> None:
+    """E-mail pending alerts, if a mailbox is configured; failures are reported, not raised."""
+    config = load_config()
+    smtp = config.notifier.smtp_report
+    password = smtp_password()
+    waiting = len(alerts.pending(conn))
+    if not waiting:
+        return
+    if not smtp.ready or password is None:
+        typer.echo(f"有 {waiting} 条提醒，但没有配置发信，这次没发出去。")
+        return
+    try:
+        n = alerts.send_pending(conn, Mailer(smtp, password))
+        typer.echo(f"已发送提醒邮件（{n} 条提醒），收件人 {smtp.to_addr}。")
+    except (smtplib.SMTPException, OSError) as exc:
+        typer.echo(f"提醒邮件发送失败：{type(exc).__name__}: {exc}。下次运行会再发。")
 
 
 def _send_reports(conn) -> None:

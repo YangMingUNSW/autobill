@@ -1,0 +1,24 @@
+# AutoBill on a Linux server (docs/deploy.md). One run: fetch new statements, process
+# them, send progress and alert e-mails. Started by autobill.timer; a oneshot unit is never
+# started twice at once, so runs cannot overlap.
+#
+# Paths assume the user "ubuntu" with the repository in ~/autobill and uv in ~/.local/bin;
+# change them if yours differ, then: sudo systemctl daemon-reload
+[Unit]
+Description=AutoBill: fetch credit-card statements and send progress e-mails
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/autobill
+# The app-specific password lives only here (mode 600), never in config.yaml.
+EnvironmentFile=/home/ubuntu/.config/autobill.env
+ExecStart=/home/ubuntu/.local/bin/uv run --frozen autobill run
+# Chrome prints the PDFs and leaves helper processes behind; ending the unit ends them all.
+KillMode=control-group
+TimeoutStartSec=20min
+Nice=10
+# The box has 1 GB of RAM: keep AutoBill (and Chrome) from starving sshd and WireGuard.
+MemoryHigh=600M

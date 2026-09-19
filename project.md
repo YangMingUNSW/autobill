@@ -41,7 +41,7 @@
 | 收报表的客户端 | **只有 iPhone 上的苹果邮件（iCloud 邮箱）**（2026-09-19 作者说明）：排版只针对 WebKit，可以用 `<style>`、深色模式、内嵌 SVG |
 | 币种 | 每笔记原币种；总支出 = 账单上各币种入账金额分别相加，再按**账单邮件当天的网上汇率**（Frankfurter）折算成人民币，不追求精确 |
 | 推送渠道 | 第一版只有邮件；企业微信以后再说（只推摘要、只推本人），不用第三方推送服务 |
-| 部署 | 原定家里的 Windows 电脑 + 计划任务。**2026-09-19 作者倾向放到 Oracle 免费服务器**（银行把账单发到 iCloud 别名，服务器定时只读拉取），M8 时定：代码写成 Windows 计划任务和 Linux cron/systemd 都能跑。服务器上要装 Chromium 和中文字体 `fonts-noto-cjk`（打印 PDF），时区按北京时间。第一版不用 Docker（列入"以后"） |
+| 部署 | **Oracle 免费服务器 + systemd 定时器，每 30 分钟运行一次**（M8b，2026-09-19 定）；银行把账单发到 iCloud 别名，服务器只读拉取。服务器上装 Chrome 和中文字体 `fonts-noto-cjk`（打印 PDF）；程序内部固定用北京时间。**不用 Docker**（1 GB 内存的机器上是负担；以后换机器或给别人用时再加）。出问题发提醒邮件，同一个问题只提醒一次。见 [docs/deploy.md](docs/deploy.md) |
 | 银行范围 | 农行（HTML）、建行（HTML）、中行（PDF） |
 | 公开仓库 | 整个项目公开；测试样本就是作者本人的真实账单，**一次性脱敏**（没有脱敏脚本） |
 | 隐私边界 | 只清理身份信息：姓名、住址、卡号、证件号、手机号、邮箱/QQ；消费记录、金额、商户、额度保持原样 |
@@ -81,6 +81,7 @@
 | [docs/data-model.md](docs/data-model.md) | 模型、符号约定、对账算法、汇率、SQLite 表、Beancount 映射 | `autobill/model.py`、`autobill/reconcile.py`、`autobill/fx.py` |
 | [docs/pipeline.md](docs/pipeline.md) | 状态机、去重、运行层、CLI、备份、部署、技术栈 | `autobill/pipeline.py`、`autobill/store/`、`autobill/cli.py` |
 | [docs/statement.md](docs/statement.md) | 标准账单：设计参考、版面、PDF 生成 | `autobill/report/statement.py`、`autobill/report/pdf.py` |
+| [docs/deploy.md](docs/deploy.md) | 部署到 Linux 服务器：依赖、密码文件、systemd 定时器、日常命令、为什么不用 Docker | `deploy/systemd/` |
 | [docs/notify.md](docs/notify.md) | 统计口径、分类规则、报表时机和内容、邮件、⏳ 企业微信 | `autobill/report/`、`autobill/notify/` |
 | [docs/security.md](docs/security.md) | 密钥、配置示例、数据隔离、.gitignore/.gitattributes/pre-commit、新样本脱敏清单 | `autobill/config.py` |
 | [docs/setup.md](docs/setup.md) | **操作手册**（你本人要做的）：银行电子账单、中心邮箱、转发规则、历史账单、计划任务 | — |
@@ -92,7 +93,7 @@
 
 | 阶段 | 内容 | 验收 |
 |:---|:---|:---|
-| **第一版（当前）** | M0 骨架 → M1 模型和工具函数 → M2 农行解析器 → M3 第一条完整链路 → M4 建行 → M5 中行（`v0.1.0`）→ M6 分类和报表 → M7 邮件报表 → **M7b 标准账单** → **M7c 账单月进度邮件** → **M7d 分类覆盖率和 AI 接口** → **M8a iCloud 收信** → M8b 服务器定时运行（`v0.2.0`） | 每一步的标准见 [development.md §5](docs/development.md#5-里程碑第一版m0m8)；最终标准是一封真实账单从转发到收到报表全程自动完成 |
+| **第一版（当前）** | M0 骨架 → M1 模型和工具函数 → M2 农行解析器 → M3 第一条完整链路 → M4 建行 → M5 中行（`v0.1.0`）→ M6 分类和报表 → M7 邮件报表 → **M7b 标准账单** → **M7c 账单月进度邮件** → **M7d 分类覆盖率和 AI 接口** → **M8a iCloud 收信** → **M8b 服务器定时运行和提醒**（`v0.2.0`） | 每一步的标准见 [development.md §5](docs/development.md#5-里程碑第一版m0m8)；最终标准是一封真实账单从转发到收到报表全程自动完成 |
 | **补样本（P1b）** | 穿插在第一版中间进行 | 每家银行 ≥3 期，覆盖[样本覆盖矩阵](docs/banks/README.md#样本覆盖矩阵)里的主要场景，"推断"全部改成"已验证" |
 | **以后（按需）** | 第 2 节"以后再说"那一列 | 用过第一版之后再决定 |
 

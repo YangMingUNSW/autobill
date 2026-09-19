@@ -5,6 +5,8 @@
 ## [Unreleased]
 
 ### Added
+- M8b 提醒邮件：不认识的邮件、账单解析失败、发现新卡号、邮箱登录失败时发一封提醒到 iCloud，同一个问题只提醒一次（`alerts` 表，表结构升级到 4）；`run --no-send` 时提醒留到下次一起发。
+- M8b 服务器部署：`deploy/systemd/` 的 oneshot 服务 + 每 30 分钟的定时器，`docs/deploy.md` 操作步骤。
 - 卡号别名 `cards.card_aliases`：换卡或一户两卡时，账单记在同一个账户下；全部卡号都合并到一个账户时，去掉建行"多个卡号"的告警。
 
 ### Fixed
