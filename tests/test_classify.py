@@ -106,8 +106,8 @@ def test_sure_answers_are_used_and_the_unsure_are_searched(db):
         c: (None, "超市", "low", 1),  # the guess is kept, but not used
     }
     rules = load_rules(db)
-    assert rules.categorize(a) == "餐饮" and rules.categorize(c) == UNCATEGORISED
-    assert rules.by_ai(a) and not rules.by_ai(c)
+    assert rules.categorize(a) == "餐饮" and rules.categorize(c) == "其他"  # asked once only
+    assert rules.by_ai(a) and rules.by_ai(c) and rules.categorize("NEVER ASKED") == UNCATEGORISED
 
 
 def test_each_merchant_is_asked_once(db):

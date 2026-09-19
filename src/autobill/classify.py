@@ -6,10 +6,11 @@ answers stored here; if none has it, it is 未分类. Each merchant is asked onc
   1. all new merchants together, from the model's own knowledge (cheap);
   2. those it was not sure of, one at a time, with web search (ai.web_search).
 
-A "high" answer from step 1 or a "high"/"medium" one from step 2 is used. Every answer,
-unsure ones too, is stored in ai_categories, so a merchant is never asked again and a
-report never changes from one run to the next; `autobill classify --retry` asks the
-unsure ones again. A rule in rules.yaml always wins over a stored answer.
+A "high" answer from step 1 or a "high"/"medium" one from step 2 is used. Every answer
+is stored in ai_categories, so a merchant is asked once only and a report never changes
+from one run to the next. One the model could not place counts as 其他 (the author's
+rule, 2026-09-20: one try, no retries); `autobill classify --retry` asks those again by
+hand. A rule in rules.yaml always wins over a stored answer.
 """
 
 from __future__ import annotations

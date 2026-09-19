@@ -38,6 +38,7 @@ from autobill.config import data_dir
 from autobill.model import TxnType
 
 UNCATEGORISED = "未分类"
+OTHER = "其他"  # a merchant the AI was asked about once and could not place
 # Types that are categorised by their type, not by rules.
 TYPE_CATEGORIES = {TxnType.FEE: "手续费", TxnType.INTEREST: "利息", TxnType.CASH: "取现"}
 WORD_PREFIX = "word:"
@@ -158,14 +159,15 @@ def default_rules_text() -> str:
 
 def load_rules(conn: sqlite3.Connection | None = None) -> Rules:
     """The author's rules.yaml (if present) first, then the built-in rules (identical to
-    rules.example.yaml in the repository); with `conn`, then the stored AI answers."""
+    rules.example.yaml in the repository); with `conn`, then the stored AI answers. A
+    merchant the AI could not place is 其他: it was asked once and is not asked again."""
     rules = Rules.from_yaml(default_rules_text(), "built-in rules")
     path = rules_path()
     if path.exists():
         rules = Rules.from_yaml(path.read_text(encoding="utf-8"), str(path)) + rules
     if conn is not None:
         learned = conn.execute(
-            "SELECT merchant, category FROM ai_categories WHERE category IS NOT NULL"
+            "SELECT merchant, COALESCE(category, ?) FROM ai_categories", (OTHER,)
         )
         rules = rules.with_learned({r[0]: r[1] for r in learned})
     return rules
