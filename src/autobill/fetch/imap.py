@@ -101,6 +101,19 @@ class Mailbox:
                 names.append(match.group(1))
         return names
 
+    def resolve(self, wanted: list[str]) -> tuple[list[str], list[str]]:
+        """(folders found, folders missing). Names match ignoring case, so "AutoBill" in
+        config finds a folder created as "Autobill"; the server's spelling is returned."""
+        existing = {name.lower(): name for name in self.folders()}
+        found, missing = [], []
+        for name in wanted:
+            actual = existing.get(name.lower())
+            if actual is None:
+                missing.append(name)
+            elif actual not in found:
+                found.append(actual)
+        return found, missing
+
     def examine(self, folder: str) -> tuple[int, int]:
         """Open a folder read only: (UIDVALIDITY, message count)."""
         data = _check(*self.imap.select(_quote(folder), readonly=True), f"打开文件夹 {folder}")
@@ -153,6 +166,7 @@ def save_cursor(conn: sqlite3.Connection, cursor: FolderCursor) -> None:
 class FetchStats:
     seen: int = 0
     skipped: dict[str, int] = field(default_factory=dict)  # reason -> count
+    missing_folders: list[str] = field(default_factory=list)
 
     def skip(self, reason: str) -> None:
         self.skipped[reason] = self.skipped.get(reason, 0) + 1
@@ -173,7 +187,11 @@ class ImapSource:
 
     def iter_new(self) -> Iterator[RawMail]:
         only_to = self.mailbox.config.only_to
-        for folder in self.mailbox.config.folders:
+        folders, self.stats.missing_folders = self.mailbox.resolve(self.mailbox.config.folders)
+        if not folders:
+            wanted = "、".join(self.mailbox.config.folders)
+            raise MailboxError(f"邮箱里没有配置的文件夹（{wanted}）")
+        for folder in folders:
             validity, _ = self.mailbox.examine(folder)
             cursor = load_cursor(self.conn, folder)
             if cursor is None or cursor.uidvalidity != validity:

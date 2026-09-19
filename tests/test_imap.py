@@ -241,11 +241,27 @@ def test_check_mailbox_all_good(cli_env, monkeypatch):
     assert "app-password" not in result.output
 
 
+def test_folder_names_ignore_case_and_missing_ones_are_skipped(cli_env, monkeypatch):
+    """A fresh iCloud mailbox may have no Junk folder yet, and the author named the
+    folder "Autobill" while the config says "AutoBill": both must just work."""
+    write_config(cli_env)
+    use_folders(monkeypatch, {"Autobill": (7, {1: readdress(ABC[0].read_bytes())})})
+    result = runner.invoke(app, ["check-mailbox"])
+    assert result.exit_code == 0, result.output
+    assert "✓ 文件夹 Autobill：1 封邮件" in result.output
+    assert "还没有文件夹 Junk，先跳过" in result.output and "全部正常" in result.output
+    result = runner.invoke(app, ["run", "--no-send"])
+    assert result.exit_code == 0 and "共 1 封：OK 1" in result.output
+    assert "已跳过：Junk" in result.output
+
+
 def test_check_mailbox_missing_folder_and_bad_login(cli_env, monkeypatch):
     write_config(cli_env)
     use_folders(monkeypatch, {"INBOX": (1, {})})
     result = runner.invoke(app, ["check-mailbox"])
-    assert result.exit_code == 1 and "找不到文件夹 AutoBill" in result.output
+    assert result.exit_code == 1 and "一个都没找到" in result.output
+    result = runner.invoke(app, ["run"])
+    assert result.exit_code == 1 and "没有配置的文件夹" in result.output
     monkeypatch.setenv("AUTOBILL_IMAP_PASSWORD", "wrong")
     result = runner.invoke(app, ["check-mailbox"])
     assert result.exit_code == 1 and "登录被拒绝" in result.output and "wrong" not in result.output

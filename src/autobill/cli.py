@@ -120,14 +120,17 @@ def check_mailbox() -> None:
     try:
         with _mailbox(config) as box:
             typer.echo(f"✓ 收信邮箱登录成功：{config.mail_fetcher.username}")
-            existing = box.folders()
-            for folder in config.mail_fetcher.folders:
-                if folder not in existing:
-                    ok = False
-                    typer.echo(f"✗ 找不到文件夹 {folder}。邮箱里现有：{'、'.join(existing)}")
-                    continue
+            wanted = config.mail_fetcher.folders
+            found, missing = box.resolve(wanted)
+            for folder in found:
                 _, count = box.examine(folder)
                 typer.echo(f"✓ 文件夹 {folder}：{count} 封邮件")
+            existing = "、".join(box.folders())
+            for folder in missing:
+                typer.echo(f"- 邮箱里还没有文件夹 {folder}，先跳过（现有：{existing}）")
+            if not found:
+                ok = False
+                typer.echo("✗ 配置的文件夹一个都没找到。检查 config.yaml 的 mail_fetcher.folders。")
     except MailboxError as exc:
         typer.echo(f"✗ 收信邮箱：{exc}")
         typer.echo("  检查 imap_server、username 和 App 专用密码（改过 Apple ID 密码要重新生成）")
@@ -164,6 +167,9 @@ def run(
         with _mailbox(config) as box:
             source = ImapSource(box, conn)
             total = _import(conn, source.iter_new())
+            if source.stats.missing_folders:
+                names = "、".join(source.stats.missing_folders)
+                typer.echo(f"邮箱里还没有这些文件夹，已跳过：{names}")
             skipped = "，".join(f"{why} {n} 封" for why, n in source.stats.skipped.items())
             line = f"邮箱里的新邮件 {source.stats.seen} 封，处理了 {total} 封"
             typer.echo(line + (f"；跳过：{skipped}" if skipped else ""))
