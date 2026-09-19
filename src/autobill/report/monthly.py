@@ -156,7 +156,7 @@ def monthly_summary(
         if txn_type in CREDIT_NAMES:
             credits[CREDIT_NAMES[txn_type]] += cny
             continue
-        category = rules.categorize(r["description_raw"], txn_type)
+        category = rules.categorize(r["description_raw"], txn_type, r["merchant"])
         categories[category] += cny
         if txn_type == TxnType.PURCHASE:
             name = r["merchant"] or r["description_raw"]

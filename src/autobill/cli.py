@@ -18,7 +18,9 @@ from autobill.report.cycle import pdf_attacher, preview_cycle_html
 from autobill.report.monthly import month_bounds, monthly_summary, render_text
 from autobill.report.pdf import PdfError, find_browser, html_to_pdf
 from autobill.report.statement import render_statement_html
+from autobill.report.uncategorised import rules_snippet, uncategorised_merchants
 from autobill.store.db import connect, load_bill
+from autobill.suggest import SuggesterUnavailable, get_suggester, suggest_categories
 
 app = typer.Typer(
     help="AutoBill: summarise credit-card statement e-mails into spending reports.",
@@ -156,6 +158,46 @@ def report(
     conn = _db()
     summary = monthly_summary(conn, month, FxRates(conn, load_config().fx))
     typer.echo(render_text(summary))
+
+
+@app.command()
+def uncategorised(
+    cycle: Annotated[
+        str | None, typer.Option("--cycle", help="Only this statement month, e.g. 2026-09.")
+    ] = None,
+    limit: Annotated[int, typer.Option("--limit", help="How many merchants to list.")] = 20,
+    suggest: Annotated[
+        bool, typer.Option("--suggest", help="Ask the configured AI for category suggestions.")
+    ] = False,
+) -> None:
+    """List merchants no rule matches, with a snippet to paste into rules.yaml."""
+    if cycle:
+        try:
+            month_bounds(cycle)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from None
+    conn = _db()
+    config = load_config()
+    rules = load_rules()
+    unknowns = uncategorised_merchants(conn, FxRates(conn, config.fx), rules, cycle)
+    if not unknowns:
+        typer.echo("没有未分类的消费。")
+        return
+    shown = unknowns[:limit]
+    typer.echo(f"未分类的商户共 {len(unknowns)} 个，按金额列出前 {len(shown)} 个：")
+    for i, u in enumerate(shown, 1):
+        typer.echo(f"{i:>3}. {u.name}  {u.count} 笔  {u.amount_text}")
+    suggestions: dict[str, str] = {}
+    if suggest:
+        try:
+            suggester = get_suggester(config.ai)
+            # Only merchant names and category names leave this computer.
+            suggestions = suggest_categories(suggester, [u.name for u in shown], rules.categories)
+        except SuggesterUnavailable as exc:
+            typer.echo("")
+            typer.echo(f"{exc}，这次不给建议。")
+    typer.echo("")
+    typer.echo(rules_snippet(shown, suggestions))
 
 
 @app.command()

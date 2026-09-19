@@ -1,15 +1,31 @@
 # 分类规则示例：复制为 rules.yaml 放进数据目录后修改（rules.yaml 不入库，数据目录见 docs/security.md）。
-# 拿每笔消费的原始描述去匹配关键词：不分大小写，从上往下，第一个匹配上的分类生效。
+# 拿每笔消费的原始描述和商户名去匹配关键词：不分大小写，分类从上往下，第一个匹配上的分类生效。
 # 所以具体的规则放前面，"微信/支付宝（未细分）"放最后。见 docs/notify.md#分类规则。
+#
+# 两种关键词：
+#   Woolworths      描述里任何位置出现就算（连锁品牌名用这种）
+#   word:BAR        只算完整的单词：匹配 "LS BAR PLANET"，不匹配 "BARBER"（短的通用词用这种）
+#
+# 每个分类先写连锁品牌，再写"行业通用词"（KITCHEN、CAFE、SUPERMARKET……），
+# 这样没见过的独立小店也能按店名里的行业词归类。还没分类的商户：autobill uncategorised
 
-超市: [Woolworths, WW METRO, Coles, IGA, UMALL, Everyday Extra, FRANPRIX]
-交通: [TFNSW OPAL, "UBER *TRIP", Suica]
-餐饮: [KFC, MCDONALDS, STARBUCKS, "UBER * EATS", HungryPanda]
+超市: [Woolworths, WW METRO, Coles, IGA, UMALL, Everyday Extra, FRANPRIX, ALDI,
+       SUPERMARKET, CONVENIENCE, "7-ELEVEN", LAWSON, FAMILYMART, GROCER,
+       "word:MART", "word:MARKET"]
+交通: [TFNSW OPAL, "UBER *TRIP", Suica, TICKET_COUNTER, RAILWAY, AIRPORT, KUUKOU, STAZIONE,
+       PETROL, PARKING, "word:TAXI", "word:AGIP", "word:FUEL"]
+餐饮: [KFC, MCDONALDS, STARBUCKS, "UBER * EATS", HungryPanda, SUKIYA, DOMINO, "JONATHAN'S",
+       KITCHEN, GRILL, KEBAB, KEBAP, BBQ, CAFFE, COFFEE, PIZZA, PIZA, NOODLE, RESTAURANT,
+       RISTORANTE, TRATTORIA, BUFFET, HOTPOT, SUSHI, YAKINIKU, RAMEN, TAVERNA, BISTRO,
+       BAKERY, BREWING, PASTA, MALATANG, DUMPLING, HUNAN,
+       "word:CAFE", "word:THAI", "word:BAKE", "word:BAR", "word:WOK", "word:FOODS"]
+烟酒: [TOBACCO, CELLARS, LIQUOR, BOTTLESHOP, DAN MURPHY, "word:BWS"]
 住宿: [AIRBNB]
 订阅: [APPLE.COM/BILL, SPOTIFY]
 通讯网络: [SUPERLOOP, OPTUS]
 水电燃气: [ORIGIN ENERGY]
 健身: [PlusFitness]
-娱乐: [GREATER UNION, EVENT CINEMAS, DISNEY]
+娱乐: [GREATER UNION, EVENT CINEMAS, DISNEY, CINEMA, MUSEUM, THEATRE, THEATER,
+       "word:TIX", "word:GOLF", "word:ZOO"]
 网购: [TEMU, AMAZON]
 微信/支付宝（未细分）: [财付通, 支付宝, 微信]

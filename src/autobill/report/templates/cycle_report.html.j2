@@ -249,6 +249,7 @@
       {% endfor %}
     </div>
   </section>
+  {% if r.segments[-1].tone == "none" %}<div class="sf">未分类的商户：在电脑上运行 autobill uncategorised，补进 rules.yaml，下次就能归类。</div>{% endif %}
   {% if r.merchants %}
   <section class="group" style="margin-top:12px">
     <input type="checkbox" id="merchants" class="acc">
