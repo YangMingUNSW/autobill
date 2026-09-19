@@ -58,30 +58,6 @@ def test_mailer_repr_hides_password():
     assert SECRET not in repr(Mailer(SMTP, SECRET, FakeSMTP))
 
 
-def test_one_report_per_bill_and_never_twice(db):
-    conn, rates = db
-    result = send_pending_reports(conn, Mailer(SMTP, SECRET, FakeSMTP), rates)
-    assert len(result.sent) == 3 and result.failed is None
-    assert pending(conn) == 0
-    subjects = [m["Subject"] for s in FakeSMTP.instances for m in s.sent]
-    assert len(subjects) == 3 and all(s.startswith("信用卡账单汇总｜农业银行") for s in subjects)
-    again = send_pending_reports(conn, Mailer(SMTP, SECRET, FakeSMTP), rates)
-    assert again.sent == [] and len(FakeSMTP.instances) == 3  # nothing sent the second time
-
-
-def test_failed_send_keeps_the_bill_pending_and_stops(db):
-    conn, rates = db
-
-    def broken(*args, **kwargs):
-        return FakeSMTP(*args, **kwargs, fail_on_send=True)
-
-    result = send_pending_reports(conn, Mailer(SMTP, SECRET, broken), rates)
-    assert result.sent == [] and result.failed is not None
-    assert "SMTPServerDisconnected" in result.failed[1]
-    assert len(FakeSMTP.instances) == 1  # stopped after the first failure
-    assert pending(conn) == 3  # retried next run
-
-
 def test_reported_at_survives_reimport_of_the_same_statement(db, isolated_data_dir):
     conn, rates = db
     send_pending_reports(conn, Mailer(SMTP, SECRET, FakeSMTP), rates)
@@ -104,6 +80,7 @@ runner = CliRunner()
 def cli_env(isolated_data_dir, monkeypatch):
     monkeypatch.setattr(fx, "http_fetch", FakeFrankfurter(RATES))
     monkeypatch.setattr("smtplib.SMTP_SSL", FakeSMTP)
+    monkeypatch.setattr("autobill.cli.find_browser", lambda configured=None: None)
     return isolated_data_dir
 
 
@@ -123,9 +100,10 @@ def test_import_dir_sends_reports_when_configured(cli_env, monkeypatch):
     monkeypatch.setenv("AUTOBILL_SMTP_PASSWORD", SECRET)
     result = runner.invoke(app, ["import-dir", str(FIXTURES / "abc")])
     assert result.exit_code == 0, result.output
-    assert "已发送报表邮件 3 封" in result.output
+    assert "已发送报表邮件 1 封（新账单 3 份）" in result.output  # one statement month
+    assert "不附标准账单 PDF" in result.output  # no browser in this test
     assert SECRET not in result.output
-    assert sum(len(s.sent) for s in FakeSMTP.instances) == 3
+    assert sum(len(s.sent) for s in FakeSMTP.instances) == 1
 
 
 def test_import_dir_without_config_does_not_send(cli_env):
@@ -170,13 +148,14 @@ def test_send_failure_exits_non_zero_without_leaking_password(cli_env, monkeypat
 def test_preview_email_command(cli_env):
     runner.invoke(app, ["import-dir", "--no-send", str(FIXTURES / "abc")])
     out = cli_env / "p.html"
-    result = runner.invoke(app, ["preview-email", "--account", "ABC:0001", "-o", str(out)])
-    assert result.exit_code == 0, result.output
+    result = runner.invoke(app, ["preview-email", "-o", str(out)])
+    assert result.exit_code == 0 and "2026-09 账单月" in result.output, result.output
     html = out.read_text(encoding="utf-8")
-    assert "农业银行 · 0001" in html and "<img" not in html
+    assert "<h1>2026年9月</h1>" in html and "农业银行 0001" in html and "<img" not in html
     assert FakeSMTP.instances == []  # preview never sends
 
 
-def test_preview_email_unknown_card(cli_env):
-    result = runner.invoke(app, ["preview-email", "--account", "XYZ:0000"])
-    assert result.exit_code != 0
+def test_preview_email_unknown_month(cli_env):
+    runner.invoke(app, ["import-dir", "--no-send", str(FIXTURES / "abc")])
+    assert runner.invoke(app, ["preview-email", "--cycle", "2030-01"]).exit_code != 0
+    assert runner.invoke(app, ["preview-email", "--cycle", "2030-13"]).exit_code != 0

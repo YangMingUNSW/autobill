@@ -14,7 +14,7 @@ from pathlib import Path
 
 from autobill.model import Bill, BillBalance, Transaction
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS emails (
@@ -104,6 +104,18 @@ CREATE TABLE IF NOT EXISTS fx_rates (
 );
 """
 
+# Schema changes after the first release; a new database gets SCHEMA and all of these.
+MIGRATIONS = {
+    2: """
+CREATE TABLE IF NOT EXISTS cycle_threads (
+    cycle        TEXT PRIMARY KEY,         -- statement month, "2026-09"
+    message_ids  TEXT NOT NULL,            -- JSON list of the progress e-mails sent, oldest first
+    completed_at TEXT,                     -- set when the latest e-mail had every card settled
+    updated_at   TEXT NOT NULL
+);
+""",
+}
+
 BALANCE_FIELDS = [f for f in BillBalance.model_fields if f != "currency"]
 TXN_FIELDS = list(Transaction.model_fields)
 
@@ -117,13 +129,16 @@ def connect(path: Path | str) -> sqlite3.Connection:
     if str(path) != ":memory:":
         conn.execute("PRAGMA journal_mode = WAL")
     version = conn.execute("PRAGMA user_version").fetchone()[0]
-    if version == 0:
-        conn.executescript(SCHEMA)
-        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
-    elif version != SCHEMA_VERSION:
+    if version > SCHEMA_VERSION:
         raise RuntimeError(
             f"database schema {version} is newer than this program ({SCHEMA_VERSION})"
         )
+    if version == 0:
+        conn.executescript(SCHEMA)
+    for step in range(max(version, 1) + 1, SCHEMA_VERSION + 1):
+        conn.executescript(MIGRATIONS[step])
+    if version != SCHEMA_VERSION:
+        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     return conn
 
 

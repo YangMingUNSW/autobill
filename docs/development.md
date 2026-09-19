@@ -120,7 +120,7 @@ uv run autobill --help        # 运行程序本身
 - **做完的标准**：用样本跑出来的报表，每一节都有内容；"财付通"等消费归入"微信 / 支付宝（未细分）"。
 
 ### M7 邮件报表
-- **交付**：`report/mail_report.py`（Jinja2 + MJML 模板，所有可视化都是 HTML 横条，不用图片）、`notify/mail.py`（SMTP 465）、`autobill preview-email`（本地预览）。每导入一份账单就发一封邮件（见 [notify.md](notify.md#报表什么时候发)）。
+- **交付**（M7c 已替换为账单月进度邮件）：`report/mail_report.py`（Jinja2 + MJML 模板，所有可视化都是 HTML 横条，不用图片）、`notify/mail.py`（SMTP 465）、`autobill preview-email`（本地预览）。每导入一份账单就发一封邮件（见 [notify.md](notify.md#报表什么时候发)）。
 - **先看预览**：真实发信之前，`uv run autobill preview-email -o preview.html` 生成报表，用浏览器打开、按 F12 切到手机尺寸检查排版。
 - **做完的标准**：用 `import-dir` 导入一份样本后，主邮箱收到报表，**用手机打开**排版正常，图片能显示。
 - **测试**：SMTP 用假对象代替，测试不真正发信；真实发信只在手动验证时做一次。
@@ -139,12 +139,28 @@ uv run autobill --help        # 运行程序本身
   ```
   然后在 iPhone 的"文件"App → iCloud 云盘 → AutoBill-预览 里打开 HTML 和 PDF。
 
-### M8 IMAP 拉取 + 计划任务 → 打 `v0.2.0`（第一版可用）
+### M7c 账单月进度邮件（2026-09-19 插入）
+- **交付**：`report/cycle.py` + 模板 `cycle_report.html.j2`（只为 iPhone 苹果邮件排版）、`report/style.py`（共用配色和横条）、卡包配置 `cards.portfolio`、`cycle_threads` 表、`preview-email --cycle`。替换 M7 的"每份账单一封"。设计见 [notify.md](notify.md#账单月进度邮件)。
+- **做完的标准**：
+  - 按样本导入：每个账单月一封，同一次运行的 3 份农行账单合成一封，各附一份标准账单 PDF；
+  - 待出账 / 可能无账单按通常账单日 + 7 天判断；超时后补发"已齐"，已齐的月份不再发；
+  - 第二封起带 `In-Reply-To` / `References`；
+  - 定好中心邮箱后，真实发一封到 iCloud 邮箱，在 iPhone 上看折叠、深色模式和附件。
+- **怎么验证**：
+  ```powershell
+  uv run autobill import-dir tests/fixtures --no-send
+  uv run autobill preview-email -o "$env:TEMP\cycle.html"
+  ```
+  用 WebKit 内核（Playwright WebKit，和 iOS 同内核）在 390 像素宽下截浅色、深色图检查。
+
+### M8 IMAP 拉取 + 定时运行 → 打 `v0.2.0`（第一版可用）
+- **先做**：`autobill check-mailbox`，在要部署的机器上试登录中心邮箱、列出新邮件数，**第一天就验证能不能从那台机器（例如海外的 Oracle 服务器）登录**。IMAP 登录后发 `ID` 命令（163 不发会报 "Unsafe Login"）。
+- **部署**：Windows 计划任务或 Linux cron/systemd（Oracle 服务器），见 project.md 的"部署"决策；服务器上装 Chromium 和 `fonts-noto-cjk`，时区按北京时间。
 - **交付**：
   - `ImapSource`（只读游标、拆 rfc822 附件、银行识别）；
   - `autobill run`；
-  - 按 [setup.md](setup.md) 配置 Windows 计划任务；
-  - 出错时发告警邮件。
+  - 按 [setup.md](setup.md) 配置定时运行（Windows 计划任务或服务器上的 cron/systemd）；
+  - 出错时（包括连续登录失败）发告警邮件。
 - **做完的标准**：
   - 按 setup.md 设置好转发后，一封真实账单被自动转发、拉取、解析，并收到报表邮件；
   - 把邮件标成已读，不影响拉取；

@@ -9,6 +9,10 @@ system:
 cards:
   card_aliases:                      # 换卡后的新尾号 → 原账户
     "CCB:5678": "CCB:1234"
+  portfolio:                         # 每月应该出账的卡和大约的账单日，见 docs/notify.md#账单月进度邮件
+    - { account: "ABC:0001", statement_day: 1 }    # 不写这一节时，按最近两个月出过账单的卡推算
+    - { account: "CCB:0004", statement_day: 10 }
+    - { account: "BOC:0005", statement_day: 22 }
 
 banks:                               # 按银行的策略，取值依据见 docs/banks/README.md
   ABC: { due_window_days: [15, 30] } # 以后再加：dkim: verify, zero_statement: unknown
@@ -32,7 +36,7 @@ notifier:
     smtp_server: "smtp.qq.com"
     smtp_port: 465
     username: "bill_receiver@example.com"
-    to_addr: "my_primary_mail@example.com"
+    to_addr: "me@icloud.com"          # 收报表的邮箱（作者用 iCloud 邮箱 + iPhone 苹果邮件）
   wechat_work:                       # 以后，经 Oracle 中转
     enabled: false
     relay_url: "http://10.66.66.1:8787"

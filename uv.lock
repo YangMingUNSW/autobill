@@ -42,7 +42,6 @@ dependencies = [
     { name = "httpx" },
     { name = "jinja2" },
     { name = "lxml" },
-    { name = "mjml" },
     { name = "pdfplumber" },
     { name = "platformdirs" },
     { name = "pydantic" },
@@ -63,7 +62,6 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "lxml", specifier = ">=6.1.3" },
-    { name = "mjml", specifier = ">=0.12.0" },
     { name = "pdfplumber", specifier = ">=0.11.10" },
     { name = "platformdirs", specifier = ">=4.11.10" },
     { name = "pydantic", specifier = ">=2.13.5" },
@@ -394,24 +392,6 @@ wheels = [
 ]
 
 [[package]]
-name = "docopt-ng"
-version = "0.9.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/e4/50/8d6806cf13138127692ae6ff79ddeb4e25eb3b0bcc3c1bd033e7e04531a9/docopt_ng-0.9.0.tar.gz", hash = "sha256:91c6da10b5bb6f2e9e25345829fb8278c78af019f6fc40887ad49b060483b1d7", size = 32264, upload-time = "2023-05-30T20:46:25.064Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/6c/4a/c3b77fc1a24510b08918b43a473410c0168f6e657118807015f1f1edceea/docopt_ng-0.9.0-py3-none-any.whl", hash = "sha256:bfe4c8b03f9fca424c24ee0b4ffa84bf7391cb18c29ce0f6a8227a3b01b81ff9", size = 16689, upload-time = "2023-05-30T20:46:45.294Z" },
-]
-
-[[package]]
-name = "dotmap"
-version = "1.3.30"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/bc/68/c186606e4f2bf731abd18044ea201e70c3c244bf468f41368820d197fca5/dotmap-1.3.30.tar.gz", hash = "sha256:5821a7933f075fb47563417c0e92e0b7c031158b4c9a6a7e56163479b658b368", size = 12391, upload-time = "2022-04-06T16:26:49.211Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/4d/f9/976d6813c160d6c89196d81e9466dca1503d20e609d8751f3536daf37ec6/dotmap-1.3.30-py3-none-any.whl", hash = "sha256:bd9fa15286ea2ad899a4d1dc2445ed85a1ae884a42effb87c89a6ecce71243c6", size = 11464, upload-time = "2022-04-06T16:26:47.103Z" },
-]
-
-[[package]]
 name = "filelock"
 version = "3.32.7"
 source = { registry = "https://pypi.org/simple" }
@@ -688,22 +668,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
-]
-
-[[package]]
-name = "mjml"
-version = "0.12.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "beautifulsoup4" },
-    { name = "docopt-ng" },
-    { name = "dotmap" },
-    { name = "jinja2" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/0d/e3/ab5a6fedd48eb2122030e9b4eb6fa560696eba6ec7a652dc92bdca22459d/mjml-0.12.0.tar.gz", hash = "sha256:614397e624b115d78f9064d0f8aabceda3b522785eca8c2818ee03ffa8fdbf37", size = 72684, upload-time = "2025-12-27T19:32:42.584Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a2/34/389deb78f9a4f86945532572f417ea5ec68227cc4f67d3140998cfaceafb/mjml-0.12.0-py3-none-any.whl", hash = "sha256:2329aa6b31237ce7309c5605e049d5c110a841218220f6af80bd9731040947da", size = 66884, upload-time = "2025-12-27T19:32:41.344Z" },
 ]
 
 [[package]]

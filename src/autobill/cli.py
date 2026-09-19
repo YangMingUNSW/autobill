@@ -8,12 +8,13 @@ from typing import Annotated
 import typer
 
 from autobill import __version__
+from autobill.categorize import load_rules
 from autobill.config import data_dir, load_config
 from autobill.fetch.source import DirectorySource
 from autobill.fx import FxRates
 from autobill.notify.mail import PASSWORD_ENV, Mailer, smtp_password
 from autobill.pipeline import process, send_pending_reports
-from autobill.report.mail_report import preview_html
+from autobill.report.cycle import pdf_attacher, preview_cycle_html
 from autobill.report.monthly import month_bounds, monthly_summary, render_text
 from autobill.report.pdf import PdfError, find_browser, html_to_pdf
 from autobill.report.statement import render_statement_html
@@ -87,37 +88,59 @@ def _send_reports(conn) -> None:
     if password is None:
         typer.echo(f"没有找到环境变量 {PASSWORD_ENV}（邮箱授权码），这次不发送报表。")
         return
-    result = send_pending_reports(conn, Mailer(smtp, password), FxRates(conn, config.fx))
-    typer.echo(f"已发送报表邮件 {len(result.sent)} 封，收件人 {smtp.to_addr}。")
+    fx, rules = FxRates(conn, config.fx), load_rules()
+    browser = find_browser(config.statement.pdf_browser)
+    if browser is None:
+        typer.echo("没有找到 Edge 或 Chrome，这次邮件不附标准账单 PDF。")
+    result = send_pending_reports(
+        conn,
+        Mailer(smtp, password),
+        fx,
+        rules,
+        portfolio=config.cards.portfolio,
+        attach=pdf_attacher(fx, rules, browser) if browser else None,
+    )
+    sent = f"已发送报表邮件 {result.emails} 封（新账单 {len(result.sent)} 份）"
+    typer.echo(f"{sent}，收件人 {smtp.to_addr}。")
     if result.failed:
-        bill_id, error = result.failed
-        typer.echo(f"发送失败（账单 #{bill_id}）：{error}。没发出去的下次运行会再发。")
+        cycle, error = result.failed
+        typer.echo(f"发送失败（{cycle} 账单月）：{error}。没发出去的下次运行会再发。")
         raise typer.Exit(1)
 
 
 @app.command("preview-email")
 def preview_email(
-    account: Annotated[
-        str | None, typer.Option("--account", help="Card, e.g. ABC:0001 (default: newest bill).")
+    cycle: Annotated[
+        str | None,
+        typer.Option("--cycle", help="Statement month, e.g. 2026-09 (default: the newest)."),
     ] = None,
     output: Annotated[
         Path | None, typer.Option("--output", "-o", help="HTML file to write.")
     ] = None,
 ) -> None:
-    """Write the report e-mail of a bill as an HTML file to check the layout (sends nothing)."""
+    """Write the next progress e-mail of a statement month as an HTML file (sends nothing)."""
     conn = _db()
-    query = "SELECT id, account_id, statement_date FROM bills"
-    args: tuple = ()
-    if account:
-        query += " WHERE account_id = ?"
-        args = (account,)
-    row = conn.execute(query + " ORDER BY statement_date DESC, id DESC LIMIT 1", args).fetchone()
-    if row is None:
-        raise typer.BadParameter("数据库里没有这张卡的账单，先运行 import-dir。")
+    if cycle is None:
+        row = conn.execute("SELECT MAX(statement_date) FROM bills").fetchone()
+        if row[0] is None:
+            raise typer.BadParameter("数据库里还没有账单，先运行 import-dir。")
+        cycle = row[0][:7]
+    try:
+        month_bounds(cycle)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from None
+    config = load_config()
+    has_bills = conn.execute(
+        "SELECT 1 FROM bills WHERE substr(statement_date, 1, 7) = ?", (cycle,)
+    ).fetchone()
+    if not has_bills:
+        raise typer.BadParameter(f"{cycle} 没有出账的账单。")
     target = output or data_dir() / "preview.html"
-    html = preview_html(conn, row["id"], FxRates(conn, load_config().fx))
+    html = preview_cycle_html(
+        conn, cycle, FxRates(conn, config.fx), portfolio=config.cards.portfolio
+    )
     target.write_text(html, encoding="utf-8")
-    typer.echo(f"已生成 {row['account_id']} {row['statement_date']} 账单的报表预览：{target}")
+    typer.echo(f"已生成 {cycle} 账单月的进度邮件预览：{target}")
     typer.echo("用浏览器打开，按 F12 切到手机尺寸，就能看到手机上的排版。")
 
 

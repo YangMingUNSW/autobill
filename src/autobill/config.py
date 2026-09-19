@@ -63,11 +63,28 @@ class StatementConfig(BaseModel):
     pdf_browser: str | None = None  # Edge/Chrome executable; found automatically if unset
 
 
+class PortfolioCard(BaseModel):
+    """A card whose statement is expected every month (docs/notify.md#账单月进度邮件)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    account: str  # e.g. "ABC:0003"
+    statement_day: int | None = Field(default=None, ge=1, le=31)  # roughly; for "约 X 号出账"
+
+
+class CardsConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    # Empty: cards with a statement in the last two months or so are expected.
+    portfolio: list[PortfolioCard] = Field(default_factory=list)
+
+
 class Config(BaseModel):
     """Only the sections used so far; unknown sections in config.yaml are ignored."""
 
     model_config = ConfigDict(extra="ignore")
 
+    cards: CardsConfig = Field(default_factory=CardsConfig)
     fx: FxConfig = Field(default_factory=FxConfig)
     notifier: NotifierConfig = Field(default_factory=NotifierConfig)
     statement: StatementConfig = Field(default_factory=StatementConfig)

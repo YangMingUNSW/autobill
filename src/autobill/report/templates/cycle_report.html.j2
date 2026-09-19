@@ -1,0 +1,364 @@
+{#- Statement-month progress e-mail (docs/notify.md#账单月进度邮件), for Apple Mail on iPhone.
+    Apple's own design language: large title, inset grouped lists with inset hairlines,
+    an Activity-ring progress, Wallet-style card thumbnails, Calendar-style date tiles,
+    a Screen Time-style daily chart; Copilot Money-style emoji category tiles and one
+    stacked category bar. Long lists fold away with the CSS checkbox hack (no script). -#}
+{%- macro icon(state) -%}
+{%- if state == "arrived" -%}
+<svg class="ico" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.3l2.3 2.3 4.7-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+{%- elif state == "pending" -%}
+<svg class="ico" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M6 3.5V6l1.7 1.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+{%- else -%}
+<svg class="ico" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M6 3.4v3.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="6" cy="8.6" r=".85" fill="currentColor"/></svg>
+{%- endif -%}
+{%- endmacro -%}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+{# iOS Mail would otherwise turn amounts, dates and card numbers into blue links #}
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+<meta name="x-apple-disable-message-reformatting">
+<title>{{ r.subject }}</title>
+<style>
+  /* iOS system colours (grouped background, labels, separators); data colours are the
+     validated categorical slots 1-4 plus grey, checked with the dataviz validator. */
+  :root {
+    --bg: #f2f2f7; --card: #ffffff; --label: #000000;
+    --label2: rgba(60,60,67,.6); --label3: rgba(60,60,67,.3); --sep: rgba(60,60,67,.29);
+    --fill: rgba(120,120,128,.12); --fill2: rgba(120,120,128,.2);
+    --accent: #2a78d6; --green: #248a3d; --orange: #c93400; --red: #ff3b30;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --other: #8e8e93;
+    --thumb: linear-gradient(135deg, #5b5b60 0%, #2c2c2e 100%);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000; --card: #1c1c1e; --label: #ffffff;
+      --label2: rgba(235,235,245,.6); --label3: rgba(235,235,245,.3); --sep: rgba(84,84,88,.65);
+      --fill: rgba(120,120,128,.24); --fill2: rgba(120,120,128,.36);
+      --accent: #3987e5; --green: #30d158; --orange: #ff9f0a; --red: #ff453a;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --other: #8e8e93;
+      --thumb: linear-gradient(135deg, #6e6e73 0%, #3a3a3c 100%);
+    }
+  }
+  a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important;
+    font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--label);
+         font-family: -apple-system, "SF Pro Text", "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+         font-size: 17px; line-height: 1.3; -webkit-text-size-adjust: 100%; -webkit-font-smoothing: antialiased; }
+  .preheader { display: none !important; max-height: 0; overflow: hidden; opacity: 0; font-size: 1px; line-height: 1px; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 8px 16px 36px; }
+  .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* navigation-style header */
+  .eyebrow { font-size: 13px; font-weight: 600; color: var(--label2); margin-top: 14px; }
+  h1 { font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: .2px; margin: 2px 0 2px; }
+  .subtitle { font-size: 15px; color: var(--label2); margin-bottom: 18px; }
+
+  /* grouped sections */
+  .sh { font-size: 13px; color: var(--label2); margin: 26px 16px 7px; }
+  .sf { font-size: 13px; color: var(--label2); margin: 7px 16px 0; line-height: 1.4; }
+  .card { background: var(--card); border-radius: 14px; padding: 16px; }
+  .group { background: var(--card); border-radius: 14px; overflow: hidden; }
+  .caption { font-size: 13px; color: var(--label2); line-height: 1.35; }
+
+  /* money, Apple Card style: big rounded figures with small cents */
+  .hero { font-family: ui-rounded, -apple-system, "SF Pro Rounded", "PingFang SC", sans-serif;
+          font-size: 34px; font-weight: 700; letter-spacing: -.5px; line-height: 1.15; margin: 3px 0 4px;
+          font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .hero .cur { font-size: .62em; font-weight: 600; margin-right: 1px; }
+  .hero .dec { font-size: .55em; font-weight: 600; color: var(--label2); }
+  .hero.md { font-size: 28px; }
+
+  /* summary: ring + total */
+  .summary-top { display: flex; align-items: center; gap: 16px; }
+  svg.ring { flex-shrink: 0; display: block; }
+  svg.ring circle { fill: none; stroke-width: 10; stroke-linecap: round; }
+  svg.ring .track, svg.ring .pending { stroke: var(--fill2); }
+  svg.ring .arrived { stroke: var(--accent); }
+  svg.ring .missing { stroke: var(--orange); opacity: .55; }
+  svg.ring .ring-num { fill: var(--label); font-size: 22px; font-weight: 700; font-family: ui-rounded, -apple-system, sans-serif; }
+  svg.ring .ring-cap { fill: var(--label2); font-size: 10px; font-weight: 500; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 14px; padding-top: 12px; border-top: .5px solid var(--sep); font-size: 13px; color: var(--label2); }
+  .legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 4px; margin-right: 5px; vertical-align: 1px; }
+  .dot.arrived { background: var(--accent); }
+  .dot.pending { background: var(--fill2); }
+  .dot.missing { background: var(--orange); opacity: .55; }
+
+  /* list cells with inset hairlines, as in Settings and Wallet */
+  .cell { display: flex; align-items: center; gap: 12px; padding-left: 16px; position: relative; }
+  .cell .body { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+                padding: 11px 16px 11px 0; min-height: 60px; }
+  .cell + .cell .body, .panel .cell .body, .panel + .cell .body { border-top: .5px solid var(--sep); }
+  .text { min-width: 0; }
+  .title { font-size: 17px; line-height: 22px; overflow-wrap: anywhere; }
+  .sub { font-size: 13px; line-height: 18px; color: var(--label2); margin-top: 1px; overflow-wrap: anywhere; }
+  .trail { text-align: right; flex-shrink: 0; }
+  .amt { font-size: 17px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .state { font-size: 12px; margin-top: 2px; white-space: nowrap; }
+  .state.arrived { color: var(--green); }
+  .state.pending { color: var(--label2); }
+  .state.missing { color: var(--orange); }
+  .ico { width: 12px; height: 12px; vertical-align: -1px; margin-right: 3px; }
+  .cell.pending .title, .cell.missing .title { color: var(--label2); }
+  .badge { display: inline-block; font-size: 11px; font-weight: 600; line-height: 16px; padding: 0 6px; border-radius: 8px;
+           background: var(--accent); color: #ffffff; vertical-align: 2px; margin-left: 4px; }
+
+  /* Wallet-style card thumbnail (no bank branding: bank initial and last digits only) */
+  .thumb { width: 44px; height: 29px; border-radius: 5px; background: var(--thumb); flex-shrink: 0; position: relative;
+           box-shadow: inset 0 0 0 .5px rgba(255,255,255,.18); color: #ffffff; }
+  .thumb .t-bank { position: absolute; left: 5px; top: 3px; font-size: 10px; font-weight: 600; }
+  .thumb .t-num { position: absolute; right: 5px; bottom: 3px; font-size: 8px; letter-spacing: .3px; opacity: .85; font-variant-numeric: tabular-nums; }
+  .cell.pending .thumb, .cell.missing .thumb { opacity: .45; }
+
+  /* emoji tiles, tinted with the category colour */
+  .tile { width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+          font-size: 17px; line-height: 1; background: var(--fill); }
+  .tile.s1 { background: rgba(42,120,214,.16); } .tile.s2 { background: rgba(235,104,52,.16); }
+  .tile.s3 { background: rgba(27,175,122,.16); } .tile.s4 { background: rgba(237,161,0,.18); }
+  .tile.sm { width: 30px; height: 30px; border-radius: 15px; font-size: 15px; }
+
+  /* one stacked capsule for the month's categories; 2px surface gaps between parts */
+  .stack { display: flex; gap: 2px; height: 12px; border-radius: 6px; overflow: hidden; margin: 14px 0 6px; }
+  .stack span { min-width: 3px; }
+  .stack .s1 { background: var(--s1); } .stack .s2 { background: var(--s2); }
+  .stack .s3 { background: var(--s3); } .stack .s4 { background: var(--s4); }
+  .stack .other { background: var(--other); }
+  .stack .none { background: repeating-linear-gradient(135deg, var(--other) 0 2px, var(--fill2) 2px 5px); }
+  .key { display: inline-block; width: 4px; height: 16px; border-radius: 2px; margin-right: 8px; vertical-align: -3px; }
+  .key.s1 { background: var(--s1); } .key.s2 { background: var(--s2); } .key.s3 { background: var(--s3); }
+  .key.s4 { background: var(--s4); } .key.other { background: var(--other); }
+  .key.none { background: repeating-linear-gradient(135deg, var(--other) 0 2px, var(--fill2) 2px 5px); }
+  .rows .row { display: flex; align-items: center; gap: 12px; }
+  .rows .rbody { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 10px 0; }
+  .rows .row + .row .rbody { border-top: .5px solid var(--sep); }
+  .rows .name { flex: 1; min-width: 0; font-size: 15px; }
+  .rows .pct { font-size: 13px; color: var(--label2); width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
+  .rows .amt { font-size: 15px; min-width: 84px; text-align: right; }
+
+  /* new statement */
+  .stats { display: flex; gap: 12px; }
+  .stats > div { flex: 1; }
+  .notice { background: rgba(255,149,0,.14); color: var(--orange); border-radius: 10px; padding: 8px 12px; font-size: 13px; margin-top: 12px; }
+  svg.daily { width: 100%; height: auto; display: block; margin: 16px 0 6px; }
+  svg.daily .bar { fill: var(--accent); }
+  svg.daily .axis { stroke: var(--sep); stroke-width: 1.5; }
+  svg.daily .avg { stroke: var(--label3); stroke-width: 2; stroke-dasharray: 6 6; }
+  svg.daily text { fill: var(--label2); font-size: 20px; font-family: -apple-system, sans-serif; }
+  svg.daily .value { fill: var(--label); font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; background: var(--fill); border-radius: 15px; padding: 5px 10px 5px 6px; }
+  .chip .e { font-size: 14px; }
+  .chip .v { color: var(--label2); font-variant-numeric: tabular-nums; }
+
+  /* accordion: CSS checkbox hack, closed by default */
+  .acc { display: none; }
+  label.cell { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .chev { color: var(--label3); font-size: 22px; line-height: 1; transition: transform .2s; display: inline-block; }
+  .acc:checked + label .chev { transform: rotate(90deg); }
+  .acc:checked + label .when-closed { display: none; }
+  .when-open { display: none; }
+  .acc:checked + label .when-open { display: inline; }
+  .panel { display: none; }
+  .acc:checked + label + .panel { display: block; }
+  .day { font-size: 13px; font-weight: 600; color: var(--label2); padding: 14px 16px 6px; background: var(--bg); }
+  .panel .cell .body { min-height: 52px; padding-top: 9px; padding-bottom: 9px; }
+  .panel .title { font-size: 15px; line-height: 20px; }
+  .panel .sub { font-size: 12px; line-height: 16px; }
+  .panel .amt { font-size: 15px; }
+  .amt.credit { color: var(--green); }
+  .cell.excluded .title, .cell.excluded .amt { color: var(--label2); }
+  .tag { font-size: 11px; color: var(--label2); background: var(--fill); border-radius: 4px; padding: 0 4px; margin-right: 4px; vertical-align: 1px; }
+
+  /* Calendar-style date tile */
+  .cal { width: 40px; height: 42px; border-radius: 9px; background: var(--fill); flex-shrink: 0; text-align: center; overflow: hidden; }
+  .cal .m { display: block; font-size: 10px; font-weight: 600; color: var(--red); line-height: 15px; margin-top: 2px; }
+  .cal .d { display: block; font-size: 20px; font-weight: 500; line-height: 22px; font-variant-numeric: tabular-nums; }
+
+  /* attachment, like Mail's own attachment row */
+  .doc { width: 30px; height: 38px; border-radius: 4px; background: var(--card); box-shadow: 0 0 0 .5px var(--sep), 0 1px 3px rgba(0,0,0,.12);
+         position: relative; flex-shrink: 0; }
+  .doc span { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 8px; font-weight: 700; color: var(--red); }
+
+  footer { font-size: 12px; color: var(--label2); text-align: center; margin-top: 28px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="preheader">{{ r.preview }}{% for _ in range(40) %}&#8199;&#847;{% endfor %}</div>
+<div class="wrap">
+
+  <div class="eyebrow">AutoBill · 信用卡账单</div>
+  <h1>{{ r.title }}</h1>
+  <div class="subtitle">{% if r.complete %}✓ {% endif %}{{ r.status_line }}</div>
+
+  <section class="card">
+    <div class="summary-top">
+      {{ r.ring }}
+      <div>
+        <div class="caption">{% if r.complete %}本月合计应还{% else %}已出账合计应还{% endif %}</div>
+        <div class="hero">{% if r.due_total is none %}见下方{% else %}{{ r.due_total | yuan }}{% endif %}</div>
+        <div class="caption">{% if r.complete %}{{ r.arrived }} 张卡的账单{% else %}不含待出账的卡{% endif %}</div>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i class="dot arrived"></i>已出账 {{ r.arrived }}</span>
+      {% if r.pending %}<span><i class="dot pending"></i>待出账 {{ r.pending }}</span>{% endif %}
+      {% if r.missing %}<span><i class="dot missing"></i>可能无账单 {{ r.missing }}</span>{% endif %}
+    </div>
+  </section>
+
+  <div class="sh">卡片</div>
+  <section class="group">
+    {% for s in r.cards %}
+    <div class="cell {{ s.state }}">
+      <div class="thumb"><span class="t-bank">{{ s.bank[:1] }}</span><span class="t-num">•• {{ s.last4 }}</span></div>
+      <div class="body">
+        <div class="text">
+          <div class="title">{{ s.label }}{% if s.is_new %}<span class="badge">新</span>{% endif %}</div>
+          <div class="sub">{{ s.note }}</div>
+        </div>
+        <div class="trail">
+          {% if s.amount %}<div class="amt">{{ s.amount }}</div>{% endif %}
+          <div class="state {{ s.state }}">{{ icon(s.state) }}{{ s.chip }}</div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+
+  {% if r.segments %}
+  <div class="sh">本月消费</div>
+  <section class="card">
+    <div class="hero md">{{ r.spend_total | yuan }}</div>
+    <div class="caption">{{ r.arrived }} 张已出账的卡 · 已扣除返现和退款</div>
+    <div class="stack" role="img" aria-label="消费分类">{% for g in r.segments %}<span class="{{ g.tone }}" style="flex-grow:{{ g.weight }}"></span>{% endfor %}</div>
+    <div class="rows">
+      {% for g in r.segments %}
+      <div class="row">
+        <span class="tile {{ g.tone }}">{{ g.emoji }}</span>
+        <div class="rbody">
+          <span class="name"><i class="key {{ g.tone }}"></i>{{ g.name }}</span>
+          <span class="pct">{{ g.share }}</span>
+          <span class="amt">{{ g.amount }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% if r.merchants %}
+  <section class="group" style="margin-top:12px">
+    <input type="checkbox" id="merchants" class="acc">
+    <label for="merchants" class="cell">
+      <span class="tile">🏪</span>
+      <div class="body">
+        <div class="text"><div class="title">花得最多的商户</div><div class="sub">所有已出账的卡 · 前 {{ r.merchants | length }} 名</div></div>
+        <span class="chev">›</span>
+      </div>
+    </label>
+    <div class="panel">
+      {% for m in r.merchants %}
+      <div class="cell">
+        <span class="tile sm {{ m.tone }}">{{ m.emoji }}</span>
+        <div class="body">
+          <div class="text"><div class="title">{{ m.name }}</div><div class="sub">占本月消费 {{ m.share }}</div></div>
+          <div class="amt">{{ m.amount }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+  {% endif %}
+
+  {% for n in r.new_bills %}
+  {% set i = loop.index %}
+  <div class="sh">新账单 · {{ n.label }}</div>
+  <section class="card">
+    <div class="stats">
+      <div><div class="caption">本期应还</div><div class="hero md">{% if n.view.nothing_due %}<span style="font-size:22px">无需还款</span>{% elif n.view.due_cny %}{{ n.view.due_cny | yuan }}{% else %}<span style="font-size:22px">见附件</span>{% endif %}</div></div>
+      <div><div class="caption">本期消费</div><div class="hero md">{{ n.view.spend_cny | yuan }}</div></div>
+    </div>
+    <div class="caption">{{ n.view.period }}{% if n.view.due_date %} · {{ n.view.due_date.month }}月{{ n.view.due_date.day }}日前还款{% endif %}</div>
+    {% if n.view.status[0] != "ok" %}<div class="notice">{{ n.view.status[1] }} {{ n.view.status[2] }}，请以银行原账单为准</div>{% endif %}
+    {% if n.chart %}
+    {{ n.chart }}
+    <div class="caption">{{ n.view.daily_caption }}{% if n.average %}；虚线是日均 {{ n.average }}{% endif %}</div>
+    {% endif %}
+    {% if n.top %}
+    <div class="chips">{% for g in n.top %}<span class="chip"><span class="e">{{ g.emoji }}</span>{{ g.name }}<span class="v">{{ g.amount }}</span></span>{% endfor %}</div>
+    {% endif %}
+  </section>
+  <section class="group" style="margin-top:12px">
+    {% if n.view.days %}
+    <input type="checkbox" id="tx{{ i }}" class="acc">
+    <label for="tx{{ i }}" class="cell">
+      <span class="tile">🧾</span>
+      <div class="body">
+        <div class="text"><div class="title">全部 {{ n.view.transaction_count }} 笔流水</div><div class="sub"><span class="when-closed">轻点展开 · 按日期</span><span class="when-open">轻点收起</span></div></div>
+        <span class="chev">›</span>
+      </div>
+    </label>
+    <div class="panel">
+      {% for day in n.view.days %}
+      <div class="day">{{ day.label }}</div>
+      {% for t in day.lines %}
+      {% set credit = "-" in t.amount %}
+      <div class="cell{% if t.excluded %} excluded{% endif %}" data-line="{{ t.line_no }}">
+        <span class="tile sm">{{ t.category | emoji(t.tag) }}</span>
+        <div class="body">
+          <div class="text">
+            <div class="title">{% if t.tag %}<span class="tag">{{ t.tag }}</span>{% endif %}{{ t.title }}</div>
+            {% if t.meta or t.excluded %}<div class="sub">{{ t.meta | join(" · ") }}{% if t.excluded %}{% if t.meta %} · {% endif %}不计入支出{% endif %}</div>{% endif %}
+          </div>
+          <div class="amt{% if credit and not t.excluded %} credit{% endif %}">{{ t.amount | replace("-", "+") }}</div>
+        </div>
+      </div>
+      {% endfor %}
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="cell">
+      <div class="doc"><span>PDF</span></div>
+      <div class="body">
+        <div class="text">
+          {% if n.attachment %}
+          <div class="title" style="font-size:15px">{{ n.attachment }}</div>
+          <div class="sub">完整标准账单在附件里 · 全部 {{ n.view.transaction_count }} 笔流水</div>
+          {% else %}
+          <div class="title">这次没有附完整账单 PDF</div>
+          <div class="sub">发送的电脑上没找到 Edge 或 Chrome</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </section>
+  {% endfor %}
+
+  {% if r.complete and r.due_lines %}
+  <div class="sh">还款日</div>
+  <section class="group">
+    {% for d in r.due_lines %}
+    <div class="cell">
+      <div class="cal"><span class="m">{{ d.month }}</span><span class="d">{{ d.day }}</span></div>
+      <div class="body">
+        <div class="text"><div class="title">{{ d.label }}</div><div class="sub">{{ d.weekday }}</div></div>
+        <div class="amt">{{ d.amount }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+  <div class="sf">只列出还款日，不做提醒。</div>
+  {% endif %}
+
+  <footer>
+    外币按账单邮件当天的汇率折合人民币<br>
+    AutoBill 自动生成 · 金额以银行原账单为准<br>
+    生成于 {{ r.generated_at }}
+  </footer>
+</div>
+</body>
+</html>
