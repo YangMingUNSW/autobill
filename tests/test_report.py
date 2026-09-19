@@ -146,7 +146,8 @@ def test_editing_rules_takes_effect_without_reimport(summary_for, isolated_data_
     (isolated_data_dir / "rules.yaml").write_text("餐饮: [HARBOUR FISH]\n", encoding="utf-8")
     after = summary_for("2026-08")
     assert "HARBOUR FISH PTY LTD" not in {n for n, _, _ in after.uncategorised}
-    assert after.categories["餐饮"] == D("773.77")  # USD 36.43 + 78.87 at 6.7109
+    added = after.categories["餐饮"] - before.categories.get("餐饮", D("0"))
+    assert added == D("773.77")  # USD 36.43 + 78.87 at 6.7109, on top of the built-in rules
 
 
 def test_render_has_every_section(summary_for):

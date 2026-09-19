@@ -8,6 +8,15 @@ A keyword matches anywhere in the text ("Woolworths"). Written as "word:BAR" it 
 only as a whole word, so short generic words ("bar", "market") do not fire inside longer
 ones ("BARBER", "MARKETPLACE").
 
+Spaces, punctuation and letter case never matter: statements print one merchant many ways
+("MCDONALD'S", "MC DONALD S", "SEVEN-ELEVEN", "7 ELEVEN"), so a keyword is compared with
+only the letters and digits kept ("mcdonalds"). A whole-word keyword is compared word by
+word instead; there, anything but a letter or digit separates words, and so do Chinese
+characters and kana, which have no spaces between words.
+
+The author's rules.yaml comes first and the built-in rules after it, so the author's own
+keywords win and every built-in keyword still applies.
+
 Categories are worked out when a report is made, not stored, so editing rules.yaml takes
 effect on the next report.
 """
@@ -15,7 +24,7 @@ effect on the next report.
 from __future__ import annotations
 
 import os
-import re
+import unicodedata
 from dataclasses import dataclass
 from functools import cached_property
 from importlib import resources
@@ -30,15 +39,36 @@ UNCATEGORISED = "未分类"
 # Types that are categorised by their type, not by rules.
 TYPE_CATEGORIES = {TxnType.FEE: "手续费", TxnType.INTEREST: "利息", TxnType.CASH: "取现"}
 WORD_PREFIX = "word:"
-# Letters and digits make a word; anything else (space, "*", "_", ".") separates words.
-_NOT_WORD_BEFORE, _NOT_WORD_AFTER = "(?<![a-z0-9])", "(?![a-z0-9])"
 
 
-def _pattern(keyword: str) -> str:
+def _fold(text: str) -> str:
+    # NFKC turns full-width letters and digits ("ＫＦＣ") into plain ones.
+    return unicodedata.normalize("NFKC", text).lower()
+
+
+def _is_cjk(ch: str) -> bool:
+    """Kana and Chinese characters: written without spaces, so never part of a whole word."""
+    code = ord(ch)
+    return 0x3040 <= code <= 0x30FF or 0x3400 <= code <= 0x9FFF or 0xF900 <= code <= 0xFAFF
+
+
+def _compact(text: str) -> str:
+    """ "mcdonalds" for "MC DONALD'S": letters, digits and CJK only."""
+    return "".join(ch for ch in _fold(text) if ch.isalnum())
+
+
+def _words(text: str) -> str:
+    """ " sq bar " for "SQ *BAR*": words of letters and digits, one space around each."""
+    kept = "".join(ch if ch.isalnum() and not _is_cjk(ch) else " " for ch in _fold(text))
+    return " " + " ".join(kept.split()) + " "
+
+
+def _needle(keyword: str) -> tuple[bool, str]:
+    """(whole word?, what to look for); an empty needle is never used."""
     if keyword.startswith(WORD_PREFIX):
-        word = keyword[len(WORD_PREFIX) :].strip()
-        return _NOT_WORD_BEFORE + re.escape(word) + _NOT_WORD_AFTER
-    return re.escape(keyword)
+        words = _words(keyword[len(WORD_PREFIX) :])
+        return True, words if words.strip() else ""
+    return False, _compact(keyword)
 
 
 @dataclass(frozen=True)
@@ -54,21 +84,28 @@ class Rules:
         for category, keywords in raw.items():
             if not isinstance(keywords, list) or not all(isinstance(k, str) for k in keywords):
                 raise ValueError(f"{source}: {category!r} must map to a list of keywords")
-            usable = [k.strip().lower() for k in keywords if k.strip()]
-            usable = [k for k in usable if k.removeprefix(WORD_PREFIX).strip()]
+            usable = [k.strip() for k in keywords if _needle(k.strip())[1]]
             rules.append((str(category), tuple(usable)))
         return cls(tuple(rules))
 
+    def __add__(self, later: Rules) -> Rules:
+        """These rules first, then `later`'s: a category may then appear twice."""
+        return Rules(self.rules + later.rules)
+
     @cached_property
-    def _compiled(self) -> tuple[tuple[str, re.Pattern | None], ...]:
-        return tuple(
-            (category, re.compile("|".join(map(_pattern, keywords))) if keywords else None)
-            for category, keywords in self.rules
-        )
+    def _needles(self) -> tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...]:
+        """(category, whole-word needles, anywhere needles)."""
+        out = []
+        for category, keywords in self.rules:
+            needles = [_needle(k) for k in keywords]
+            words = tuple(n for is_word, n in needles if is_word)
+            anywhere = tuple(n for is_word, n in needles if not is_word)
+            out.append((category, words, anywhere))
+        return tuple(out)
 
     @property
     def categories(self) -> list[str]:
-        return [category for category, _ in self.rules]
+        return list(dict.fromkeys(category for category, _ in self.rules))
 
     def categorize(
         self,
@@ -79,9 +116,9 @@ class Rules:
         if txn_type in TYPE_CATEGORIES:
             return TYPE_CATEGORIES[txn_type]
         text = f"{description} {merchant}" if merchant else description
-        text = text.lower()
-        for category, pattern in self._compiled:
-            if pattern is not None and pattern.search(text):
+        words, compact = _words(text), _compact(text)
+        for category, word_needles, anywhere in self._needles:
+            if any(n in words for n in word_needles) or any(n in compact for n in anywhere):
                 return category
         return UNCATEGORISED
 
@@ -96,9 +133,10 @@ def default_rules_text() -> str:
 
 
 def load_rules() -> Rules:
-    """rules.yaml from the data directory if present, else the built-in defaults
-    (identical to rules.example.yaml in the repository)."""
+    """The author's rules.yaml (if present) first, then the built-in rules (identical to
+    rules.example.yaml in the repository)."""
+    built_in = Rules.from_yaml(default_rules_text(), "built-in rules")
     path = rules_path()
     if path.exists():
-        return Rules.from_yaml(path.read_text(encoding="utf-8"), str(path))
-    return Rules.from_yaml(default_rules_text(), "built-in rules")
+        return Rules.from_yaml(path.read_text(encoding="utf-8"), str(path)) + built_in
+    return built_in

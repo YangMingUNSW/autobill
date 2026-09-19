@@ -69,7 +69,7 @@ def rules_snippet(unknowns: list[Unknown], suggestions: dict[str, str] | None = 
     and marked as suggestions; the rest are listed for the author to sort."""
     suggestions = suggestions or {}
     out = [
-        "# 复制到 rules.yaml（没有这个文件时，先把仓库里的 rules.example.yaml 复制到数据目录）。",
+        "# 复制到 rules.yaml（数据目录里没有这个文件就新建一个；内置规则照样生效）。",
         '# 可以把商户名改短，或者改成通用词，比如 "word:KELLYS"。见 docs/notify.md#分类规则',
     ]
     by_category: dict[str, list[Unknown]] = {}
