@@ -23,7 +23,7 @@ from autobill.report.cycle import (
     expected_cards,
     thread_ids,
 )
-from autobill.report.style import COLORS, bar_rows, category_bar_rows
+from autobill.report.style import COLORS, amount_with_symbol, bar_rows, category_bar_rows
 from autobill.store.db import connect
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -42,7 +42,6 @@ SMTP = SmtpReportConfig(
     enabled=True, smtp_server="smtp.example.invalid",
     username="bills@example.invalid", to_addr="me@example.invalid",
 )  # fmt: skip
-FAKE_PDF = b"%PDF-1.7 fake statement"
 
 
 @pytest.fixture(autouse=True)
@@ -62,10 +61,8 @@ def db(isolated_data_dir):
     return conn, FxRates(conn, FxConfig(), FakeFrankfurter(RATES))
 
 
-def report(conn, fx, cycle="2026-09", today=date(2026, 9, 19), portfolio=PORTFOLIO, new=()):
-    return build_cycle_report(
-        conn, cycle, fx, load_rules(), portfolio=portfolio, new_bill_ids=new, today=today
-    )
+def report(conn, fx, cycle="2026-09", today=date(2026, 9, 19), portfolio=PORTFOLIO):
+    return build_cycle_report(conn, cycle, fx, load_rules(), portfolio=portfolio, today=today)
 
 
 def ids(conn, cycle):
@@ -122,23 +119,20 @@ def test_a_card_is_pending_until_a_week_after_its_usual_day(db):
     assert "已过一周" in ccb(date(2026, 9, 18)).note
 
 
-def test_complete_month_has_due_dates_in_order(db):
+def test_complete_month_says_so(db):
     conn, fx = db
     r = report(conn, fx, today=date(2026, 9, 30))
     assert r.complete and r.status_line == "本月账单已齐，3 张可能无账单"
-    assert [(d.month, d.day, d.label) for d in r.due_lines] == [
-        ("9月", 20, "农业银行 0001"), ("9月", 21, "农业银行 0002"), ("10月", 5, "农业银行 0003"),
-    ]  # fmt: skip
-    assert r.due_lines[-1].amount == "¥1,217.97"
+    # the due date lives on the card's own row, not in a separate timeline
+    assert "10月5日还款" in next(c for c in r.cards if "0003" in c.label).note
 
 
-def test_due_dates_are_sorted_whatever_the_card_order(db):
+def test_cards_are_listed_in_statement_day_order(db):
     conn, fx = db
     shuffled = [PortfolioCard(account=a, statement_day=d)
                 for a, d in [("ABC:0003", 1), ("ABC:0002", 2), ("ABC:0001", 3)]]  # fmt: skip
     r = report(conn, fx, today=date(2026, 9, 30), portfolio=shuffled)
     assert [c.label for c in r.cards] == ["农业银行 0003", "农业银行 0002", "农业银行 0001"]
-    assert [(d.month, d.day) for d in r.due_lines] == [("9月", 20), ("9月", 21), ("10月", 5)]
 
 
 def test_due_total_adds_the_issued_statements_in_cny(db):
@@ -149,54 +143,69 @@ def test_due_total_adds_the_issued_statements_in_cny(db):
     assert "¥1,217.97" in [c.amount for c in r.cards]
 
 
-def test_new_statements_are_marked_and_summarised(db):
+def test_a_foreign_card_shows_what_the_bank_itself_asks_for(db):
+    """The CNY figure is a conversion; the author repays the bank in its own currency."""
     conn, fx = db
-    new = ids(conn, "2026-09")[-1:]
-    r = report(conn, fx, new=new)
-    assert [c.label for c in r.cards if c.is_new] == [r.new_bills[0].label]
-    assert len(r.new_bills) == 1
+    r = report(conn, fx, cycle="2025-06", today=date(2025, 7, 30))
+    boc = next(c for c in r.cards if c.amount_orig)
+    assert boc.amount.startswith("¥") and boc.amount_orig.startswith("A$")
+    assert all(not c.amount_orig for c in r.cards if c.amount == "无需还款")
+
+
+def test_every_cards_transactions_are_in_one_list(db):
+    """The month reads as one statement: all cards, by date, each line saying which card."""
+    conn, fx = db
+    r = report(conn, fx)
+    assert r.transaction_count == sum(len(day.lines) for day in r.days)
+    cards = {line.card for day in r.days for line in day.lines}
+    assert len(cards) == 3 and all("农业银行" in c for c in cards)
+    labels = [day.label for day in r.days]
+    assert labels == sorted(labels, key=lambda text: (len(text), text)) or len(labels) > 1
+
+
+def test_the_largest_purchase_is_picked_out(db):
+    conn, fx = db
+    r = report(conn, fx)
+    spent = [
+        line
+        for day in r.days
+        for line in day.lines
+        if not line.excluded and not line.tag and line.cny_value is not None
+    ]
+    assert r.biggest is not None
+    assert r.biggest.local == max(spent, key=lambda t: t.cny_value).local
 
 
 def test_zero_statement_needs_no_payment(db):
     conn, fx = db
     r = report(conn, fx, cycle="2026-08", today=date(2026, 9, 30))
     boc = next(c for c in r.cards if c.label == "中国银行 0005")
-    assert boc.amount == "无需还款" and "前还款" not in boc.note
+    assert boc.amount == "无需还款" and "还款" not in boc.note
 
 
 # --- the e-mail ----------------------------------------------------------------------
 
 
-def email(conn, fx, cycle="2026-09", attach=lambda bill: FAKE_PDF, today=date(2026, 9, 19)):
+def email(conn, fx, cycle="2026-09", today=date(2026, 9, 19)):
     msg, _ = build_cycle_email(
-        conn, cycle, ids(conn, cycle), fx, "a@example.invalid", "b@example.invalid",
-        portfolio=PORTFOLIO, attach=attach, today=today,
+        conn, cycle, fx, "a@example.invalid", "b@example.invalid",
+        portfolio=PORTFOLIO, today=today,
     )  # fmt: skip
     return msg
 
 
-def test_email_attaches_each_new_statement_as_pdf(db):
+def test_the_email_carries_nothing_but_itself(db):
+    """The originals are in the mailbox already, so nothing is attached."""
     conn, fx = db
     msg = email(conn, fx)
-    files = {p.get_filename(): p.get_content() for p in msg.iter_attachments()}
-    assert set(files) == {
-        "AutoBill-ABC-0001-2026-09-01.pdf",
-        "AutoBill-ABC-0002-2026-09-02.pdf",
-        "AutoBill-ABC-0003-2026-09-16.pdf",
-    }
-    assert all(data.startswith(b"%PDF-") for data in files.values())
-    html = msg.get_body(("html",)).get_content()
-    assert "AutoBill-ABC-0003-2026-09-16.pdf</div>" in html and "完整标准账单在附件里" in html
-
-
-def test_email_without_pdf_has_no_attachment_row(db):
-    """The default (statement.email_pdf off): the originals are in the mailbox already."""
-    conn, fx = db
-    msg = email(conn, fx, attach=None)
     assert list(msg.iter_attachments()) == []
     html = msg.get_body(("html",)).get_content()
-    assert 'class="doc"' not in html and "AutoBill-ABC-" not in html and "Edge" not in html
-    assert "全部 8 笔流水" in html  # the folded transactions are still there
+    assert "AutoBill-ABC-" not in html and ".pdf" not in html
+    count = conn.execute(
+        "SELECT COUNT(*) FROM transactions t JOIN bills b ON b.id = t.bill_id"
+        " WHERE substr(b.statement_date, 1, 7) = '2026-09'"
+    ).fetchone()[0]
+    assert f"全部 {count} 笔流水" in html  # every card's transactions, in one folded list
 
 
 def test_email_is_made_for_ios_mail(db):
@@ -206,35 +215,33 @@ def test_email_is_made_for_ios_mail(db):
     assert 'name="format-detection" content="telephone=no, date=no' in html
     assert 'name="color-scheme" content="light dark"' in html
     assert "x-apple-data-detectors" in html and "prefers-color-scheme: dark" in html
-    assert '<div class="preheader">已出账 3/6 · 合计应还 ¥' in html
+    assert '<div class="preheader">本月合计应还 ¥' in html
     assert "<img" not in html and "href=" not in html and "http" not in html
-    assert "<script" not in html and 'class="bar"' in html  # inline SVG chart
+    assert "<script" not in html  # inline SVG only, no script and no outside images
+    assert 'class="bar"' in html and 'class="slice' in html  # daily chart and donut
     assert "请尽快还款" not in html and "还款提醒" not in html
     assert msg["X-AutoBill-Report"] == "true"
     text = msg.get_body(("plain",)).get_content()
-    assert "已出账 3/6" in text and "建设银行 0004：可能无账单" in text
+    assert "本月合计应还：¥" in text and "建设银行 0004：可能无账单" in text
 
 
-def test_final_email_shows_timeline_and_all_categories(db):
+def test_the_email_is_one_month_report(db):
     conn, fx = db
     html = email(conn, fx, today=date(2026, 9, 30)).get_body(("html",)).get_content()
-    assert '<div class="sh">还款日</div>' in html and "本月合计应还" in html
-    assert 'class="cal"' in html and "只列出还款日，不做提醒" in html
-    unfinished = email(conn, fx).get_body(("html",)).get_content()
-    assert '<div class="sh">还款日</div>' not in unfinished and "已出账合计应还" in unfinished
-    assert (
-        '<div class="sh">本月消费</div>' in unfinished
-    )  # spending so far, before all cards are in
+    for heading in ("本月消费", "每日消费", "最大的一笔", "花得最多的商户", "全部流水"):
+        assert f'<div class="sh">{heading}</div>' in html, heading
+    assert "本月合计应还" in html
+    assert '<div class="sh">还款日</div>' not in html  # the card rows carry the due date
+    assert "新账单" not in html  # every card is in the one report, new or not
 
 
 # --- sending: one e-mail per month per run, one conversation per month ---------------
 
 
-def send(conn, fx, today, attach=None, factory=FakeSMTP):
+def send(conn, fx, today, factory=FakeSMTP):
     return send_pending_reports(
-        conn, Mailer(SMTP, "secret", factory), fx,
-        portfolio=PORTFOLIO, attach=attach, today=today,
-    )  # fmt: skip
+        conn, Mailer(SMTP, "secret", factory), fx, portfolio=PORTFOLIO, today=today
+    )
 
 
 def test_a_month_waits_until_every_card_is_in(db):
@@ -289,10 +296,10 @@ def test_statements_arriving_together_share_one_email(isolated_data_dir):
     conn = connect(isolated_data_dir / "autobill.db")
     load(conn, isolated_data_dir, FIXTURES / "abc")
     fx = FxRates(conn, FxConfig(), FakeFrankfurter(RATES))
-    result = send(conn, fx, date(2026, 9, 30), attach=lambda bill: FAKE_PDF)
+    result = send(conn, fx, date(2026, 9, 30))
     assert result.emails == 1 and len(result.sent) == 3
     (msg,) = sent_messages()
-    assert len(list(msg.iter_attachments())) == 3 and msg["In-Reply-To"] is None
+    assert list(msg.iter_attachments()) == [] and msg["In-Reply-To"] is None
 
 
 def test_a_late_statement_continues_the_conversation(isolated_data_dir):
@@ -370,25 +377,30 @@ def test_every_transaction_is_in_the_email_but_folded_away(db):
         " WHERE substr(b.statement_date, 1, 7) = '2026-09'"
     ).fetchone()[0]
     assert len(lines) == counts == 7 + 119 + 8
-    assert html.count('type="checkbox"') == 3 + 1  # one per new statement + the merchants
+    assert html.count('type="checkbox"') == 1  # all three cards in one list now
     assert ".panel { display: none; }" in html
     assert ".acc:checked + label + .panel { display: block; }" in html
-    assert re.search(r'<input type="checkbox" id="tx1" class="acc">\s*<label for="tx1"', html)
+    assert re.search(r'<input type="checkbox" id="tx" class="acc">\s*<label for="tx"', html)
 
 
 def test_credits_read_as_plus_in_green(db):
     conn, fx = db
     html = email(conn, fx).get_body(("html",)).get_content()
-    assert re.search(r'<div class="amt credit">\+?[A-Z ]*\+[0-9.,]+</div>', html)  # a rebate
-    assert '<div class="amt credit">-' not in html
+    assert re.search(r'<div class="amt num credit">\+[^<0-9]*[0-9.,]+</div>', html)  # a rebate
+    assert 'class="amt num credit">-' not in html
 
 
-def test_ring_has_one_arc_per_card_in_list_order(db):
+def test_the_donut_has_one_slice_per_legend_row(db):
+    """A slice too thin to see must never be the only place a number appears, so the
+    legend and the chart carry the same list in the same order."""
     conn, fx = db
-    ring = str(report(conn, fx).ring)
-    arcs = re.findall(r'class="arc (\w+)"', ring)
-    assert arcs == ["arrived", "arrived", "missing", "arrived", "pending", "pending"]
-    assert ">3/6<" in ring
+    r = report(conn, fx)
+    donut = str(r.category_donut)
+    assert re.findall(r'class="slice (\w+)"', donut) == [s.tone for s in r.segments]
+    assert f">¥{r.spend_total}<" in donut and ">本月消费<" in donut
+    for segment in r.segments:  # the aria-label says what a screen reader cannot see
+        assert f"{segment.name} {segment.share}" in donut
+    assert str(donut).count("<circle") == len(r.segments) + 1  # + the track behind them
 
 
 def test_stacked_categories_name_four_and_fold_the_rest(db):
@@ -397,11 +409,9 @@ def test_stacked_categories_name_four_and_fold_the_rest(db):
     tones = [s.tone for s in r.segments]
     assert tones[:4] == ["s1", "s2", "s3", "s4"] and set(tones[4:]) <= {"other", "none"}
     assert r.segments[-1].name == "未分类" and r.segments[-1].tone == "none"
-    # a bill's own top categories reuse the month's colours
-    new = report(conn, fx, new=ids(conn, "2026-09"))
-    month = {s.name: s.tone for s in new.segments}
-    for bill in new.new_bills:
-        assert all(g.tone == month.get(g.name, "other") for g in bill.top)
+    # the merchants reuse the month's colours, so a colour means one thing in one e-mail
+    month = {s.name: s.tone for s in r.segments}
+    assert all(m.tone in set(month.values()) | {"other"} for m in r.merchants)
 
 
 def test_merchants_across_cards(db):
@@ -417,3 +427,33 @@ def test_emoji_need_no_invisible_variation_selector():
 
     for e in [*CATEGORY_EMOJI.values(), *TYPE_EMOJI.values(), DEFAULT_EMOJI]:
         assert chr(0xFE0F) not in e and chr(0x200D) not in e
+
+
+# --- what a purchase actually cost ----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("value", "currency", "shown"),
+    [
+        (D("12345"), "JPY", "JP¥12,345"),  # the yen is not the yuan, and has no cents
+        (D("1217.97"), "CNY", "¥1,217.97"),
+        (D("168.5"), "USD", "US$168.50"),
+        (D("39.9"), "AUD", "A$39.90"),
+        (D("-12.34"), "EUR", "-€12.34"),  # the sign stays outside the symbol
+        (D("1234"), "SEK", "SEK 1,234.00"),  # not in the table: the code stays
+    ],
+)
+def test_amounts_name_their_currency(value, currency, shown):
+    assert amount_with_symbol(value, currency) == shown
+
+
+def test_a_foreign_line_shows_what_was_paid_and_what_it_cost_in_cny(db):
+    """The author wants to see the local price; the CNY is the小字 that ties it to the total."""
+    conn, fx = db
+    lines = [line for day in report(conn, fx).days for line in day.lines]
+    foreign = [t for t in lines if t.cny]
+    assert foreign, "the samples have foreign purchases"
+    for line in foreign:
+        assert line.cny.startswith("≈¥") and not line.local.startswith("≈")
+    home = [t for t in lines if not t.cny]
+    assert all(t.local.startswith(("¥", "-¥")) for t in home)  # CNY is never repeated

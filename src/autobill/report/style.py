@@ -70,6 +70,27 @@ def money(value: Decimal) -> str:
     return f"{value:,.2f}"
 
 
+# What a purchase actually cost, in the currency it was paid in. The yen and the yuan
+# share "¥", so the yen keeps the country prefix (as CLDR writes it) and the two can never
+# be mistaken for each other; a currency not listed here keeps its ISO code.
+CURRENCY_SYMBOLS = {
+    "CNY": "¥", "JPY": "JP¥", "USD": "US$", "AUD": "A$", "NZD": "NZ$", "CAD": "CA$",
+    "EUR": "€", "GBP": "£", "CHF": "CHF ", "HKD": "HK$", "MOP": "MOP$", "TWD": "NT$",
+    "SGD": "S$", "MYR": "RM", "KRW": "₩", "THB": "฿", "VND": "₫", "PHP": "₱",
+    "IDR": "Rp", "INR": "₹", "RUB": "₽", "TRY": "₺", "AED": "AED ", "SEK": "SEK ",
+    "NOK": "NOK ", "DKK": "DKK ", "PLN": "PLN ", "CZK": "CZK ", "HUF": "HUF ",
+}  # fmt: skip
+NO_DECIMALS = {"JPY", "KRW", "VND", "IDR", "HUF"}  # not divided into cents
+
+
+def amount_with_symbol(value: Decimal, currency: str) -> str:
+    """ "JP¥12,345", "US$168.50", "¥1,217.97"; a minus sign stays outside the symbol."""
+    symbol = CURRENCY_SYMBOLS.get(currency, f"{currency} ")
+    digits = 0 if currency in NO_DECIMALS else 2
+    body = f"{value:,.{digits}f}"
+    return f"-{symbol}{body[1:]}" if body.startswith("-") else f"{symbol}{body}"
+
+
 def card_label(account_id: str) -> str:
     bank, _, card = account_id.partition(":")
     name = BANK_NAMES.get(bank, bank)

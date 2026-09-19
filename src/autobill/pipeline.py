@@ -202,7 +202,6 @@ def send_pending_reports(
     rules=None,
     *,
     portfolio=(),
-    attach=None,
     today=None,
 ) -> SendResult:
     """One e-mail per statement month, sent once the month is complete: every expected card
@@ -232,13 +231,11 @@ def send_pending_reports(
             message, report = build_cycle_email(
                 conn,
                 cycle,
-                bill_ids,
                 fx,
                 mailer.config.username,
                 mailer.config.to_addr,
                 portfolio=portfolio,
                 rules=rules,
-                attach=attach,
                 today=today,
             )
             mailer.send(message)

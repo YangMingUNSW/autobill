@@ -164,7 +164,8 @@
     <div class="txn{% if t.excluded %} excluded{% endif %}" data-line="{{ t.line_no }}">
       <div class="main">
         <div class="title">{% if t.tag %}<span class="tag">{{ t.tag }}</span>{% endif %}{{ t.title }}</div>
-        {% if t.meta or t.excluded %}<div class="meta">{{ t.meta | join(" · ") }}{% if t.excluded %}{% if t.meta %} · {% endif %}不计入支出{% endif %}</div>{% endif %}
+        {% set notes = ([t.local] if t.cny else []) + t.meta %}
+        {% if notes or t.excluded %}<div class="meta">{{ notes | join(" · ") }}{% if t.excluded %}{% if notes %} · {% endif %}不计入支出{% endif %}</div>{% endif %}
       </div>
       <div class="amount num">{{ t.amount }}</div>
     </div>

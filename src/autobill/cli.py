@@ -26,7 +26,6 @@ from autobill.pipeline import process, reparse, send_pending_reports
 from autobill.report.cycle import (
     CHINA,
     build_cycle_email,
-    pdf_attacher,
     preview_cycle_html,
     record_sent,
 )
@@ -331,19 +330,12 @@ def _send_reports(conn) -> None:
     mailer = _mailer(config)
     if mailer is None:
         return
-    fx, rules = FxRates(conn, config.fx), load_rules(conn)
-    browser = None
-    if config.statement.email_pdf:  # opt-in: statement.email_pdf in config.yaml
-        browser = find_browser(config.statement.pdf_browser)
-        if browser is None:
-            typer.echo("没有找到 Edge 或 Chrome，这次邮件不附标准账单 PDF。")
     result = send_pending_reports(
         conn,
         mailer,
-        fx,
-        rules,
+        FxRates(conn, config.fx),
+        load_rules(conn),
         portfolio=config.cards.portfolio,
-        attach=pdf_attacher(fx, rules, browser) if browser else None,
     )
     sent = f"已发送报表邮件 {result.emails} 封（新账单 {len(result.sent)} 份）"
     typer.echo(f"{sent}，收件人 {mailer.config.to_addr}。")
@@ -379,7 +371,6 @@ def resend(
     message, report = build_cycle_email(
         conn,
         cycle,
-        [],  # a refresh, not an arrival: no "new statement" section
         FxRates(conn, config.fx),
         mailer.config.username,
         mailer.config.to_addr,
