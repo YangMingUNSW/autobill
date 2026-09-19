@@ -119,17 +119,17 @@ def test_a_card_is_pending_until_a_week_after_its_usual_day(db):
     ccb = lambda today: next(c for c in report(conn, fx, today=today).cards if "0004" in c.label)  # noqa: E731
     assert ccb(date(2026, 9, 17)).state == "pending"  # 09-10 + 7 days
     assert ccb(date(2026, 9, 18)).state == "missing"
-    assert "可能没有账单" in ccb(date(2026, 9, 18)).note
+    assert "已过一周" in ccb(date(2026, 9, 18)).note
 
 
 def test_complete_month_has_due_dates_in_order(db):
     conn, fx = db
     r = report(conn, fx, today=date(2026, 9, 30))
     assert r.complete and r.status_line == "本月账单已齐，3 张可能无账单"
-    assert [(d.day, d.label) for d in r.due_lines] == [
-        ("9月20日", "农业银行 0001"), ("9月21日", "农业银行 0002"), ("10月5日", "农业银行 0003"),
+    assert [(d.month, d.day, d.label) for d in r.due_lines] == [
+        ("9月", 20, "农业银行 0001"), ("9月", 21, "农业银行 0002"), ("10月", 5, "农业银行 0003"),
     ]  # fmt: skip
-    assert r.due_lines[-1].amount == "¥ 1,217.97"
+    assert r.due_lines[-1].amount == "¥1,217.97"
 
 
 def test_due_dates_are_sorted_whatever_the_card_order(db):
@@ -138,15 +138,15 @@ def test_due_dates_are_sorted_whatever_the_card_order(db):
                 for a, d in [("ABC:0003", 1), ("ABC:0002", 2), ("ABC:0001", 3)]]  # fmt: skip
     r = report(conn, fx, today=date(2026, 9, 30), portfolio=shuffled)
     assert [c.label for c in r.cards] == ["农业银行 0003", "农业银行 0002", "农业银行 0001"]
-    assert [d.day for d in r.due_lines] == ["9月20日", "9月21日", "10月5日"]
+    assert [(d.month, d.day) for d in r.due_lines] == [("9月", 20), ("9月", 21), ("10月", 5)]
 
 
 def test_due_total_adds_the_issued_statements_in_cny(db):
     conn, fx = db
     r = report(conn, fx)
-    amounts = [D(c.amount.removeprefix("¥ ").replace(",", "")) for c in r.cards if c.amount]
+    amounts = [D(c.amount.removeprefix("¥").replace(",", "")) for c in r.cards if c.amount]
     assert len(amounts) == 3 and r.due_total == f"{sum(amounts):,.2f}"
-    assert "¥ 1,217.97" in [c.amount for c in r.cards]
+    assert "¥1,217.97" in [c.amount for c in r.cards]
 
 
 def test_new_statements_are_marked_and_summarised(db):
@@ -186,7 +186,7 @@ def test_email_attaches_each_new_statement_as_pdf(db):
     }
     assert all(data.startswith(b"%PDF-") for data in files.values())
     html = msg.get_body(("html",)).get_content()
-    assert "全部 8 笔流水在附件 AutoBill-ABC-0003-2026-09-16.pdf" in html
+    assert "AutoBill-ABC-0003-2026-09-16.pdf</div>" in html and "完整标准账单在附件里" in html
 
 
 def test_email_without_a_browser_says_so(db):
@@ -215,9 +215,13 @@ def test_email_is_made_for_ios_mail(db):
 def test_final_email_shows_timeline_and_all_categories(db):
     conn, fx = db
     html = email(conn, fx, today=date(2026, 9, 30)).get_body(("html",)).get_content()
-    assert "还款日一览" in html and "本月消费 · 所有卡" in html and "本月合计应还" in html
+    assert '<div class="sh">还款日</div>' in html and "本月合计应还" in html
+    assert 'class="cal"' in html and "只列出还款日，不做提醒" in html
     unfinished = email(conn, fx).get_body(("html",)).get_content()
-    assert "还款日一览" not in unfinished and "已出账合计应还" in unfinished
+    assert '<div class="sh">还款日</div>' not in unfinished and "已出账合计应还" in unfinished
+    assert (
+        '<div class="sh">本月消费</div>' in unfinished
+    )  # spending so far, before all cards are in
 
 
 # --- sending: one e-mail per month per run, one conversation per month ---------------
@@ -321,3 +325,66 @@ def test_categories_fold_the_tail_and_put_uncategorised_last_in_grey():
     assert [r.name for r in rows] == ["类0", "类1", "类2", "类3", "类4", "其他", "未分类"]
     assert rows[5].amount == "282.00"  # 类5 + 类6 + 类7 = 95 + 94 + 93
     assert rows[-1].color == COLORS["context"] and rows[0].color == ""
+
+
+# --- the iOS layout: ring, stacked categories, folded transactions --------------------
+
+
+def test_every_transaction_is_in_the_email_but_folded_away(db):
+    """Transactions are listed (checkbox hack, closed by default), so the first screen
+    shows only the summary; every line of the new statements is there."""
+    conn, fx = db
+    html = email(conn, fx).get_body(("html",)).get_content()
+    lines = re.findall(r'data-line="(\d+)"', html)
+    counts = conn.execute(
+        "SELECT COUNT(*) FROM transactions t JOIN bills b ON b.id = t.bill_id"
+        " WHERE substr(b.statement_date, 1, 7) = '2026-09'"
+    ).fetchone()[0]
+    assert len(lines) == counts == 7 + 119 + 8
+    assert html.count('type="checkbox"') == 3 + 1  # one per new statement + the merchants
+    assert ".panel { display: none; }" in html
+    assert ".acc:checked + label + .panel { display: block; }" in html
+    assert re.search(r'<input type="checkbox" id="tx1" class="acc">\s*<label for="tx1"', html)
+
+
+def test_credits_read_as_plus_in_green(db):
+    conn, fx = db
+    html = email(conn, fx).get_body(("html",)).get_content()
+    assert re.search(r'<div class="amt credit">\+?[A-Z ]*\+[0-9.,]+</div>', html)  # a rebate
+    assert '<div class="amt credit">-' not in html
+
+
+def test_ring_has_one_arc_per_card_in_list_order(db):
+    conn, fx = db
+    ring = str(report(conn, fx).ring)
+    arcs = re.findall(r'class="arc (\w+)"', ring)
+    assert arcs == ["arrived", "arrived", "missing", "arrived", "pending", "pending"]
+    assert ">3/6<" in ring
+
+
+def test_stacked_categories_name_four_and_fold_the_rest(db):
+    conn, fx = db
+    r = report(conn, fx)
+    tones = [s.tone for s in r.segments]
+    assert tones[:4] == ["s1", "s2", "s3", "s4"] and set(tones[4:]) <= {"other", "none"}
+    assert r.segments[-1].name == "未分类" and r.segments[-1].tone == "none"
+    # a bill's own top categories reuse the month's colours
+    new = report(conn, fx, new=ids(conn, "2026-09"))
+    month = {s.name: s.tone for s in new.segments}
+    for bill in new.new_bills:
+        assert all(g.tone == month.get(g.name, "other") for g in bill.top)
+
+
+def test_merchants_across_cards(db):
+    conn, fx = db
+    r = report(conn, fx)
+    assert 0 < len(r.merchants) <= 5
+    amounts = [D(m.amount.replace(",", "")) for m in r.merchants]
+    assert amounts == sorted(amounts, reverse=True)
+
+
+def test_emoji_need_no_invisible_variation_selector():
+    from autobill.report.style import CATEGORY_EMOJI, DEFAULT_EMOJI, TYPE_EMOJI
+
+    for e in [*CATEGORY_EMOJI.values(), *TYPE_EMOJI.values(), DEFAULT_EMOJI]:
+        assert chr(0xFE0F) not in e and chr(0x200D) not in e

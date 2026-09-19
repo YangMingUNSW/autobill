@@ -61,6 +61,7 @@ class TxnLine:
     amount: str  # signed, settlement currency
     tag: str = ""  # 还款 / 返现 / 购汇 ... ; empty for plain purchases
     excluded: bool = False  # listed but not counted as spending
+    category: str = ""
 
 
 @dataclass
@@ -132,6 +133,9 @@ class StatementView:
     due_cny_value: Decimal | None = None
     spend_cny_value: Decimal = ZERO
     categories: dict[str, Decimal] = field(default_factory=dict)
+    chart_days: list[date] = field(default_factory=list)
+    merchants: dict[str, Decimal] = field(default_factory=dict)  # CNY spent per merchant
+    daily_values: dict[date, Decimal] = field(default_factory=dict)
 
 
 def _day_label(day: date) -> str:
@@ -166,6 +170,7 @@ def _line(t: Transaction, category: str, show_card: bool, show_currency: bool) -
         amount=f"{t.currency} {money(t.amount)}" if show_currency else money(t.amount),
         tag=tag,
         excluded=excluded,
+        category=category,
     )
 
 
@@ -181,11 +186,12 @@ def _chart_days(bill: Bill) -> list[date]:
     return [start + timedelta(days=i) for i in range((end - start).days + 1)]
 
 
-def daily_svg(days: list[date], values: dict[date, Decimal]) -> Markup:
+def daily_svg(days: list[date], values: dict[date, Decimal], average: bool = False) -> Markup:
     """Column per day of spending in CNY. Marks follow the dataviz spec: <= 24px wide,
     4px rounded top and square base, one hairline baseline, only the largest day labelled,
     text in text colours (never the bar colour). Colours come from CSS variables so the
-    chart follows light and dark mode."""
+    chart follows light and dark mode. With `average`, a dashed line marks the daily
+    average over the whole period, as Screen Time does; the caption names it."""
     if not days:
         return Markup("")
     # viewBox units: text is sized ~20 so it is ~11px when a phone scales 600 to ~340.
@@ -223,6 +229,10 @@ def daily_svg(days: list[date], values: dict[date, Decimal]) -> Markup:
             f'<text class="value" x="{cx:.1f}" y="{cy - 8:.1f}" text-anchor="{anchor}">'
             f"¥{value:,.0f}</text>"
         )
+    mean = sum(values.values(), ZERO) / len(days)
+    if average and peak > 0 and mean > 0:
+        y = height - bottom_pad - float(mean / peak) * plot_h
+        parts.append(f'<line class="avg" x1="0" y1="{y:.1f}" x2="{width}" y2="{y:.1f}" />')
     first, last = days[0], days[-1]
     parts.append(f'<text class="tick" x="0" y="{height - 6}">{first:%m-%d}</text>')
     parts.append(
@@ -261,6 +271,7 @@ def build_view(bill: Bill, fx: FxRates, rules: Rules, now: datetime | None = Non
     spend_cny = ZERO
     spend_by_currency: dict[str, Decimal] = {}
     daily: dict[date, Decimal] = {}
+    merchants: dict[str, Decimal] = {}
     counted = set(SPENDING_TYPES) | {TxnType.REFUND, TxnType.REBATE}
     for t in bill.transactions:
         if t.txn_type not in counted:
@@ -274,6 +285,8 @@ def build_view(bill: Bill, fx: FxRates, rules: Rules, now: datetime | None = Non
             name = rules.categorize(t.description_raw, t.txn_type)
             categories[name] = categories.get(name, ZERO) + value
             daily[t.trans_date] = daily.get(t.trans_date, ZERO) + value
+            merchant = t.merchant or t.description_raw
+            merchants[merchant] = merchants.get(merchant, ZERO) + value
 
     totals: dict[TxnType, list] = {}
     for t in bill.transactions:
@@ -349,6 +362,9 @@ def build_view(bill: Bill, fx: FxRates, rules: Rules, now: datetime | None = Non
         due_cny_value=due_cny,
         spend_cny_value=spend_cny,
         categories=categories,
+        chart_days=chart_days,
+        merchants=merchants,
+        daily_values=daily,
     )
 
 

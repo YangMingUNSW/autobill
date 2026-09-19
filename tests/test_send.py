@@ -151,7 +151,7 @@ def test_preview_email_command(cli_env):
     result = runner.invoke(app, ["preview-email", "-o", str(out)])
     assert result.exit_code == 0 and "2026-09 账单月" in result.output, result.output
     html = out.read_text(encoding="utf-8")
-    assert "2026年9月账单" in html and "农业银行 0001" in html and "<img" not in html
+    assert "<h1>2026年9月</h1>" in html and "农业银行 0001" in html and "<img" not in html
     assert FakeSMTP.instances == []  # preview never sends
 
 

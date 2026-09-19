@@ -27,6 +27,41 @@ COLORS = {
 }
 
 
+# One emoji per category and per non-purchase type, shown in a tinted tile the way Copilot
+# Money and Apple Card mark categories. Only emoji that need no variation selector.
+CATEGORY_EMOJI = {
+    "超市": "🛒",
+    "交通": "🚇",
+    "餐饮": "🍜",
+    "住宿": "🏨",
+    "订阅": "🔁",
+    "通讯网络": "📶",
+    "水电燃气": "💡",
+    "健身": "💪",
+    "娱乐": "🎬",
+    "网购": "📦",
+    "微信/支付宝（未细分）": "💬",
+    "利息": "🏦",
+    "手续费": "🏦",
+    "取现": "💵",
+    "其他": "📂",
+    UNCATEGORISED: "❔",
+}
+TYPE_EMOJI = {
+    "还款": "💳",
+    "退款": "🔄",
+    "返现": "🎁",
+    "购汇": "💱",
+    "分期本金": "📅",
+    "调整": "🧮",
+}
+DEFAULT_EMOJI = "🔖"  # a category the author added to rules.yaml
+
+
+def emoji_for(category: str, tag: str = "") -> str:
+    return TYPE_EMOJI.get(tag) or CATEGORY_EMOJI.get(category, DEFAULT_EMOJI)
+
+
 def money(value: Decimal) -> str:
     return f"{value:,.2f}"
 
