@@ -282,7 +282,7 @@ def build_view(bill: Bill, fx: FxRates, rules: Rules, now: datetime | None = Non
             continue
         spend_cny += value
         if t.txn_type in SPENDING_TYPES:
-            name = rules.categorize(t.description_raw, t.txn_type)
+            name = rules.categorize(t.description_raw, t.txn_type, t.merchant)
             categories[name] = categories.get(name, ZERO) + value
             daily[t.trans_date] = daily.get(t.trans_date, ZERO) + value
             merchant = t.merchant or t.description_raw
@@ -308,7 +308,7 @@ def build_view(bill: Bill, fx: FxRates, rules: Rules, now: datetime | None = Non
     show_currency = len({t.currency for t in bill.transactions}) > 1  # else the header says it
     groups: dict[date, list[TxnLine]] = {}
     for t in sorted(bill.transactions, key=lambda t: (t.trans_date, t.line_no)):
-        category = rules.categorize(t.description_raw, t.txn_type)
+        category = rules.categorize(t.description_raw, t.txn_type, t.merchant)
         groups.setdefault(t.trans_date, []).append(_line(t, category, show_card, show_currency))
     days = [DayGroup(_day_label(d), lines) for d, lines in groups.items()]
 

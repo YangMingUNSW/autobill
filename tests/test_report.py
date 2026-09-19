@@ -99,7 +99,9 @@ def test_month_bounds_rejects(bad):
 def test_categories_and_credits(summary_for):
     s = summary_for("2026-08")
     # Recomputed from the raw HTML by a separate script (not through the parser).
-    assert s.categories["超市"] == D("3588.72")
+    # Woolworths 3588.72, plus (M7d trade words) MAPLE SUPERMARKET x3, KPAY*CITY CONVENIENCE and
+    # LUCKY ASIAN MARKET: USD 252.17 at 6.7109 = 1692.29.
+    assert s.categories["超市"] == D("3588.72") + D("1692.29")
     assert s.categories["微信/支付宝（未细分）"] == D("150.00")  # the two 财付通 payments
     assert s.credits == {"返现": D("-220.32")}
     assert list(s.categories.values()) == sorted(s.categories.values(), reverse=True)
@@ -134,16 +136,17 @@ def test_top_and_uncategorised_merchants(summary_for):
     values = [v for _, v in s.top_merchants]
     assert values == sorted(values, reverse=True)
     names = {name for name, _, _ in s.uncategorised}
-    assert "Woolworths Online" not in names and "OLIVE GREEK TAVERNA" in names
+    assert "Woolworths Online" not in names and "HARBOUR FISH PTY LTD" in names
+    assert "OLIVE GREEK TAVERNA" not in names  # the trade word TAVERNA catches it (M7d)
 
 
 def test_editing_rules_takes_effect_without_reimport(summary_for, isolated_data_dir):
     before = summary_for("2026-08")
-    assert "OLIVE GREEK TAVERNA" in {n for n, _, _ in before.uncategorised}
-    (isolated_data_dir / "rules.yaml").write_text("餐饮: [TAVERNA]\n", encoding="utf-8")
+    assert "HARBOUR FISH PTY LTD" in {n for n, _, _ in before.uncategorised}
+    (isolated_data_dir / "rules.yaml").write_text("餐饮: [HARBOUR FISH]\n", encoding="utf-8")
     after = summary_for("2026-08")
-    assert "OLIVE GREEK TAVERNA" not in {n for n, _, _ in after.uncategorised}
-    assert after.categories["餐饮"] >= D("1856.17")
+    assert "HARBOUR FISH PTY LTD" not in {n for n, _, _ in after.uncategorised}
+    assert after.categories["餐饮"] == D("773.77")  # USD 36.43 + 78.87 at 6.7109
 
 
 def test_render_has_every_section(summary_for):

@@ -1,14 +1,23 @@
 """Spending categories from keyword rules. See docs/notify.md#分类规则.
 
-Rules map a category to keywords. A purchase's raw description is matched against them,
-case-insensitively, top to bottom; the first match wins. Categories are worked out when a
-report is made, not stored, so editing rules.yaml takes effect on the next report.
+Rules map a category to keywords. A purchase's raw description and its merchant name (as
+the parser split it off, e.g. "SUKIYA" from "SUKIYAJPN") are matched against them,
+case-insensitively, category by category from the top; the first match wins.
+
+A keyword matches anywhere in the text ("Woolworths"). Written as "word:BAR" it matches
+only as a whole word, so short generic words ("bar", "market") do not fire inside longer
+ones ("BARBER", "MARKETPLACE").
+
+Categories are worked out when a report is made, not stored, so editing rules.yaml takes
+effect on the next report.
 """
 
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
+from functools import cached_property
 from importlib import resources
 from pathlib import Path
 
@@ -20,6 +29,16 @@ from autobill.model import TxnType
 UNCATEGORISED = "未分类"
 # Types that are categorised by their type, not by rules.
 TYPE_CATEGORIES = {TxnType.FEE: "手续费", TxnType.INTEREST: "利息", TxnType.CASH: "取现"}
+WORD_PREFIX = "word:"
+# Letters and digits make a word; anything else (space, "*", "_", ".") separates words.
+_NOT_WORD_BEFORE, _NOT_WORD_AFTER = "(?<![a-z0-9])", "(?![a-z0-9])"
+
+
+def _pattern(keyword: str) -> str:
+    if keyword.startswith(WORD_PREFIX):
+        word = keyword[len(WORD_PREFIX) :].strip()
+        return _NOT_WORD_BEFORE + re.escape(word) + _NOT_WORD_AFTER
+    return re.escape(keyword)
 
 
 @dataclass(frozen=True)
@@ -35,15 +54,34 @@ class Rules:
         for category, keywords in raw.items():
             if not isinstance(keywords, list) or not all(isinstance(k, str) for k in keywords):
                 raise ValueError(f"{source}: {category!r} must map to a list of keywords")
-            rules.append((str(category), tuple(k.lower() for k in keywords if k.strip())))
+            usable = [k.strip().lower() for k in keywords if k.strip()]
+            usable = [k for k in usable if k.removeprefix(WORD_PREFIX).strip()]
+            rules.append((str(category), tuple(usable)))
         return cls(tuple(rules))
 
-    def categorize(self, description: str, txn_type: TxnType = TxnType.PURCHASE) -> str:
+    @cached_property
+    def _compiled(self) -> tuple[tuple[str, re.Pattern | None], ...]:
+        return tuple(
+            (category, re.compile("|".join(map(_pattern, keywords))) if keywords else None)
+            for category, keywords in self.rules
+        )
+
+    @property
+    def categories(self) -> list[str]:
+        return [category for category, _ in self.rules]
+
+    def categorize(
+        self,
+        description: str,
+        txn_type: TxnType = TxnType.PURCHASE,
+        merchant: str | None = None,
+    ) -> str:
         if txn_type in TYPE_CATEGORIES:
             return TYPE_CATEGORIES[txn_type]
-        text = description.lower()
-        for category, keywords in self.rules:
-            if any(k in text for k in keywords):
+        text = f"{description} {merchant}" if merchant else description
+        text = text.lower()
+        for category, pattern in self._compiled:
+            if pattern is not None and pattern.search(text):
                 return category
         return UNCATEGORISED
 

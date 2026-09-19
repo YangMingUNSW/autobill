@@ -79,11 +79,23 @@ class CardsConfig(BaseModel):
     portfolio: list[PortfolioCard] = Field(default_factory=list)
 
 
+class AiConfig(BaseModel):
+    """The reserved AI interface (autobill/suggest.py): category suggestions only, never
+    parsing or amounts. Off until a provider is named; the key comes from the environment."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    provider: str | None = None  # e.g. "ollama" once a provider is registered
+    model: str | None = None
+    base_url: str | None = None
+
+
 class Config(BaseModel):
     """Only the sections used so far; unknown sections in config.yaml are ignored."""
 
     model_config = ConfigDict(extra="ignore")
 
+    ai: AiConfig = Field(default_factory=AiConfig)
     cards: CardsConfig = Field(default_factory=CardsConfig)
     fx: FxConfig = Field(default_factory=FxConfig)
     notifier: NotifierConfig = Field(default_factory=NotifierConfig)
