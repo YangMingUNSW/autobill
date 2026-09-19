@@ -66,14 +66,16 @@ def test_refuses_newer_schema(tmp_path):
 
 
 def test_version_1_database_is_migrated(tmp_path):
-    """A database made by v0.1.0 (schema 1) gains the cycle_threads table, keeping its data."""
+    """A database made by v0.1.0 (schema 1) gains the later tables, keeping its data."""
     path = tmp_path / "old.db"
     old = connect(path)
     save_bill(old, parse(ABC[0]), None)
     old.execute("DROP TABLE cycle_threads")
+    old.execute("DROP TABLE folder_cursors")
     old.execute("PRAGMA user_version = 1")
     old.close()
     conn = connect(path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 2
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 3
     assert conn.execute("SELECT COUNT(*) FROM cycle_threads").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM folder_cursors").fetchone()[0] == 0
     assert conn.execute("SELECT COUNT(*) FROM bills").fetchone()[0] == 1

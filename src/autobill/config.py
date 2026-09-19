@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 from decimal import Decimal
 from pathlib import Path
+from typing import Literal
 
 import platformdirs
 import yaml
@@ -32,20 +33,45 @@ class FxConfig(BaseModel):
 
 
 class SmtpReportConfig(BaseModel):
-    """Where report e-mails go. The password (授权码) is never in config.yaml: it is read
-    from the AUTOBILL_SMTP_PASSWORD environment variable at send time."""
+    """Where report e-mails go. The password (授权码 / App 专用密码) is never in config.yaml:
+    it comes from AUTOBILL_SMTP_PASSWORD, or AUTOBILL_IMAP_PASSWORD when both use the same
+    mailbox (iCloud), at send time."""
 
     model_config = ConfigDict(extra="ignore")
 
     enabled: bool = False  # off until the author has filled in a real mailbox
     smtp_server: str = ""
     smtp_port: int = 465
+    security: Literal["ssl", "starttls"] = "ssl"  # 465 = ssl (QQ/163); 587 = starttls (iCloud)
     username: str = ""  # the sending (central) mailbox
     to_addr: str = ""  # the author's primary mailbox
 
     @property
     def ready(self) -> bool:
         return self.enabled and bool(self.smtp_server and self.username and self.to_addr)
+
+
+class FetcherConfig(BaseModel):
+    """The mailbox bank statements are forwarded to (docs/fetcher.md#imap). Read only; the
+    password comes from the AUTOBILL_IMAP_PASSWORD environment variable."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    enabled: bool = False
+    imap_server: str = ""  # iCloud: imap.mail.me.com
+    imap_port: int = 993
+    username: str = ""  # iCloud: the full @icloud.com address
+    # IMAP folder names must be ASCII here: non-ASCII names need modified UTF-7.
+    folders: list[str] = Field(default_factory=lambda: ["AutoBill", "Junk"])
+    only_to: str | None = None  # keep only mail addressed here (the forwarding alias)
+
+    @property
+    def ready(self) -> bool:
+        return self.enabled and bool(self.imap_server and self.username and self.folders)
+
+    @property
+    def bad_folders(self) -> list[str]:
+        return [f for f in self.folders if not f.isascii() or '"' in f]
 
 
 class NotifierConfig(BaseModel):
@@ -97,6 +123,7 @@ class Config(BaseModel):
 
     ai: AiConfig = Field(default_factory=AiConfig)
     cards: CardsConfig = Field(default_factory=CardsConfig)
+    mail_fetcher: FetcherConfig = Field(default_factory=FetcherConfig)
     fx: FxConfig = Field(default_factory=FxConfig)
     notifier: NotifierConfig = Field(default_factory=NotifierConfig)
     statement: StatementConfig = Field(default_factory=StatementConfig)
