@@ -5,7 +5,7 @@
 ## [Unreleased]
 
 ### Added
-- M8a iCloud 收信：`autobill check-mailbox`（登录检查，不改动、不发送）和 `autobill run`（拉取、解析、发进度邮件）；IMAP 只读（EXAMINE + BODY.PEEK[]），按文件夹记 UIDVALIDITY + last_uid，处理完才前进；只处理发给别名的邮件、跳过自己的报表；拆开"作为附件"转发的邮件；发信支持 587 + STARTTLS（iCloud），发信密码没设时用收信密码；数据库表结构升级到 3（`folder_cursors`）。
+- M8a iCloud 收信：`autobill check-mailbox`（登录检查，不改动、不发送）和 `autobill run`（拉取、解析、发进度邮件）；IMAP 只读（EXAMINE + BODY.PEEK[]），按文件夹记 UIDVALIDITY + last_uid，处理完才前进；只处理发给别名的邮件、跳过自己的报表；拆开"作为附件"转发的邮件（手动导入历史账单用；新账单由银行直接发到 iCloud 别名）；发信支持 587 + STARTTLS（iCloud），发信密码没设时用收信密码；数据库表结构升级到 3（`folder_cursors`）。
 - M7d 分类：整词关键词 `word:`；原始描述和商户名一起匹配；默认规则加上行业通用词和"烟酒"分类（样本里未分类的消费从 86 笔降到 37 笔）；`autobill uncategorised` 列出未分类的商户并生成 rules.yaml 片段；预留 AI 分类建议接口（`autobill/suggest.py`、`config.yaml` 的 `ai`，`--suggest`），只发商户名、建议不自动生效。
 - M7c 账单月进度邮件：按出账月份给每个账单月发邮件（已出账 N/M、待出账、可能无账单；新账单的每日消费图和分类；附标准账单 PDF；已齐时加还款日一览和全部卡的分类），同一个月的邮件用 In-Reply-To 折叠成一个对话；只为 iPhone 苹果邮件排版，iOS 原生 App 质感（大标题、分组列表、进度圆环、钱包式卡片、日历式还款日、屏幕使用时间式柱状图、Copilot Money 式 emoji 分类和分段条；深色模式；关闭数字自动识别）；逐笔流水和商户排行用 CSS 复选框技巧折叠，默认收起。卡包配置 `cards.portfolio`；`preview-email --cycle`；数据库表结构升级到 2（`cycle_threads`，自动迁移）。
 - M7b 标准账单：`autobill statement` 为每份账单生成统一模板的 HTML 和 PDF（账户摘要即对账恒等式、每日消费柱状图、分类、按天分组的全部逐笔流水；PDF 用本机的 Edge/Chrome 打印）。
