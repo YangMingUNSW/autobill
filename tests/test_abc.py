@@ -227,6 +227,11 @@ def test_unparseable_amount_is_a_warning_not_a_crash():
         ("取现/转出", "境外取现 MFS5080 VENEZIA IT", TxnType.CASH),
         ("利息", "利息 本期已优惠的利息金额:0.00元", TxnType.INTEREST),
         ("取现/转出", "转出 某某", TxnType.ADJUSTMENT),  # a transfer out is still unknown
+        # seen on the author's 29 history statements (2026-09-20)
+        ("退货", "境外退货 Woolworths OnlineBellaVistaAUS", TxnType.REFUND),
+        ("退货", "网上消费退货 财付通退款", TxnType.REFUND),
+        ("费用", "跨行ATM取现手续费 SEVEN BANK HOKKAIDO JPN", TxnType.FEE),
+        ("分期", "总账分期 办理分期12期", TxnType.INSTALLMENT),  # balance turned into instalments
     ],
 )
 def test_cash_and_interest_groups(group, text, kind):

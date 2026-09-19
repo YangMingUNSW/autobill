@@ -332,6 +332,14 @@ class _Statement:
             return TxnType.INTEREST, None, installment
         if group == "分期" and "分期本金" in text:
             return TxnType.INSTALLMENT, None, installment
+        if group == "分期" and "办理分期" in text:
+            # The balance turned into instalments: a credit now, billed back month by month
+            # as 分期本金. Neither is spending (the purchases already were).
+            return TxnType.INSTALLMENT, None, installment
+        if group == "退货":
+            return TxnType.REFUND, None, None
+        if group == "费用":
+            return TxnType.FEE, None, None
         if group == "其他" and "返现" in text:
             return TxnType.REBATE, None, None
         if group == "取现/转出" and "取现" in text:

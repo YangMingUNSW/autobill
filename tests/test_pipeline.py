@@ -164,3 +164,73 @@ def test_import_dir_uses_aliases_from_config(isolated_data_dir):
     result = CliRunner().invoke(app, ["import-dir", "--no-send", str(FIXTURES / "ccb")])
     assert result.exit_code == 0, result.output
     assert "CCB:9999" in result.output and "CCB:0004" not in result.output
+
+
+# --- reparse: stored e-mails parsed again after a fix ------------------------------------
+
+
+def _import_one(conn, data_dir, name="abc_mc_2026-09.eml"):
+    data = (FIXTURES / "abc" / name).read_bytes()
+    return process(conn, data_dir, RawMail(data, f"test:{name}"))
+
+
+def test_reparse_updates_the_same_bill_and_keeps_reported_at(env):
+    from autobill.pipeline import reparse
+
+    conn, data_dir = env
+    first = _import_one(conn, data_dir)
+    (bill_id,) = [r[0] for r in conn.execute("SELECT id FROM bills")]
+    # as if an older parser had left it WARN, and its report had been sent
+    conn.execute(
+        "UPDATE bills SET status = 'WARN', warnings = '[\"未知的交易类型\"]',"
+        " reported_at = '2026-09-19T20:15:00+10:00'"
+    )
+    conn.execute("UPDATE emails SET status = 'WARN'")
+    email_id = conn.execute("SELECT id FROM emails").fetchone()[0]
+    out = reparse(conn, data_dir, email_id)
+    assert out.status == first.status == "OK"
+    row = conn.execute("SELECT id, status, warnings, reported_at FROM bills").fetchone()
+    assert row[0] == bill_id and row[1] == "OK" and row[2] == "[]"
+    assert row[3] == "2026-09-19T20:15:00+10:00"  # no second report
+    assert conn.execute("SELECT status FROM emails").fetchone()[0] == "OK"
+
+
+def test_reparse_moves_a_bill_to_its_aliased_account(env):
+    from autobill.pipeline import reparse
+
+    conn, data_dir = env
+    _import_one(conn, data_dir)
+    (old_account,) = [r[0] for r in conn.execute("SELECT account_id FROM bills")]
+    conn.execute("UPDATE bills SET reported_at = '2026-09-19T20:15:00+10:00'")
+    email_id = conn.execute("SELECT id FROM emails").fetchone()[0]
+    reparse(conn, data_dir, email_id, {old_account: "ABC:9999"})
+    rows = conn.execute("SELECT account_id, reported_at FROM bills").fetchall()
+    assert [tuple(r) for r in rows] == [("ABC:9999", "2026-09-19T20:15:00+10:00")]
+
+
+def test_reparse_without_the_raw_file_is_skipped(env):
+    from autobill.pipeline import reparse
+
+    conn, data_dir = env
+    _import_one(conn, data_dir)
+    for f in (data_dir / "raw").glob("*.eml"):
+        f.unlink()
+    email_id = conn.execute("SELECT id FROM emails").fetchone()[0]
+    out = reparse(conn, data_dir, email_id)
+    assert out.status == "SKIPPED" and conn.execute("SELECT COUNT(*) FROM bills").fetchone()[0] == 1
+
+
+def test_reparse_command_only_touches_warn_and_failed_by_default(isolated_data_dir):
+    from typer.testing import CliRunner
+
+    from autobill.cli import app
+
+    runner = CliRunner()
+    runner.invoke(app, ["import-dir", "--no-send", str(FIXTURES / "abc")])
+    assert "没有需要重新解析" in runner.invoke(app, ["reparse"]).output  # all OK
+    conn = connect(isolated_data_dir / "autobill.db")
+    conn.execute("UPDATE emails SET status = 'WARN' WHERE id = 1")
+    result = runner.invoke(app, ["reparse"])
+    assert result.exit_code == 0 and "重新解析了 1 封：OK 1" in result.output
+    result = runner.invoke(app, ["reparse", "--all"])
+    assert "重新解析了 3 封：OK 3" in result.output

@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import sqlite3
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 from autobill.fetch.message import RawMessage
@@ -82,20 +83,7 @@ def process(
         conn.execute("DELETE FROM emails WHERE id = ?", (known["id"],))
 
     save_raw(data_dir, msg)
-    parser = find_parser(msg)
-    bills: list[Bill] = []
-    error = None
-    if parser is None:
-        status = "UNRECOGNIZED"
-    else:
-        try:
-            bills = parser.parse(msg)
-            if not bills:  # parsers must raise instead; never accept a silent empty result
-                raise TemplateChanged(f"{parser.name} returned no bills")
-            bills = [apply_aliases(b, aliases or {}) for b in bills]
-            status = _worst([b.status for b in bills])
-        except (TemplateChanged, FormatError) as exc:
-            status, error = "FAILED", f"{type(exc).__name__}: {exc}"
+    parser, bills, status, error = _parse(msg, aliases)
 
     conn.execute("BEGIN")
     try:
@@ -126,6 +114,69 @@ def process(
     bank = parser.bank if parser else None
     return Outcome(
         mail.source, status, bank, bills, error, msg.message_id, msg.subject, msg.from_addr
+    )
+
+
+def _parse(msg: RawMessage, aliases: dict[str, str] | None):
+    """(parser, bills, status, error) for one message; never a silent empty result."""
+    parser = find_parser(msg)
+    if parser is None:
+        return None, [], "UNRECOGNIZED", None
+    try:
+        bills = parser.parse(msg)
+        if not bills:  # parsers must raise instead; never accept a silent empty result
+            raise TemplateChanged(f"{parser.name} returned no bills")
+        bills = [apply_aliases(b, aliases or {}) for b in bills]
+        return parser, bills, _worst([b.status for b in bills]), None
+    except (TemplateChanged, FormatError) as exc:
+        return parser, [], "FAILED", f"{type(exc).__name__}: {exc}"
+
+
+def reparse(
+    conn: sqlite3.Connection, data_dir: Path, email_id: int, aliases: dict[str, str] | None = None
+) -> Outcome:
+    """Parse a stored e-mail again from raw/<sha256>.eml, after the parser or the card
+    aliases changed (docs/pipeline.md#cli). Its bills are updated in place: same rows,
+    reported_at kept, so no report is sent again; bills the new parse no longer produces
+    (e.g. filed under another account now) are removed."""
+    row = conn.execute("SELECT * FROM emails WHERE id = ?", (email_id,)).fetchone()
+    raw = data_dir / "raw" / f"{row['sha256']}.eml"
+    if not raw.exists():
+        return Outcome(
+            row["source"], "SKIPPED", error="原始邮件文件不在了", message_id=row["message_id"]
+        )
+    msg = RawMessage.from_bytes(raw.read_bytes())
+    parser, bills, status, error = _parse(msg, aliases)
+    conn.execute("BEGIN")
+    try:
+        # Carry reported_at over to a bill that moved to another account (an alias).
+        old = {
+            (r["statement_date"]): r["reported_at"]
+            for r in conn.execute(
+                "SELECT statement_date, reported_at FROM bills WHERE email_id = ?", (email_id,)
+            )
+        }
+        kept = []
+        for bill in bills:
+            reported = old.get(bill.statement_date.isoformat())
+            if reported and bill.reported_at is None:
+                bill = bill.model_copy(update={"reported_at": datetime.fromisoformat(reported)})
+            kept.append(save_bill(conn, bill, email_id))
+        marks = ",".join("?" * len(kept)) or "NULL"
+        conn.execute(
+            f"DELETE FROM bills WHERE email_id = ? AND id NOT IN ({marks})", [email_id, *kept]
+        )
+        conn.execute(
+            "UPDATE emails SET status = ?, error = ?, bank = ?, processed_at = ? WHERE id = ?",
+            (status, error, parser.bank if parser else None, now(), email_id),
+        )
+        conn.execute("COMMIT")
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
+    bank = parser.bank if parser else None
+    return Outcome(
+        row["source"], status, bank, bills, error, msg.message_id, msg.subject, msg.from_addr
     )
 
 
