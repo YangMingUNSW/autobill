@@ -16,11 +16,17 @@ PERSON = "李四"
 PERSON3 = "张小明"
 
 
-def db(rows: list[tuple], txn_merchants: list[str | None] | None = None) -> sqlite3.Connection:
+def db(
+    rows: list[tuple],
+    txn_merchants: list[str | None] | None = None,
+    descriptions: list[str] | None = None,
+) -> sqlite3.Connection:
     """An in-memory database holding `rows` as (merchant, category, confidence, location).
 
     Every merchant also gets a transaction unless `txn_merchants` says otherwise, since a
-    merchant with no transaction of its own is a raw description.
+    merchant with no transaction of its own is a raw description. `descriptions` sets the
+    transactions' raw descriptions, which is how a stored merchant is recognised as being
+    a whole description (the parser stores one there when it cannot split the merchant out).
     """
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
@@ -35,7 +41,8 @@ def db(rows: list[tuple], txn_merchants: list[str | None] | None = None) -> sqli
         [(m, c, c, conf, loc) for m, c, conf, loc in rows],
     )
     names = [m for m, *_ in rows] if txn_merchants is None else txn_merchants
-    conn.executemany("INSERT INTO transactions VALUES (?, 'raw')", [(n,) for n in names])
+    raws = descriptions if descriptions is not None else ["raw"] * len(names)
+    conn.executemany("INSERT INTO transactions VALUES (?, ?)", list(zip(names, raws, strict=True)))
     return conn
 
 
@@ -47,7 +54,7 @@ def printed_by_default(safe) -> str:
 def test_a_plain_shop_is_exported():
     conn = db([("STARBUCKS", "餐饮", "high", "SYDNEY AU")])
     safe, review, held = split(ex.rows_of(conn))
-    assert [r["merchant"] for r in safe] == ["STARBUCKS"]
+    assert [e.name for e in safe] == ["STARBUCKS"]
     assert (review, held) == ([], [])
 
 
@@ -86,7 +93,7 @@ def test_a_longer_chinese_shop_name_is_exported():
     """Four characters or more is a shop name, not the shape of a personal name."""
     conn = db([("永和豆浆", "餐饮", "high", None), ("沙县小吃", "餐饮", "high", None)])
     safe, review, _ = split(ex.rows_of(conn))
-    assert {r["merchant"] for r in safe} == {"沙县小吃", "永和豆浆"}
+    assert {e.name for e in safe} == {"沙县小吃", "永和豆浆"}
     assert review == []
 
 
@@ -95,13 +102,38 @@ def test_a_merchant_with_no_transaction_is_a_raw_description():
     conn = db([("SOMETHING ODD", "其他", "high", None)], txn_merchants=[])
     safe, _, held = split(ex.rows_of(conn))
     assert safe == []
-    assert held[0][1].startswith("原始描述")
+    assert held[0][1].startswith("没有流水")
 
 
 def test_a_raw_description_is_held_even_when_it_looks_like_a_shop():
     """The raw-description check comes first: it is the one that hides people's names."""
     assert verdict_for("STARBUCKS", parsed_count=0)[0] == HOLD
     assert verdict_for("STARBUCKS", parsed_count=1)[0] == EXPORT
+
+
+def test_a_chinese_description_stored_as_the_merchant_waits_for_the_author():
+    """The parser stores the whole description in `merchant` when it cannot split a shop
+    out (195 of 1,807 transactions on the author's data), so "no transaction has this
+    merchant" does not catch those. A Chinese one could have a person's name in it."""
+    conn = db(
+        [("网上消费 某某商户", "餐饮", "high", None)],
+        descriptions=["网上消费 某某商户"],
+    )
+    safe, review, held = split(ex.rows_of(conn))
+    assert safe == [] and held == []
+    assert [r["merchant"] for r, _ in review] == ["网上消费 某某商户"]
+    assert "原始描述" in review[0][1]
+
+
+def test_a_latin_description_stored_as_the_merchant_is_still_exported():
+    """Foreign card transactions print the shop, not a person, so holding every stored
+    description back would cost most of the export for nothing."""
+    conn = db(
+        [("跨行消费 FAROS BROS PTY LTD MARRICKVILLEAUS", "超市", "high", None)],
+        descriptions=["跨行消费 FAROS BROS PTY LTD MARRICKVILLEAUS"],
+    )
+    safe, _, _ = split(ex.rows_of(conn))
+    assert [e.name for e in safe] == ["FAROS BROS PTY LTD MARRICKVILLEAUS"]
 
 
 def test_unsure_answers_are_not_exported():
@@ -123,6 +155,63 @@ def test_a_chinese_chain_is_not_mistaken_for_a_person():
         assert not ex.is_bare_chinese_name(shop), shop
     assert verdict_for("永和豆浆", parsed_count=3) == (EXPORT, "")
     assert verdict_for("古茗", parsed_count=3)[0] == REVIEW
+
+
+# --- cleaning the bank's payment markers off the name ---------------------------------
+
+
+@pytest.mark.parametrize(
+    ("stored", "cleaned"),
+    [
+        ("跨行消费 FAROS BROS PTY LTD MARRICKVILLEAUS", "FAROS BROS PTY LTD MARRICKVILLEAUS"),
+        ("FAROS BROS PTY LTDAUSVISA Apple Pay", "FAROS BROS PTY LTD"),
+        ("EBEST PTY LTDAUSVISAApple Pay", "EBEST PTY LTD"),
+        ("境外消费 STARBUCKS PARIS", "STARBUCKS PARIS"),
+        ("JPN 跨境消费 TORIYA UMEBOSI OSAKA JPN", "TORIYA UMEBOSI OSAKA JPN"),
+        ("VISA OFFICE", "VISA OFFICE"),  # not a payment marker
+    ],
+)
+def test_clean_name_drops_the_banks_markers(stored, cleaned):
+    assert ex.clean_name(stored) == cleaned
+
+
+def test_spellings_of_one_shop_become_one_line():
+    """Three stored spellings of the same shop are one rule, not three."""
+    conn = db(
+        [
+            ("FAROS BROS PTY LTD", "超市", "high", "MARRICKVILLE AU"),
+            ("FAROS BROS PTY LTDAUSVISA Apple Pay", "超市", "medium", None),
+            ("跨行消费 FAROS BROS PTY LTD", "超市", "high", None),
+        ]
+    )
+    safe, _, _ = split(ex.rows_of(conn))
+    assert [(e.name, e.variants) for e in safe] == [("FAROS BROS PTY LTD", 3)]
+    assert "覆盖 3 种写法" in printed_by_default(safe)
+
+
+def test_cleaning_never_turns_a_held_name_into_an_exported_one():
+    """Stripping a prefix can only uncover a name, so the stricter verdict has to win."""
+    conn = db([(f"网上消费 财付通-{PERSON}", "餐饮", "high", None)])
+    safe, _, held = split(ex.rows_of(conn))
+    assert safe == [] and len(held) == 1
+    assert PERSON not in printed_by_default(safe)
+
+
+def test_cleaning_can_uncover_a_bare_personal_name():
+    """ "网上消费 李四" cleans to "李四", which is for the author to judge, not to publish."""
+    conn = db([(f"网上消费 {PERSON}", "餐饮", "high", None)])
+    safe, review, _ = split(ex.rows_of(conn))
+    assert safe == [] and len(review) == 1
+    assert PERSON not in printed_by_default(safe)
+
+
+def test_a_transaction_number_is_flagged_but_not_cut_off():
+    """Cutting "TOTAL 4375372" down to "TOTAL" would make exactly the kind of ambiguous
+    keyword the rules deliberately leave out, so the author decides."""
+    conn = db([("TOTAL 4375372", "交通", "high", "FR")])
+    safe, _, _ = split(ex.rows_of(conn))
+    assert [e.name for e in safe] == ["TOTAL 4375372"] and safe[0].noisy
+    assert "建议改短" in printed_by_default(safe)
 
 
 def test_yaml_groups_by_category_and_keeps_names_readable():
