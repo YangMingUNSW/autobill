@@ -145,7 +145,7 @@ uv run autobill --help        # 运行程序本身
   - 按样本导入：每个账单月一封，同一次运行的 3 份农行账单合成一封，各附一份标准账单 PDF；
   - 待出账 / 可能无账单按通常账单日 + 7 天判断；超时后补发"已齐"，已齐的月份不再发；
   - 第二封起带 `In-Reply-To` / `References`；
-  - 定好中心邮箱后，真实发一封到 iCloud 邮箱，在 iPhone 上看折叠、深色模式和附件。
+  - M8a 设好 iCloud 后，真实发一封到 iCloud 邮箱，在 iPhone 上看折叠、深色模式和附件。
 - **怎么验证**：
   ```powershell
   uv run autobill import-dir tests/fixtures --no-send
@@ -167,18 +167,26 @@ uv run autobill --help        # 运行程序本身
   uv run autobill uncategorised --limit 10
   ```
 
-### M8 IMAP 拉取 + 定时运行 → 打 `v0.2.0`（第一版可用）
-- **先做**：`autobill check-mailbox`，在要部署的机器上试登录中心邮箱、列出新邮件数，**第一天就验证能不能从那台机器（例如海外的 Oracle 服务器）登录**。IMAP 登录后发 `ID` 命令（163 不发会报 "Unsafe Login"）。
-- **部署**：Windows 计划任务或 Linux cron/systemd（Oracle 服务器），见 project.md 的"部署"决策；服务器上装 Chromium 和 `fonts-noto-cjk`，时区按北京时间。
+### M8a iCloud 收信（2026-09-19 拆分）
 - **交付**：
-  - `ImapSource`（只读游标、拆 rfc822 附件、银行识别）；
-  - `autobill run`；
-  - 按 [setup.md](setup.md) 配置定时运行（Windows 计划任务或服务器上的 cron/systemd）；
-  - 出错时（包括连续登录失败）发告警邮件。
+  - `fetch/imap.py`：只读的 `Mailbox` 和 `ImapSource`，文件夹游标（`folder_cursors` 表）、只处理发给别名的邮件、跳过自己的报表；
+  - `fetch/mime.py`：拆开"作为附件"转发的邮件；
+  - 发信支持 587 端口 + STARTTLS（iCloud）；发信密码没设时用收信密码；
+  - 命令 `check-mailbox`、`run [--no-send]`；
+  - setup.md 改成 iCloud 版本的操作步骤。设计见 [fetcher.md](fetcher.md#imap)。
 - **做完的标准**：
-  - 按 setup.md 设置好转发后，一封真实账单被自动转发、拉取、解析，并收到报表邮件；
-  - 把邮件标成已读，不影响拉取；
-  - 重复运行不会重复发送报表。
+  - 测试（假 IMAP 服务器）：只读、处理完才前进、UIDVALIDITY 变了重读、只处理发给别名的、拆附件、STARTTLS；
+  - 作者按 setup.md 设好后，在家里电脑上 `check-mailbox` 全部正常；转发一封真实账单，`run` 解析成功，iPhone 收到进度邮件；再运行一次不重复发送。
+- **怎么验证**：见 [setup.md 第 5 步](setup.md#5-运行m8a-手动m8b-放到服务器上定时运行)。
+
+### M8b 服务器定时运行 → 打 `v0.2.0`（第一版可用）
+- **交付**：
+  - Oracle 服务器上部署：uv、Chromium、中文字体 `fonts-noto-cjk`、时区按北京时间；
+  - systemd timer 每 30 分钟运行 `autobill run`，单实例锁；
+  - 密码放在权限 600 的环境变量文件里；
+  - 出错时（包括连续登录失败）发告警邮件；
+  - 历史账单回填（最近 12 个月）。
+- **做完的标准**：服务器上 `check-mailbox` 全部正常；一封真实账单被自动转发、拉取、解析，并收到进度邮件；重复运行不会重复发送。
 - **完成后**：打 `v0.2.0` 标签，**第一版可用**。
 
 **补样本（P1b）**：随时穿插进行，不单独占一个步骤。拿到新样本后按 [security.md 的检查清单](security.md#以后加入新样本时的检查清单) 脱敏，加进 `tests/fixtures/`，补上快照，并更新[样本覆盖矩阵](banks/README.md#样本覆盖矩阵)。
@@ -186,6 +194,8 @@ uv run autobill --help        # 运行程序本身
 ## 6. 测试规范
 - **测试不联网**：汇率接口用假数据代替，SMTP 和 IMAP 也用假对象代替。联网的验证只在手动检查时做。
 - **不碰真实数据**：用 pytest 的 `tmp_path` 作为 `AUTOBILL_DATA_DIR`。每个测试都用一个全新的空目录。
+  - **测试里不要用 `monkeypatch.undo()`**：它会把临时数据目录的设置也一起撤销（2026-09-19 真出过一次，碰到了作者的真实数据库）。要恢复某个被替换的函数，就再 `setattr` 一次原来的函数。
+  - 最后一道保险（`tests/conftest.py`）：测试里一旦用到真实的数据目录，或者真的去连 SMTP（465/587）或 IMAP，都会直接报错。
 - **快照**：
   - 第一次生成时必须**人工核对**：对账通过是前提，再挑几笔和样本原文逐字比对；
   - 之后快照一有变化，就要在 PR 描述里说明原因。**不能为了让测试通过就直接覆盖快照。**

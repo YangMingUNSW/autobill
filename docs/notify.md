@@ -109,8 +109,9 @@
 - **本地预览**：`autobill preview-email [--cycle 2026-09] [-o 文件]` 把这个月下一封邮件写成 HTML，不发信。检查排版用 WebKit 内核（和 iOS 同一个内核）在 390 像素宽下看浅色、深色两种，并点开折叠看一次。
 
 ## 通道：邮件（第一版）
-- 用 `smtplib.SMTP_SSL`，端口 465，从中心邮箱发到作者的 **iCloud 邮箱**（`to_addr`，2026-09-19 定）。附件里的标准账单 PDF 也就存进了 iCloud。
-- 配置在 `config.yaml` 的 `notifier.smtp_report`（`enabled` 默认 `false`）；授权码只从环境变量 `AUTOBILL_SMTP_PASSWORD` 读，见 [security.md](security.md#密钥)。
+- 作者的配置：用 iCloud 的 `smtp.mail.me.com`，**587 端口 + STARTTLS**（`security: starttls`），**从自己的 iCloud 主地址发给自己**（`to_addr`，2026-09-19 定）。附件里的标准账单 PDF 也就存进了 iCloud。
+  - QQ、163 这类用 465 端口 + SSL（`security: ssl`，默认值）。
+- 配置在 `config.yaml` 的 `notifier.smtp_report`（`enabled` 默认 `false`）；密码只从环境变量读：`AUTOBILL_SMTP_PASSWORD`，没设时用 `AUTOBILL_IMAP_PASSWORD`（iCloud 收发同一个密码），见 [security.md](security.md#密钥)。
 - 邮件头带 `X-AutoBill-Report: true`，作为"不会把自己的报表当账单解析"的第二道防线。
 - **告警也走邮件**：解析失败（附上原邮件的主题和日期）、UNRECOGNIZED、运行中出错。
 

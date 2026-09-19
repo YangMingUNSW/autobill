@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import smtplib
 from pathlib import Path
 from typing import Annotated
 
@@ -10,7 +11,10 @@ import typer
 from autobill import __version__
 from autobill.categorize import load_rules
 from autobill.config import data_dir, load_config
-from autobill.fetch.source import DirectorySource
+from autobill.fetch.imap import PASSWORD_ENV as IMAP_PASSWORD_ENV
+from autobill.fetch.imap import ImapSource, Mailbox, MailboxError, imap_password
+from autobill.fetch.mime import split_forwarded
+from autobill.fetch.source import DirectorySource, RawMail
 from autobill.fx import FxRates
 from autobill.notify.mail import PASSWORD_ENV, Mailer, smtp_password
 from autobill.pipeline import process, send_pending_reports
@@ -60,19 +64,128 @@ def import_dir(
     ] = True,
 ) -> None:
     """Import every .eml file in a directory (offline; e-mails already imported are skipped)."""
-    source = DirectorySource(path)
     conn = _db()
-    counts: dict[str, int] = {}
-    for mail in source.iter_new():
-        outcome = process(conn, data_dir(), mail)
-        counts[outcome.status] = counts.get(outcome.status, 0) + 1
-        name = mail.source.rsplit("/", 1)[-1]
-        accounts = ", ".join(b.account_id for b in outcome.bills)
-        detail = accounts or outcome.error or ""
-        typer.echo(f"{outcome.status:<12} {name}  {detail}")
-    summary = "，".join(f"{status} {n}" for status, n in sorted(counts.items()))
-    typer.echo(f"\n共 {sum(counts.values())} 封：{summary or '目录里没有 .eml 文件'}")
+    if not _import(conn, DirectorySource(path).iter_new()):
+        typer.echo("目录里没有 .eml 文件")
     typer.echo(f"数据目录：{data_dir()}")
+    if send:
+        _send_reports(conn)
+    else:
+        typer.echo("按 --no-send 的要求，没有发送报表邮件。")
+
+
+def _import(conn, mails) -> int:
+    """Process each mail (forwarded-as-attachment ones unwrapped first); print one line per
+    original e-mail and a summary. Returns how many were processed."""
+    counts: dict[str, int] = {}
+    for mail in mails:
+        parts = split_forwarded(mail.data)
+        for i, data in enumerate(parts):
+            source = mail.source if len(parts) == 1 else f"{mail.source}#{i + 1}"
+            outcome = process(conn, data_dir(), RawMail(data, source))
+            counts[outcome.status] = counts.get(outcome.status, 0) + 1
+            name = source.rsplit("/", 1)[-1]
+            accounts = ", ".join(b.account_id for b in outcome.bills)
+            detail = accounts or outcome.error or ""
+            typer.echo(f"{outcome.status:<12} {name}  {detail}")
+    if counts:
+        summary = "，".join(f"{status} {n}" for status, n in sorted(counts.items()))
+        typer.echo("")
+        typer.echo(f"共 {sum(counts.values())} 封：{summary}")
+    return sum(counts.values())
+
+
+def _mailbox(config) -> Mailbox:
+    """The configured central mailbox, or exit saying what is missing."""
+    fetcher = config.mail_fetcher
+    if not fetcher.ready:
+        typer.echo("还没有配置收账单的邮箱（config.yaml 的 mail_fetcher），见 docs/setup.md。")
+        raise typer.Exit(1)
+    if fetcher.bad_folders:
+        names = "、".join(fetcher.bad_folders)
+        typer.echo(f"文件夹名只能用英文和数字（{names}），请在邮箱里改名，比如 AutoBill。")
+        raise typer.Exit(1)
+    password = imap_password()
+    if password is None:
+        typer.echo(f"没有找到环境变量 {IMAP_PASSWORD_ENV}（App 专用密码或授权码）。")
+        raise typer.Exit(1)
+    return Mailbox(fetcher, password)
+
+
+@app.command("check-mailbox")
+def check_mailbox() -> None:
+    """Log in to the mailbox and report what is there; changes and sends nothing."""
+    config = load_config()
+    ok = True
+    try:
+        with _mailbox(config) as box:
+            typer.echo(f"✓ 收信邮箱登录成功：{config.mail_fetcher.username}")
+            wanted = config.mail_fetcher.folders
+            found, missing = box.resolve(wanted)
+            for folder in found:
+                _, count = box.examine(folder)
+                typer.echo(f"✓ 文件夹 {folder}：{count} 封邮件")
+            existing = "、".join(box.folders())
+            for folder in missing:
+                typer.echo(f"- 邮箱里还没有文件夹 {folder}，先跳过（现有：{existing}）")
+            if not found:
+                ok = False
+                typer.echo("✗ 配置的文件夹一个都没找到。检查 config.yaml 的 mail_fetcher.folders。")
+    except MailboxError as exc:
+        typer.echo(f"✗ 收信邮箱：{exc}")
+        typer.echo("  检查 imap_server、username 和 App 专用密码（改过 Apple ID 密码要重新生成）")
+        ok = False
+    smtp = config.notifier.smtp_report
+    password = smtp_password()
+    if not smtp.ready:
+        typer.echo("- 没有配置报表发信（notifier.smtp_report），跳过发信检查。")
+    elif password is None:
+        typer.echo(f"✗ 发信：没有找到环境变量 {PASSWORD_ENV} 或 {IMAP_PASSWORD_ENV}。")
+        ok = False
+    else:
+        try:
+            Mailer(smtp, password).check_login()
+            typer.echo(f"✓ 发信邮箱登录成功：{smtp.username}（没有发送任何邮件）")
+        except (smtplib.SMTPException, OSError) as exc:
+            typer.echo(f"✗ 发信：{type(exc).__name__}: {exc}")
+            ok = False
+    if not ok:
+        raise typer.Exit(1)
+    typer.echo("全部正常。")
+
+
+@app.command()
+def run(
+    send: Annotated[
+        bool, typer.Option("--send/--no-send", help="E-mail the progress reports.")
+    ] = True,
+    rescan: Annotated[
+        bool,
+        typer.Option(
+            "--rescan", help="Read the folders from the start again (after a fix or rule change)."
+        ),
+    ] = False,
+) -> None:
+    """Fetch new statements from the mailbox, process them and send the reports."""
+    config = load_config()
+    conn = _db()
+    if rescan:
+        # Harmless: e-mails already processed are skipped by Message-ID; failed ones retried.
+        conn.execute("DELETE FROM folder_cursors")
+        typer.echo("从头重读文件夹：处理过的邮件会跳过，之前失败或不认识的会重新处理。")
+    try:
+        with _mailbox(config) as box:
+            source = ImapSource(box, conn)
+            total = _import(conn, source.iter_new())
+            if source.stats.missing_folders:
+                names = "、".join(source.stats.missing_folders)
+                typer.echo(f"邮箱里还没有这些文件夹，已跳过：{names}")
+            skipped = "，".join(f"{why} {n} 封" for why, n in source.stats.skipped.items())
+            line = f"邮箱里的新邮件 {source.stats.seen} 封，处理了 {total} 封"
+            typer.echo(line + (f"；跳过：{skipped}" if skipped else ""))
+    except MailboxError as exc:
+        typer.echo(f"收信失败：{exc}")
+        raise typer.Exit(1) from None
     if send:
         _send_reports(conn)
     else:
@@ -88,7 +201,8 @@ def _send_reports(conn) -> None:
         return
     password = smtp_password()
     if password is None:
-        typer.echo(f"没有找到环境变量 {PASSWORD_ENV}（邮箱授权码），这次不发送报表。")
+        missing = f"{PASSWORD_ENV} 或 {IMAP_PASSWORD_ENV}"
+        typer.echo(f"没有找到环境变量 {missing}（邮箱密码），这次不发送报表。")
         return
     fx, rules = FxRates(conn, config.fx), load_rules()
     browser = find_browser(config.statement.pdf_browser)

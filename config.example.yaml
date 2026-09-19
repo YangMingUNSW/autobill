@@ -19,12 +19,14 @@ banks:                               # 按银行的策略，取值依据见 docs
   CCB: { due_window_days: [15, 30] } # 以后再加：dkim: none,   zero_statement: unknown
   BOC: { due_window_days: [15, 30] } # 以后再加：dkim: verify, zero_statement: always
 
-mail_fetcher:
-  imap_server: "imap.qq.com"
+mail_fetcher:                        # 收账单的邮箱（只读），见 docs/setup.md 第 2、5 步
+  enabled: false                     # 填好后改成 true
+  imap_server: "imap.mail.me.com"    # iCloud
   imap_port: 993
-  username: "bill_receiver@example.com"
-  folders: ["INBOX", "CreditCard_Raw", "Junk"]
-  poll_minutes: 15
+  username: "me@icloud.com"          # 完整的 @icloud.com 主地址
+  folders: ["AutoBill", "Junk"]      # 文件夹名只能用英文
+  only_to: "me.bills@icloud.com"     # 只处理发给这个别名的邮件（QQ 转发到它）
+  # 密码不写在这里：环境变量 AUTOBILL_IMAP_PASSWORD（iCloud 的 App 专用密码）
 
 ai:                                  # 预留的 AI 接口：只给分类提建议，不碰解析和金额，见 docs/notify.md#分类建议与-ai-接口
   provider: null                     # 还没有可用的提供方；以后接上后写名字，比如 ollama
@@ -38,9 +40,10 @@ fx:                                  # 折算人民币用的汇率，见 docs/da
 notifier:
   smtp_report:
     enabled: false                   # 填好真实邮箱后改成 true
-    smtp_server: "smtp.qq.com"
-    smtp_port: 465
-    username: "bill_receiver@example.com"
+    smtp_server: "smtp.mail.me.com"   # iCloud；QQ/163 用 465 + security: ssl
+    smtp_port: 587
+    security: "starttls"
+    username: "me@icloud.com"
     to_addr: "me@icloud.com"          # 收报表的邮箱（作者用 iCloud 邮箱 + iPhone 苹果邮件）
   wechat_work:                       # 以后，经 Oracle 中转
     enabled: false

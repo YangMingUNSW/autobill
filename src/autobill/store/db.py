@@ -14,7 +14,7 @@ from pathlib import Path
 
 from autobill.model import Bill, BillBalance, Transaction
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS emails (
@@ -112,6 +112,14 @@ CREATE TABLE IF NOT EXISTS cycle_threads (
     message_ids  TEXT NOT NULL,            -- JSON list of the progress e-mails sent, oldest first
     completed_at TEXT,                     -- set when the latest e-mail had every card settled
     updated_at   TEXT NOT NULL
+);
+""",
+    3: """
+CREATE TABLE IF NOT EXISTS folder_cursors (
+    folder      TEXT PRIMARY KEY,          -- IMAP folder name
+    uidvalidity INTEGER NOT NULL,          -- when it changes, UIDs were renumbered: rescan
+    last_uid    INTEGER NOT NULL,          -- every message up to this UID has been processed
+    updated_at  TEXT NOT NULL
 );
 """,
 }
