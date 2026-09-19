@@ -1,15 +1,19 @@
-"""The progress e-mail of a statement month. See docs/notify.md#账单月进度邮件.
+"""The e-mail of a statement month, sent once the month is complete.
+See docs/notify.md#账单月邮件.
 
 Every card issues one statement a month. The statement month ("账单月") is the month of
-the statement date, as the banks name their statements. Each run that imports new
-statements sends one e-mail per statement month: which cards have issued (amount due, due
-date), which are still to come, and a summary of each new statement with the full standard
-statement attached as a PDF. Once every card is accounted for - issued, or more than GRACE
-past its usual day ("可能无账单") - the e-mail is the month's final one: due dates in
-order and the categories across all cards.
+the statement date, as the banks name their statements. The month's e-mail goes out once
+every card is accounted for - issued, or more than GRACE past its usual day ("可能无账单")
+- and covers all of them: amount due and due date per card, due dates in order, the
+categories across every card, and a summary of each new statement. Until then the month's
+statements wait, so the author gets one e-mail a month instead of one per card
+(2026-09-20; a delivered e-mail cannot be corrected, so only the final one is worth
+sending).
 
-All e-mails of one month share a subject and point at each other with In-Reply-To and
-References, so Apple Mail shows them as one conversation. The layout is written for Apple
+A month that gets a second e-mail - a statement arriving late, or `autobill resend` after
+a fix - shares the first one's subject and points at it with In-Reply-To and References,
+so Apple Mail shows them as one conversation. Every e-mail is rebuilt from the database,
+so the newest one is always the whole month as it stands now. The layout is written for Apple
 Mail on iPhone (WebKit): <style>, CSS variables, dark mode and inline SVG work there.
 Nothing is loaded from outside and there are no links. Due dates are shown, never
 reminders.
@@ -502,10 +506,31 @@ def record_sent(conn: sqlite3.Connection, cycle: str, message_id: str, complete:
     )
 
 
-def open_cycles(conn: sqlite3.Connection) -> list[str]:
-    """Months that got a progress e-mail but no final one yet."""
-    rows = conn.execute("SELECT cycle FROM cycle_threads WHERE completed_at IS NULL ORDER BY cycle")
-    return [r[0] for r in rows]
+def cycle_complete(
+    conn: sqlite3.Connection,
+    cycle: str,
+    portfolio: Iterable[PortfolioCard] = (),
+    today: date | None = None,
+) -> bool:
+    """Whether every card expected this month has either issued a statement or run out of
+    time (docs/notify.md#账单月邮件). The same verdict as `CycleReport.complete`, but
+    without loading a single bill: the month's e-mail is only built once this is true, and
+    until then it would be built and thrown away every half hour.
+    """
+    today = today or today_in_china()
+    start, end = month_bounds(cycle)
+    arrived = {
+        r[0]
+        for r in conn.execute(
+            "SELECT DISTINCT account_id FROM bills"
+            " WHERE statement_date >= ? AND statement_date < ?",
+            (start.isoformat(), end.isoformat()),
+        )
+    }
+    return all(
+        account in arrived or today > _usual_date(cycle, day) + GRACE
+        for account, day in expected_cards(conn, cycle, portfolio).items()
+    )
 
 
 def build_cycle_email(

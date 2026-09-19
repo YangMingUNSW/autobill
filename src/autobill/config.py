@@ -94,7 +94,7 @@ class StatementConfig(BaseModel):
 
 
 class PortfolioCard(BaseModel):
-    """A card whose statement is expected every month (docs/notify.md#账单月进度邮件)."""
+    """A card whose statement is expected every month (docs/notify.md#账单月邮件)."""
 
     model_config = ConfigDict(extra="ignore")
 

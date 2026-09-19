@@ -205,16 +205,16 @@ def send_pending_reports(
     attach=None,
     today=None,
 ) -> SendResult:
-    """One progress e-mail per statement month with new statements (docs/notify.md#账单月进度邮件),
-    oldest month first; plus the final e-mail of a month whose missing cards have run out
-    of time without any new statement arriving.
+    """One e-mail per statement month, sent once the month is complete: every expected card
+    has issued its statement or run out of time (docs/notify.md#账单月邮件). Oldest month
+    first. Until then the month's statements wait, so the one e-mail covers them all.
 
     reported_at is written only after the mail server accepted the message, so a failed
     send is retried on the next run and a successful one is never repeated. The first
     failure stops the run: when the login or server is broken, every later send would
     fail the same way.
     """
-    from autobill.report.cycle import build_cycle_email, open_cycles, record_sent
+    from autobill.report.cycle import build_cycle_email, cycle_complete, record_sent
 
     result = SendResult()
     months: dict[str, list[int]] = {}
@@ -222,10 +222,12 @@ def send_pending_reports(
         "SELECT id, statement_date FROM bills WHERE reported_at IS NULL ORDER BY statement_date, id"
     ):
         months.setdefault(statement_date[:7], []).append(bill_id)
-    for cycle in open_cycles(conn):
-        months.setdefault(cycle, [])
 
     for cycle, bill_ids in sorted(months.items()):
+        # Asked before the e-mail is built: building it loads and renders every card of the
+        # month, and a month still waiting for a card would do that every run for weeks.
+        if not cycle_complete(conn, cycle, portfolio, today):
+            continue
         try:
             message, report = build_cycle_email(
                 conn,
@@ -239,8 +241,6 @@ def send_pending_reports(
                 attach=attach,
                 today=today,
             )
-            if not bill_ids and not report.complete:
-                continue  # an open month with nothing new: wait
             mailer.send(message)
         except Exception as exc:  # noqa: BLE001 - report the error, keep the bills pending
             result.failed = (cycle, f"{type(exc).__name__}: {exc}")

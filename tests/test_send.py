@@ -1,5 +1,6 @@
 """Sending report e-mails: only with a fake SMTP server, never for real."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -7,10 +8,12 @@ from fakes import FakeFrankfurter, FakeSMTP
 from typer.testing import CliRunner
 
 from autobill import fx
+from autobill.categorize import UNCATEGORISED, load_rules
 from autobill.cli import app
 from autobill.config import FxConfig, SmtpReportConfig
 from autobill.fetch.source import DirectorySource
 from autobill.fx import FxRates
+from autobill.model import TxnType
 from autobill.notify.mail import Mailer
 from autobill.pipeline import process, send_pending_reports
 from autobill.store.db import connect
@@ -179,3 +182,65 @@ def test_preview_email_unknown_month(cli_env):
     runner.invoke(app, ["import-dir", "--no-send", str(FIXTURES / "abc")])
     assert runner.invoke(app, ["preview-email", "--cycle", "2030-01"]).exit_code != 0
     assert runner.invoke(app, ["preview-email", "--cycle", "2030-13"]).exit_code != 0
+
+
+def sent_subjects():
+    return [m["Subject"] for s in FakeSMTP.instances for m in s.sent]
+
+
+def test_resend_rebuilds_the_month_from_the_data_as_it_stands(cli_env, monkeypatch):
+    """After a fix (reparse, or the AI classifying merchants that were 未分类), the month
+    can be sent again: same conversation, current numbers, nothing marked differently."""
+    import sqlite3
+
+    write_config(cli_env)
+    monkeypatch.setenv("AUTOBILL_SMTP_PASSWORD", SECRET)
+    runner.invoke(app, ["import-dir", str(FIXTURES / "abc")])
+    first = FakeSMTP.instances[-1].sent[-1]
+    assert "未分类" in first.get_body(("html",)).get_content()
+
+    db = sqlite3.connect(cli_env / "autobill.db")
+    reported = db.execute("SELECT id, reported_at FROM bills ORDER BY id").fetchall()
+    rules = load_rules()  # the rules alone: which merchants are still 未分类
+    unknown = {
+        r[1] or r[0]
+        for r in db.execute("SELECT description_raw, merchant FROM transactions"
+                            " WHERE txn_type = 'purchase'")
+        if rules.categorize(r[0], TxnType.PURCHASE, r[1]) == UNCATEGORISED
+    }  # fmt: skip
+    assert unknown
+    db.executemany(  # as the AI would have written them after the first e-mail went out
+        "INSERT INTO ai_categories VALUES (?, '健身', '健身', 'high', '', 0, NULL, NULL, 'm', 't')",
+        [(name,) for name in unknown],
+    )
+    db.commit()
+
+    result = runner.invoke(app, ["resend", "--cycle", "2026-09"])
+    assert result.exit_code == 0, result.output
+    assert "已重发 2026-09" in result.output and SECRET not in result.output
+    again = FakeSMTP.instances[-1].sent[-1]
+    assert again["Subject"] == first["Subject"] == "📊 2026年9月 信用卡账单"
+    assert again["In-Reply-To"] == first["Message-ID"]  # same conversation
+    html = again.get_body(("html",)).get_content()
+    assert "未分类" not in html  # rebuilt with the AI answers stored since the first e-mail
+    assert db.execute("SELECT id, reported_at FROM bills ORDER BY id").fetchall() == reported
+    ids_ = json.loads(
+        db.execute("SELECT message_ids FROM cycle_threads WHERE cycle = '2026-09'").fetchone()[0]
+    )
+    assert ids_ == [first["Message-ID"], again["Message-ID"]]
+
+
+def test_resend_needs_a_month_that_has_statements(cli_env, monkeypatch):
+    write_config(cli_env)
+    monkeypatch.setenv("AUTOBILL_SMTP_PASSWORD", SECRET)
+    runner.invoke(app, ["import-dir", "--no-send", str(FIXTURES / "abc")])
+    assert runner.invoke(app, ["resend", "--cycle", "2030-01"]).exit_code != 0
+    assert runner.invoke(app, ["resend", "--cycle", "2030-13"]).exit_code != 0
+    assert FakeSMTP.instances == []
+
+
+def test_resend_without_a_mailbox_explains_itself(cli_env):
+    runner.invoke(app, ["import-dir", "--no-send", str(FIXTURES / "abc")])
+    result = runner.invoke(app, ["resend", "--cycle", "2026-09"])
+    assert result.exit_code == 1 and "没有配置报表邮箱" in result.output
+    assert FakeSMTP.instances == []
