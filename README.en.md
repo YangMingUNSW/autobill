@@ -6,7 +6,7 @@ A small, self-hosted tool that turns Chinese credit-card statement e-mails into 
 
 Banks send their e-statements to a dedicated mailbox. AutoBill reads it over IMAP on a schedule (read-only), parses each statement with **deterministic rules** (no AI touches the amounts), reconciles it item by item against the bank's own totals, converts foreign currencies to CNY, and e-mails a progress report per statement month: which cards have issued, what is owed, where the money went. The original statements stay in your mailbox.
 
-> **Status:** every feature of the first version (M0-M8) is done: parsing and reconciliation for three banks, statement-month progress e-mails, alert e-mails and Docker deployment. Final checks run on the author's own server before `v0.2.0`. Roadmap in [project.md](project.md#6-分期路线) (Chinese).
+> **Status:** `v0.2.0` is out and runs every 30 minutes in Docker on the author's own server: parsing and reconciliation for three banks, one e-mail per statement month once every card is in, alert e-mails, and AI classification for merchants the rules miss. Roadmap in [project.md](project.md#6-分期路线) (Chinese).
 
 ## Supported banks (first version)
 | Bank | Format | Status |

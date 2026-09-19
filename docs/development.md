@@ -140,7 +140,7 @@ uv run autobill --help        # 运行程序本身
   然后在 iPhone 的"文件"App → iCloud 云盘 → AutoBill-预览 里打开 HTML 和 PDF。
 
 ### M7c 账单月进度邮件（2026-09-19 插入）
-- **交付**：`report/cycle.py` + 模板 `cycle_report.html.j2`（只为 iPhone 苹果邮件排版）、`report/style.py`（共用配色和横条）、卡包配置 `cards.portfolio`、`cycle_threads` 表、`preview-email --cycle`。替换 M7 的"每份账单一封"。设计见 [notify.md](notify.md#账单月进度邮件)。
+- **交付**：`report/cycle.py` + 模板 `cycle_report.html.j2`（只为 iPhone 苹果邮件排版）、`report/style.py`（共用配色和横条）、卡包配置 `cards.portfolio`、`cycle_threads` 表、`preview-email --cycle`。替换 M7 的"每份账单一封"。设计见 [notify.md](notify.md#账单月邮件)（2026-09-20 改为收齐才发一封）。
 - **做完的标准**：
   - 按样本导入：每个账单月一封，同一次运行的 3 份农行账单合成一封，各附一份标准账单 PDF；
   - 待出账 / 可能无账单按通常账单日 + 7 天判断；超时后补发"已齐"，已齐的月份不再发；

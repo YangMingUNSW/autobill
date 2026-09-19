@@ -23,7 +23,13 @@ from autobill.fx import FxRates
 from autobill.notify import alerts
 from autobill.notify.mail import PASSWORD_ENV, Mailer, smtp_password
 from autobill.pipeline import process, reparse, send_pending_reports
-from autobill.report.cycle import CHINA, pdf_attacher, preview_cycle_html
+from autobill.report.cycle import (
+    CHINA,
+    build_cycle_email,
+    pdf_attacher,
+    preview_cycle_html,
+    record_sent,
+)
 from autobill.report.monthly import month_bounds, monthly_summary, render_text
 from autobill.report.pdf import PdfError, find_browser, html_to_pdf
 from autobill.report.statement import render_statement_html
@@ -305,17 +311,25 @@ def _send_alerts(conn) -> None:
         typer.echo(f"提醒邮件发送失败：{type(exc).__name__}: {exc}。下次运行会再发。")
 
 
-def _send_reports(conn) -> None:
-    """E-mail every bill that has no report yet, if a mailbox is configured."""
-    config = load_config()
+def _mailer(config) -> Mailer | None:
+    """The mailer for reports, or None with the reason printed."""
     smtp = config.notifier.smtp_report
     if not smtp.ready:
         typer.echo("没有配置报表邮箱（config.yaml 的 notifier.smtp_report），这次不发送报表。")
-        return
+        return None
     password = smtp_password()
     if password is None:
         missing = f"{PASSWORD_ENV} 或 {IMAP_PASSWORD_ENV}"
         typer.echo(f"没有找到环境变量 {missing}（邮箱密码），这次不发送报表。")
+        return None
+    return Mailer(smtp, password)
+
+
+def _send_reports(conn) -> None:
+    """E-mail every statement month that is complete and not reported yet."""
+    config = load_config()
+    mailer = _mailer(config)
+    if mailer is None:
         return
     fx, rules = FxRates(conn, config.fx), load_rules(conn)
     browser = None
@@ -325,18 +339,57 @@ def _send_reports(conn) -> None:
             typer.echo("没有找到 Edge 或 Chrome，这次邮件不附标准账单 PDF。")
     result = send_pending_reports(
         conn,
-        Mailer(smtp, password),
+        mailer,
         fx,
         rules,
         portfolio=config.cards.portfolio,
         attach=pdf_attacher(fx, rules, browser) if browser else None,
     )
     sent = f"已发送报表邮件 {result.emails} 封（新账单 {len(result.sent)} 份）"
-    typer.echo(f"{sent}，收件人 {smtp.to_addr}。")
+    typer.echo(f"{sent}，收件人 {mailer.config.to_addr}。")
     if result.failed:
         cycle, error = result.failed
         typer.echo(f"发送失败（{cycle} 账单月）：{error}。没发出去的下次运行会再发。")
         raise typer.Exit(1)
+
+
+@app.command()
+def resend(
+    cycle: Annotated[str, typer.Option("--cycle", help="Statement month, e.g. 2026-08.")],
+) -> None:
+    """Send a statement month's e-mail again, rebuilt from the data as it stands now.
+
+    For after a fix: `reparse` corrected the amounts, or the AI classified merchants that
+    were 未分类 when the month's e-mail went out. The new e-mail joins the same
+    conversation; which statements count as reported does not change.
+    """
+    conn = _db()
+    try:
+        month_bounds(cycle)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from None
+    if not conn.execute(
+        "SELECT 1 FROM bills WHERE substr(statement_date, 1, 7) = ?", (cycle,)
+    ).fetchone():
+        raise typer.BadParameter(f"{cycle} 没有出账的账单。")
+    config = load_config()
+    mailer = _mailer(config)
+    if mailer is None:
+        raise typer.Exit(1)
+    message, report = build_cycle_email(
+        conn,
+        cycle,
+        [],  # a refresh, not an arrival: no "new statement" section
+        FxRates(conn, config.fx),
+        mailer.config.username,
+        mailer.config.to_addr,
+        portfolio=config.cards.portfolio,
+        rules=load_rules(conn),
+    )
+    mailer.send(message)
+    record_sent(conn, cycle, message["Message-ID"], report.complete)
+    typer.echo(f"已重发 {cycle} 账单月的邮件，收件人 {mailer.config.to_addr}。")
+    typer.echo("内容按现在的账单和分类重算，并进同一个对话；账单的已发送状态没有改动。")
 
 
 @app.command("preview-email")

@@ -1,4 +1,4 @@
-"""The progress e-mail of a statement month (docs/notify.md#账单月进度邮件), offline."""
+"""The statement month's e-mail (docs/notify.md#账单月邮件), offline."""
 
 import json
 import re
@@ -18,9 +18,9 @@ from autobill.pipeline import process, send_pending_reports
 from autobill.report.cycle import (
     build_cycle_email,
     build_cycle_report,
+    cycle_complete,
     cycle_title,
     expected_cards,
-    open_cycles,
     thread_ids,
 )
 from autobill.report.style import COLORS, bar_rows, category_bar_rows
@@ -237,54 +237,75 @@ def send(conn, fx, today, attach=None, factory=FakeSMTP):
     )  # fmt: skip
 
 
-def test_one_email_per_month_and_never_twice(db):
+def test_a_month_waits_until_every_card_is_in(db):
+    """One e-mail per month, and not before the month is complete: on 19 September the two
+    BOC cards (usually the 22nd) are still to come, so September's statements wait."""
     conn, fx = db
     result = send(conn, fx, date(2026, 9, 19))
-    assert result.failed is None and result.emails == 5 and len(result.sent) == 8
+    assert result.failed is None and result.emails == 4
     subjects = [m["Subject"] for m in sent_messages()]
     assert subjects == [
         "📊 2025年6月 信用卡账单", "📊 2026年6月 信用卡账单", "📊 2026年7月 信用卡账单",
-        "📊 2026年8月 信用卡账单", "📊 2026年9月 信用卡账单",
+        "📊 2026年8月 信用卡账单",
     ]  # fmt: skip
-    assert open_cycles(conn) == ["2026-09"]  # the only month still waiting for cards
+    assert set(result.sent).isdisjoint(ids(conn, "2026-09"))
+    waiting = conn.execute("SELECT COUNT(*) FROM bills WHERE reported_at IS NULL").fetchone()[0]
+    assert waiting == len(ids(conn, "2026-09")) and thread_ids(conn, "2026-09") == []
     again = send(conn, fx, date(2026, 9, 20))
-    assert again.emails == 0 and len(sent_messages()) == 5
+    assert again.emails == 0 and len(sent_messages()) == 4  # still waiting, still nothing
 
 
-def test_final_email_follows_when_missing_cards_run_out_of_time(db):
+def test_the_month_goes_out_once_its_missing_cards_run_out_of_time(db):
+    """A card with no statement is only given a week past its usual day; then the month
+    counts as complete and its one e-mail goes out, covering every card."""
     conn, fx = db
     send(conn, fx, date(2026, 9, 19))
-    first = sent_messages()[-1]
     result = send(conn, fx, date(2026, 9, 30))  # BOC cards now more than a week late
-    assert result.emails == 1 and result.sent == []
+    assert result.emails == 1 and set(result.sent) == set(ids(conn, "2026-09"))
     final = sent_messages()[-1]
-    assert final["Subject"] == first["Subject"]
-    assert final["In-Reply-To"] == first["Message-ID"]
-    assert final["References"] == first["Message-ID"]
+    assert final["Subject"] == "📊 2026年9月 信用卡账单"
+    assert final["In-Reply-To"] is None  # the month's only e-mail: nothing to follow
     assert "本月账单已齐" in final.get_body(("html",)).get_content()
-    assert open_cycles(conn) == []
-    assert send(conn, fx, date(2026, 10, 30)).emails == 0  # a closed month stays closed
+    assert send(conn, fx, date(2026, 10, 30)).emails == 0  # sent once, never again
+
+
+@pytest.mark.parametrize(
+    ("cycle", "today"),
+    [
+        ("2026-09", date(2026, 9, 19)),  # two cards still to come
+        ("2026-09", date(2026, 9, 30)),  # they ran out of time
+        ("2026-08", date(2026, 9, 19)),  # every expected card is in
+        ("2025-06", date(2026, 9, 19)),  # long past
+    ],
+)
+def test_cycle_complete_agrees_with_the_built_report(db, cycle, today):
+    """The cheap check decides whether the e-mail is built at all, so it must never drift
+    from the report's own verdict."""
+    conn, fx = db
+    assert cycle_complete(conn, cycle, PORTFOLIO, today) is report(conn, fx, cycle, today).complete
 
 
 def test_statements_arriving_together_share_one_email(isolated_data_dir):
     conn = connect(isolated_data_dir / "autobill.db")
     load(conn, isolated_data_dir, FIXTURES / "abc")
     fx = FxRates(conn, FxConfig(), FakeFrankfurter(RATES))
-    result = send(conn, fx, date(2026, 9, 19), attach=lambda bill: FAKE_PDF)
+    result = send(conn, fx, date(2026, 9, 30), attach=lambda bill: FAKE_PDF)
     assert result.emails == 1 and len(result.sent) == 3
     (msg,) = sent_messages()
     assert len(list(msg.iter_attachments())) == 3 and msg["In-Reply-To"] is None
 
 
-def test_later_statement_continues_the_conversation(isolated_data_dir):
+def test_a_late_statement_continues_the_conversation(isolated_data_dir):
+    """A statement arriving after the month was sent gets an e-mail of its own, into the
+    same conversation: it is news, unlike the ones that were already covered."""
     conn = connect(isolated_data_dir / "autobill.db")
     fx = FxRates(conn, FxConfig(), FakeFrankfurter(RATES))
     mails = sorted(DirectorySource(FIXTURES / "abc").iter_new(), key=lambda m: m.source)
     process(conn, isolated_data_dir, mails[0])
-    send(conn, fx, date(2026, 9, 19))
+    send(conn, fx, date(2026, 9, 30))
     for mail in mails[1:]:
         process(conn, isolated_data_dir, mail)
-    send(conn, fx, date(2026, 9, 19))
+    send(conn, fx, date(2026, 9, 30))
     first, second = sent_messages()
     assert second["In-Reply-To"] == first["Message-ID"]
     assert thread_ids(conn, "2026-09") == [first["Message-ID"], second["Message-ID"]]
@@ -304,9 +325,14 @@ def test_failed_send_keeps_bills_pending_and_records_nothing(db):
     assert pending == 8 and conn.execute("SELECT COUNT(*) FROM cycle_threads").fetchone()[0] == 0
 
 
-def test_thread_row_keeps_every_message_id(db):
-    conn, fx = db
-    send(conn, fx, date(2026, 9, 19))
+def test_thread_row_keeps_every_message_id(isolated_data_dir):
+    conn = connect(isolated_data_dir / "autobill.db")
+    fx = FxRates(conn, FxConfig(), FakeFrankfurter(RATES))
+    mails = sorted(DirectorySource(FIXTURES / "abc").iter_new(), key=lambda m: m.source)
+    process(conn, isolated_data_dir, mails[0])
+    send(conn, fx, date(2026, 9, 30))
+    for mail in mails[1:]:
+        process(conn, isolated_data_dir, mail)
     send(conn, fx, date(2026, 9, 30))
     row = conn.execute("SELECT message_ids FROM cycle_threads WHERE cycle = '2026-09'").fetchone()
     ids_ = json.loads(row[0])
