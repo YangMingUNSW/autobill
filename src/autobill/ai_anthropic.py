@@ -25,6 +25,7 @@ from autobill.suggest import (
     SuggesterUnavailable,
     Verdict,
     register,
+    shown_name,
 )
 
 DEFAULTS: dict[str, tuple[str, str | None]] = {  # provider -> (base_url, default model)
@@ -71,8 +72,8 @@ Rules:
   when a web search found it or it is very likely; "low" otherwise.
 - reason: one short sentence in Simplified Chinese, e.g. "札幌的烤肉店（网上查到）".
 
-Reply with JSON only, no other text:
-{"results": [{"merchant": "<name exactly as given>", "category": "<category or null>",
+Reply with JSON only, no other text, one result per merchant, by its id:
+{"results": [{"id": <id>, "category": "<category or null>",
   "confidence": "high|medium|low", "reason": "..."}]}"""
 
 Post = Callable[[str, dict, dict], dict]  # (url, headers, body) -> response JSON
@@ -143,7 +144,7 @@ class AnthropicClassifier:
         if response.get("stop_reason") == "max_tokens":
             raise AnswerCutOff(f"AI 的回答太长被截断（{len(merchants)} 个商户一批）")
         searched = any(b.get("type") == "server_tool_use" for b in content)
-        return parse_answer(content, searched)
+        return parse_answer(content, searched, merchants)
 
     def _count(self, usage: dict) -> None:
         self.usage["input_tokens"] += int(usage.get("input_tokens") or 0)
@@ -155,14 +156,14 @@ class AnthropicClassifier:
 def _prompt(merchants: list[MerchantInfo], categories: list[str], search: bool) -> str:
     lines = ["Categories:"]
     lines += [f"- {c}" + (f": {HINTS[c]}" if c in HINTS else "") for c in categories]
-    listed = [
-        {
-            k: v
-            for k, v in (("merchant", m.name), ("location", m.location), ("currency", m.currency))
-            if v
-        }
-        for m in merchants
-    ]
+    listed = []
+    for i, m in enumerate(merchants, 1):
+        fields = (
+            ("merchant", shown_name(m.name)),
+            ("location", m.location),
+            ("currency", m.currency),
+        )
+        listed.append({"id": i} | {k: v for k, v in fields if v})
     lines += ["", "Merchants:", json.dumps(listed, ensure_ascii=False, indent=1), ""]
     if search:
         lines.append(
@@ -174,8 +175,11 @@ def _prompt(merchants: list[MerchantInfo], categories: list[str], search: bool) 
     return "\n".join(lines)
 
 
-def parse_answer(content: list[dict], searched: bool) -> dict[str, Verdict]:
-    """The JSON object in the model's last text; an answer without one is an error."""
+def parse_answer(
+    content: list[dict], searched: bool, merchants: list[MerchantInfo]
+) -> dict[str, Verdict]:
+    """The JSON object in the model's last text, keyed back to the merchants by id; an
+    answer without one is an error."""
     texts = [b.get("text") or "" for b in content if b.get("type") == "text"]
     for text in reversed(texts):
         start, end = text.find("{"), text.rfind("}")
@@ -186,20 +190,28 @@ def parse_answer(content: list[dict], searched: bool) -> dict[str, Verdict]:
         except ValueError:
             continue
         if isinstance(data, dict) and isinstance(data.get("results"), list):
-            return _verdicts(data["results"], searched)
+            return _verdicts(data["results"], searched, merchants)
     raise SuggesterError("AI 的回答里没有要求的 JSON 结果")
 
 
-def _verdicts(results: list, searched: bool) -> dict[str, Verdict]:
+def _verdicts(results: list, searched: bool, merchants: list[MerchantInfo]) -> dict[str, Verdict]:
+    by_name = {m.name: m.name for m in merchants} | {shown_name(m.name): m.name for m in merchants}
     out = {}
     for item in results:
-        if not isinstance(item, dict) or not isinstance(item.get("merchant"), str):
+        if not isinstance(item, dict):
+            continue
+        ident = item.get("id")
+        if isinstance(ident, int) and not isinstance(ident, bool) and 1 <= ident <= len(merchants):
+            name = merchants[ident - 1].name
+        elif isinstance(item.get("merchant"), str) and item["merchant"] in by_name:
+            name = by_name[item["merchant"]]  # a model that answered by name after all
+        else:
             continue
         category = item.get("category")
         category = category if isinstance(category, str) and category.strip() else None
         confidence = item.get("confidence") if item.get("confidence") in CONFIDENCE else "low"
         reason = str(item.get("reason") or "")[:200]
-        out[item["merchant"]] = Verdict(category, confidence, reason, searched)
+        out[name] = Verdict(category, confidence, reason, searched)
     return out
 
 

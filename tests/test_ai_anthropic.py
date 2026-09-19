@@ -13,11 +13,12 @@ from autobill.suggest import (
     SuggesterUnavailable,
     Verdict,
     get_suggester,
+    shown_name,
 )
 
 MERCHANTS = [MerchantInfo("ICHIKAKUYA", "TOKYO JP", "JPY"), MerchantInfo("FAROS BROS PTY LTD")]
-ANSWER = (
-    '```json\n{"results": [{"merchant": "ICHIKAKUYA", "category": "餐饮", '
+ANSWER = (  # the first by id, as asked; the second by name, which a model may still do
+    '```json\n{"results": [{"id": 1, "category": "餐饮", '
     '"confidence": "high", "reason": "东京的拉面店"}, {"merchant": "FAROS BROS PTY LTD", '
     '"category": null, "confidence": "low", "reason": "不确定"}]}\n```'
 )
@@ -53,6 +54,7 @@ def test_request_without_search():
     assert "tools" not in body and body["temperature"] == 0
     prompt = body["messages"][0]["content"]
     assert '"location": "TOKYO JP"' in prompt and '"currency": "JPY"' in prompt
+    assert '"id": 1' in prompt and '"id": 2' in prompt
     assert "- 餐饮: restaurants" in prompt
 
 
@@ -83,11 +85,30 @@ def test_a_cut_off_answer_is_an_error():
 
 
 def test_answer_parsing():
-    assert parse_answer([text("好的。\n" + ANSWER)], False)["ICHIKAKUYA"].category == "餐饮"
-    odd = '{"results": [{"merchant": "X", "category": "餐饮", "confidence": "sure"}, 5]}'
-    assert parse_answer([text(odd)], False) == {"X": Verdict("餐饮", "low", "", False)}
+    got = parse_answer([text("好的。\n" + ANSWER)], False, MERCHANTS)
+    assert got["ICHIKAKUYA"].category == "餐饮" and got["FAROS BROS PTY LTD"].confidence == "low"
+    odd = '{"results": [{"id": 1, "category": "餐饮", "confidence": "sure"}, {"id": 9}, 5]}'
+    # an unknown confidence is "low"; id 9 was never asked about
+    assert parse_answer([text(odd)], False, MERCHANTS) == {
+        "ICHIKAKUYA": Verdict("餐饮", "low", "", False)
+    }
     with pytest.raises(SuggesterError, match="JSON"):
-        parse_answer([text("我不知道")], False)
+        parse_answer([text("我不知道")], False, MERCHANTS)
+
+
+@pytest.mark.parametrize(
+    ("raw", "shown"),
+    [
+        ("GM SYDNEY PTY LTDAUSVISA Apple Pay", "GM SYDNEY PTY LTD"),  # not a visa office
+        ("REFER SIGNED RECEIPTAUSVISA apple pay消费", "REFER SIGNED RECEIPT"),
+        ("Vivienne Westwood LimitedGBRCUP ApplePay", "Vivienne Westwood Limited"),
+        ("跨行消费 FAROS BROS PTY LTD MARRICKVILLEAUS", "FAROS BROS PTY LTD MARRICKVILLEAUS"),
+        ("JPN 跨境消费 TORIYA UMEBOSI OSAKA JPN", "TORIYA UMEBOSI OSAKA JPN"),
+        ("VISA OFFICE", "VISA OFFICE"),
+    ],
+)
+def test_bank_payment_markers_are_not_shown_to_the_model(raw, shown):
+    assert shown_name(raw) == shown
 
 
 @pytest.mark.parametrize(("status", "message"), [(401, "密钥无效"), (402, "余额不足"),
