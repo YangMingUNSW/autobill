@@ -113,14 +113,18 @@ class CardsConfig(BaseModel):
 
 
 class AiConfig(BaseModel):
-    """The reserved AI interface (autobill/suggest.py): category suggestions only, never
-    parsing or amounts. Off until a provider is named; the key comes from the environment."""
+    """AI classification of merchants the rules miss (autobill/classify.py), never parsing
+    or amounts. Off until a provider is named; the key comes from the environment."""
 
     model_config = ConfigDict(extra="ignore")
 
-    provider: str | None = None  # e.g. "ollama" once a provider is registered
-    model: str | None = None
-    base_url: str | None = None
+    provider: str | None = None  # "deepseek" or "anthropic" (autobill/ai_anthropic.py)
+    model: str | None = None  # default: the provider's cheap model
+    base_url: str | None = None  # default: the provider's own
+    auto_classify: bool = True  # run / serve classify new merchants before reporting
+    web_search: bool = True  # a merchant the model is unsure of is looked up on the web
+    max_searches: int = Field(default=3, ge=1, le=10)  # web searches per merchant, at most
+    per_run: int = Field(default=20, ge=1)  # merchants asked per run, at most (cost cap)
 
 
 class Config(BaseModel):

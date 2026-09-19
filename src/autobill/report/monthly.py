@@ -138,7 +138,7 @@ def _lines(rows: list[sqlite3.Row], fx: FxRates) -> tuple[list[Line], dict[tuple
 def monthly_summary(
     conn: sqlite3.Connection, month: str, fx: FxRates, rules: Rules | None = None
 ) -> MonthlySummary:
-    rules = rules or load_rules()
+    rules = rules or load_rules(conn)
     rows = _rows(conn, month)
     lines, rates = _lines(rows, fx)
     summary = MonthlySummary(month, lines)

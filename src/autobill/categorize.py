@@ -15,7 +15,8 @@ word instead; there, anything but a letter or digit separates words, and so do C
 characters and kana, which have no spaces between words.
 
 The author's rules.yaml comes first and the built-in rules after it, so the author's own
-keywords win and every built-in keyword still applies.
+keywords win and every built-in keyword still applies. A merchant no rule matches may
+still have an AI answer (autobill/classify.py), used last.
 
 Categories are worked out when a report is made, not stored, so editing rules.yaml takes
 effect on the next report.
@@ -24,8 +25,9 @@ effect on the next report.
 from __future__ import annotations
 
 import os
+import sqlite3
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import cached_property
 from importlib import resources
 from pathlib import Path
@@ -73,7 +75,8 @@ def _needle(keyword: str) -> tuple[bool, str]:
 
 @dataclass(frozen=True)
 class Rules:
-    rules: tuple[tuple[str, tuple[str, ...]], ...]  # (category, lower-cased keywords)
+    rules: tuple[tuple[str, tuple[str, ...]], ...]  # (category, keywords)
+    learned: tuple[tuple[str, str], ...] = ()  # (merchant, category) from the AI, used last
 
     @classmethod
     def from_yaml(cls, text: str, source: str = "rules") -> Rules:
@@ -90,7 +93,14 @@ class Rules:
 
     def __add__(self, later: Rules) -> Rules:
         """These rules first, then `later`'s: a category may then appear twice."""
-        return Rules(self.rules + later.rules)
+        return Rules(self.rules + later.rules, self.learned or later.learned)
+
+    def with_learned(self, learned: dict[str, str]) -> Rules:
+        return replace(self, learned=tuple(sorted(learned.items())))
+
+    @cached_property
+    def _learned(self) -> dict[str, str]:
+        return dict(self.learned)
 
     @cached_property
     def _needles(self) -> tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...]:
@@ -115,12 +125,26 @@ class Rules:
     ) -> str:
         if txn_type in TYPE_CATEGORIES:
             return TYPE_CATEGORIES[txn_type]
+        found = self._match(description, merchant)
+        if found is not None:
+            return found
+        return self._learned.get(merchant or description, UNCATEGORISED)
+
+    def by_ai(
+        self, description: str, txn_type: TxnType = TxnType.PURCHASE, merchant: str | None = None
+    ) -> bool:
+        """The category comes from an AI answer, not a rule."""
+        if txn_type in TYPE_CATEGORIES or self._match(description, merchant) is not None:
+            return False
+        return (merchant or description) in self._learned
+
+    def _match(self, description: str, merchant: str | None) -> str | None:
         text = f"{description} {merchant}" if merchant else description
         words, compact = _words(text), _compact(text)
         for category, word_needles, anywhere in self._needles:
             if any(n in words for n in word_needles) or any(n in compact for n in anywhere):
                 return category
-        return UNCATEGORISED
+        return None
 
 
 def rules_path() -> Path:
@@ -132,11 +156,16 @@ def default_rules_text() -> str:
     return resources.files("autobill").joinpath("default_rules.yaml").read_text(encoding="utf-8")
 
 
-def load_rules() -> Rules:
+def load_rules(conn: sqlite3.Connection | None = None) -> Rules:
     """The author's rules.yaml (if present) first, then the built-in rules (identical to
-    rules.example.yaml in the repository)."""
-    built_in = Rules.from_yaml(default_rules_text(), "built-in rules")
+    rules.example.yaml in the repository); with `conn`, then the stored AI answers."""
+    rules = Rules.from_yaml(default_rules_text(), "built-in rules")
     path = rules_path()
     if path.exists():
-        return Rules.from_yaml(path.read_text(encoding="utf-8"), str(path)) + built_in
-    return built_in
+        rules = Rules.from_yaml(path.read_text(encoding="utf-8"), str(path)) + rules
+    if conn is not None:
+        learned = conn.execute(
+            "SELECT merchant, category FROM ai_categories WHERE category IS NOT NULL"
+        )
+        rules = rules.with_learned({r[0]: r[1] for r in learned})
+    return rules

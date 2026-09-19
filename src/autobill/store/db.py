@@ -14,7 +14,7 @@ from pathlib import Path
 
 from autobill.model import Bill, BillBalance, Transaction
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS emails (
@@ -132,6 +132,20 @@ CREATE TABLE IF NOT EXISTS alerts (
     created_at TEXT NOT NULL,
     sent_at    TEXT,                      -- NULL until e-mailed; each alert is sent once
     UNIQUE (kind, key)
+);
+""",
+    5: """
+CREATE TABLE IF NOT EXISTS ai_categories (
+    merchant   TEXT PRIMARY KEY,          -- as the reports group it (merchant, else description)
+    category   TEXT,                      -- used for reports; NULL = the model was not sure
+    guess      TEXT,                      -- the model's category, even when not sure
+    confidence TEXT NOT NULL,             -- high / medium / low
+    reason     TEXT NOT NULL,             -- one sentence from the model
+    searched   INTEGER NOT NULL,          -- 1 = it looked the merchant up on the web
+    location   TEXT,                      -- what the model was told, besides the name
+    currency   TEXT,
+    model      TEXT NOT NULL,
+    asked_at   TEXT NOT NULL
 );
 """,
 }

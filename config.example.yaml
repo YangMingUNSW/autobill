@@ -28,10 +28,14 @@ mail_fetcher:                        # 收账单的邮箱（只读），见 docs
   only_to: "me.bills@icloud.com"     # 只处理发给这个别名的邮件（QQ 转发到它）
   # 密码不写在这里：环境变量 AUTOBILL_IMAP_PASSWORD（iCloud 的 App 专用密码）
 
-ai:                                  # 预留的 AI 接口：只给分类提建议，不碰解析和金额，见 docs/notify.md#分类建议与-ai-接口
-  provider: null                     # 还没有可用的提供方；以后接上后写名字，比如 ollama
-  model: null
-  base_url: null                     # 密钥不写在这里，放环境变量 AUTOBILL_AI_API_KEY
+ai:                                  # AI 分类：规则分不出来的商户交给 AI，不碰解析和金额，见 docs/notify.md#ai-分类
+  provider: null                     # 不用 AI 就留空；用 DeepSeek 写 deepseek
+  model: null                        # 默认 deepseek-v4-flash（便宜）；也可以写 deepseek-v4-pro
+  base_url: null                     # 默认用提供方自己的地址；密钥不写在这里，放环境变量 AUTOBILL_AI_API_KEY
+  auto_classify: true                # run / serve 发报表前自动给新商户分类
+  web_search: true                   # 没把握的商户让 AI 联网查（店名 + 城市 + 国家）
+  max_searches: 3                    # 每个商户最多搜几次
+  per_run: 20                        # 每次运行最多问几个新商户（控制费用）
 
 fx:                                  # 折算人民币用的汇率，见 docs/data-model.md#汇率
   source: "https://api.frankfurter.dev/v1"   # 按账单邮件发出当天取汇率，免费、不需要 key

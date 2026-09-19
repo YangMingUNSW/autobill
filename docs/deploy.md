@@ -65,9 +65,11 @@ docker compose up -d                               # 启动：立刻跑一次，
 | 程序修好后重新解析有警告的账单 | `docker compose pull && docker compose up -d`，再 `docker compose run --rm autobill reparse` |
 | 停止 / 启动 | `docker compose down` / `docker compose up -d` |
 | 换了 App 专用密码 | 改 `autobill.env`，然后 `docker compose up -d` |
+| 打开 AI 分类 | `autobill.env` 加一行 `AUTOBILL_AI_API_KEY=`（DeepSeek 的密钥），`data/config.yaml` 的 `ai.provider` 写 `deepseek`，然后 `docker compose up -d`（见 [notify.md](notify.md#ai-分类)） |
+| 手动让 AI 分类、看它的理由 | `docker compose run --rm autobill classify --dry-run`（只看不存），去掉 `--dry-run` 就保存 |
 | 其他命令 | `docker compose run --rm autobill <命令>`，比如 `uncategorised`、`report --month 2026-09` |
 
-- **数据都在 `data/` 里**：换镜像、更新版本都不会丢。备份就是复制这个文件夹。
+- **数据都在 `data/` 里**：换镜像、更新版本都不会丢。备份就是复制这个文件夹：先 `docker compose stop` 再复制（数据库用 WAL 模式，运行中最近的改动还在 `autobill.db-wal` 里，只复制 `autobill.db` 会丢），复制完 `docker compose up -d`。
 - 容器以普通用户运行，不是 root：默认 uid 1000，`.env` 里的 `AUTOBILL_UID` / `AUTOBILL_GID` 可以改成你自己的。
 - 出问题时会发**提醒邮件**到你的邮箱（见 [notify.md](notify.md#提醒邮件)），不用盯着日志。只有"收信和发信用同一个密码，而这个密码失效了"时发不出提醒，这时看日志，或者注意到进度邮件不来了。
 - 内存：`compose.yaml` 限制容器最多用 300 MB，实际用得更少；1 GB 的服务器绰绰有余。

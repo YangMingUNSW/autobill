@@ -163,6 +163,7 @@ class Bill(BaseModel):  # 一封邮件可以产出多份 Bill（中行合并账�
 | `fx_rates` | 汇率缓存 | `(date, currency)` 唯一 → `rate_to_cny`、`source`（`frankfurter` 或 `config`） |
 | `folder_cursors` | 邮箱文件夹读到哪里（M8a） | `folder` 唯一 → `uidvalidity`、`last_uid`：只拉 UID 更大的邮件；UIDVALIDITY 变了就从头再读，靠 Message-ID 去重 |
 | `alerts` | 提醒邮件（M8b） | `(kind, key)` 唯一 → `title`、`body`、`sent_at`：同一个问题只发一次 |
+| `ai_categories` | AI 分类的结果（2026-09-20） | `merchant` 唯一 → `category`（采用的分类；没把握时为空）、`guess`、`confidence`、`reason`、`searched`、问的时候给了什么（`location`、`currency`）、`model`、`asked_at` |
 | `cycle_threads` | 账单月进度邮件（M7c） | `cycle` 唯一（如 `2026-09`）→ `message_ids`（已发邮件的 Message-ID，JSON 列表）、`completed_at`（最近一封是否已齐） |
 
 ## 以后导出 Beancount 时怎么映射

@@ -58,7 +58,8 @@ FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表�
 - **`reparse [--all]`**（2026-09-20）：用现在的解析器和卡号别名，把已经入库的邮件**从 `raw/` 里的原件重新解析**，默认只处理 WARN、UNVERIFIED、FAILED、UNRECOGNIZED 的，`--all` 全部。账单原地更新（同一行，保留 `reported_at`，所以不会重发报表）；因为别名换了账户的，旧账户那一行删掉。解析器修好后，已经入库的账单就用它更新。
 - **M8b 起**：`serve [--interval 30]` 一直运行，每隔几分钟跑一次 `run` 的全部步骤（Docker 默认用它）；某一次出错只记日志，不退出。
 - **M8a 起**：`check-mailbox` 登录收信和发信邮箱、列出文件夹里的邮件数，不改动也不发送任何东西；`run [--no-send]` 从邮箱拉取新邮件（"作为附件"转发的会先拆开）、解析，再发进度邮件。
-- **M7d 起**：`uncategorised [--cycle 2026-09] [--limit 20] [--suggest]` 列出还没分类的商户，生成可以复制进 `rules.yaml` 的 YAML；`--suggest` 让配置好的 AI 给建议（见 [notify.md](notify.md#分类建议与-ai-接口)）。
+- **M7d 起**：`uncategorised [--cycle 2026-09] [--limit 20]` 列出还没分类的商户，生成可以复制进 `rules.yaml` 的 YAML。
+- **`classify [--limit 50] [--dry-run] [--retry]`**（2026-09-20）：让配置好的 AI 给规则分不出来的商户分类，结果存进数据库、直接生效；`run` / `serve` 在发报表前也会自动做（见 [notify.md](notify.md#ai-分类)）。
 
 **M3 的处理流程**（`autobill/pipeline.py`）：
 1. 读出 `RawMessage`；Message-ID 已经在 `emails` 表里的，直接跳过（`SKIPPED`）。所以**同一个目录导入两次，数据库不变**。
