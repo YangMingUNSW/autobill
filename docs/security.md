@@ -87,6 +87,7 @@ notifier:
     - 词表本身不进仓库；CI 上没有它，这一项只在作者本机提交时生效。
     - 作者的词表由脱敏对照表的 `replace` 和 `card_last4` 两类原值生成，再加上真实邮箱地址和新见到的卡号；`merchants_fixed` 和 `forbid_extra` 不放（那两类里有作者已接受公开的内容）。
 - 日志里不打印邮件正文和金额明细。
+- **从数据库往仓库里搬东西**只有一条路：`scripts/export_ai_categories.py`，把 AI 分好的商户导成规则。它只读，而且会扣下可能带别人姓名的商户名（解析器没认出商户时，`ai_categories.merchant` 存的是原始描述）。规则和测试见 [notify.md](notify.md#把-ai-的结论沉淀成规则)。
 - 数据库落盘加密靠 BitLocker，再加上文件权限；SQLCipher 作为以后的可选项。
 
 ## 样本与脱敏
