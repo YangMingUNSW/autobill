@@ -12,6 +12,13 @@ Checks:
     message/rfc822 parts and PDF attachments, because base64 bodies hide
     their content from a plain text search.
 
+  * Private terms (local only): the author's own list of strings that must never be
+    committed - real card last-4 digits, mailbox addresses, names - read from
+    private-terms.txt in the AutoBill data directory (or AUTOBILL_PRIVATE_TERMS). The
+    list itself never enters the repository; CI, which has no list, skips this check.
+    Digit-only terms match only as a whole number, so a transaction id or a hash that
+    happens to contain the same digits is not flagged.
+
 Matches are printed masked, since CI logs of a public repo are public too.
 """
 
@@ -21,6 +28,7 @@ import argparse
 import email
 import email.policy
 import io
+import os
 import re
 import subprocess
 import sys
@@ -40,6 +48,9 @@ MOBILE_RE = re.compile(r"(?<!\d)(1[3-9]\d{9})(?!\d)")
 # 16-19 digits written in one run, or in groups of four ("6228 4812 3456 7890 123").
 # Dates next to each other ("2025-06-02 2025-06-04") must not read as one card number.
 CARD_RE = re.compile(r"(?<![\d-])(\d{16,19}|\d{4}(?:[ -]\d{4}){3}(?:[ -]?\d{1,3})?)(?![\d-])")
+
+PRIVATE_TERMS_ENV = "AUTOBILL_PRIVATE_TERMS"
+PRIVATE_TERMS_FILE = "private-terms.txt"
 
 ID18_WEIGHTS = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2]
 ID18_CHECK_CHARS = "10X98765432"
@@ -78,6 +89,41 @@ def find_identity(text: str) -> Iterator[tuple[str, str]]:
         digits = re.sub(r"[ -]", "", m.group(1))
         if luhn_valid(digits):
             yield "card-number", mask(digits)
+
+
+def private_terms_path() -> Path | None:
+    override = os.environ.get(PRIVATE_TERMS_ENV)
+    if override:
+        return Path(override)
+    try:
+        import platformdirs
+
+        return Path(platformdirs.user_data_dir("autobill", appauthor=False)) / PRIVATE_TERMS_FILE
+    except Exception:  # noqa: BLE001 - no data directory: nothing to check against
+        return None
+
+
+def load_private_terms(path: Path | None) -> list[re.Pattern]:
+    """One term per line; blank lines and lines starting with # are ignored."""
+    if path is None or not path.is_file():
+        return []
+    patterns = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        term = line.strip()
+        if not term or term.startswith("#"):
+            continue
+        if term.isdigit():
+            patterns.append(re.compile(f"(?<![0-9A-Za-z]){term}(?![0-9A-Za-z])"))
+        else:
+            patterns.append(re.compile(re.escape(term), re.IGNORECASE))
+    return patterns
+
+
+def find_private(text: str, terms: list[re.Pattern]) -> Iterator[tuple[str, str]]:
+    """Yield ("private-term", "#n") - never the term itself."""
+    for i, pattern in enumerate(terms, start=1):
+        if pattern.search(text):
+            yield "private-term", f"#{i}"
 
 
 def pdf_text(data: bytes) -> str:
@@ -120,7 +166,7 @@ def file_texts(data: bytes, suffix: str) -> Iterator[str]:
         yield data.decode("utf-8", errors="replace")
 
 
-def check_file(path: Path, rel: PurePosixPath) -> list[str]:
+def check_file(path: Path, rel: PurePosixPath, terms: list[re.Pattern] | None = None) -> list[str]:
     problems: list[str] = []
     suffix = rel.suffix.lower()
     if suffix in DATABASE_SUFFIXES:
@@ -133,7 +179,7 @@ def check_file(path: Path, rel: PurePosixPath) -> list[str]:
         return problems
     seen: set[tuple[str, str]] = set()
     for text in file_texts(data, suffix):
-        for hit in find_identity(text):
+        for hit in [*find_identity(text), *find_private(text, terms or [])]:
             if hit not in seen:
                 seen.add(hit)
                 problems.append(f"{rel}: possible {hit[0]} {hit[1]}")
@@ -162,11 +208,12 @@ def main(argv: list[str] | None = None) -> int:
 
     root = repo_root()
     files = tracked_files(root) if args.all else args.files
+    terms = load_private_terms(private_terms_path())
     problems: list[str] = []
     for name in files:
         path = root / name
         if path.is_file():
-            problems.extend(check_file(path, PurePosixPath(Path(name).as_posix())))
+            problems.extend(check_file(path, PurePosixPath(Path(name).as_posix()), terms))
 
     for line in problems:
         print(line)

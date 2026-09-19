@@ -4,6 +4,7 @@ import base64
 from email.message import EmailMessage
 from pathlib import Path, PurePosixPath
 
+import check_identity as ci
 import pytest
 from check_identity import ID18_CHECK_CHARS, ID18_WEIGHTS, check_file, luhn_valid
 
@@ -147,3 +148,39 @@ def test_real_fixtures_are_clean():
     for path in files:
         rel = PurePosixPath(path.relative_to(FIXTURES.parent.parent).as_posix())
         assert check_file(path, rel) == [], rel
+
+
+# --- private terms (local list, never committed) ---------------------------------------
+
+
+def private_list(tmp_path, *terms):
+    path = tmp_path / "private-terms.txt"
+    path.write_text(
+        "# my private terms" + chr(10) + chr(10).join(terms) + chr(10), encoding="utf-8"
+    )
+    return ci.load_private_terms(path)
+
+
+def test_private_card_digits_match_only_as_whole_numbers(tmp_path):
+    terms = private_list(tmp_path, "4821")  # a made-up last-4, not a real card
+    f = tmp_path / "notes.md"
+    f.write_text('"CCB:4821": "CCB:0004"', encoding="utf-8")
+    problems = ci.check_file(f, PurePosixPath("notes.md"), terms)
+    assert problems == ["notes.md: possible private-term #1"]
+    for harmless in ['"txn_id": "a672e80c482108ae"', "sha256:94821f", "2026-04-21"]:
+        f.write_text(harmless, encoding="utf-8")
+        assert ci.check_file(f, PurePosixPath("notes.md"), terms) == []
+
+
+def test_private_words_match_case_insensitively_and_stay_masked(tmp_path):
+    terms = private_list(tmp_path, "someone.bills@icloud.example")
+    f = tmp_path / "a.py"
+    f.write_text('TO = "Someone.Bills@iCloud.example"', encoding="utf-8")
+    problems = ci.check_file(f, PurePosixPath("a.py"), terms)
+    assert problems == ["a.py: possible private-term #1"]
+    assert "someone" not in " ".join(problems).lower()
+
+
+def test_no_private_list_means_no_private_check(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUTOBILL_PRIVATE_TERMS", str(tmp_path / "missing.txt"))
+    assert ci.load_private_terms(ci.private_terms_path()) == []
