@@ -20,7 +20,7 @@ from autobill.notify import alerts
 from autobill.pipeline import process
 from autobill.report.statement import build_view
 from autobill.store.db import connect, load_bill
-from autobill.suggest import AnswerCutOff, MerchantInfo, SuggesterError, Verdict
+from autobill.suggest import AnswerCutOff, BadAnswer, MerchantInfo, SuggesterError, Verdict
 
 FIXTURES = Path(__file__).parent / "fixtures"
 RATES = {("USD", "2026-09-02"): "6.7215", ("USD", "2026-09-04"): "6.7109",
@@ -160,6 +160,23 @@ class CutsOff(FakeModel):
             self.calls.append((merchants, categories, search))
             raise AnswerCutOff("AI 的回答太长被截断")
         return super().classify(merchants, categories, search=search)
+
+
+def test_a_bad_answer_about_one_merchant_does_not_stop_the_rest(db):
+    a, b, c = names(db, 3)
+
+    class Flaky(FakeModel):
+        def classify(self, merchants, categories, *, search):
+            if search and merchants[0].name == b:
+                self.calls.append((merchants, categories, search))
+                raise BadAnswer("AI 的回答里没有要求的 JSON 结果")
+            return super().classify(merchants, categories, search=search)
+
+    found = {c: Verdict("餐饮", "medium", "", True)}
+    model = Flaky(known={a: Verdict("餐饮", "high")}, found=found)
+    result = classify_merchants(db, model, load_rules(db), AiConfig(), limit=3)
+    assert result.error is None and result.used == {a, c}
+    assert stored(db)[b][0] is None  # b stays unsure; `classify --retry` asks again
 
 
 def test_a_batch_whose_answer_is_cut_off_is_asked_in_halves(db):

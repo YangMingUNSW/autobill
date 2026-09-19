@@ -20,6 +20,7 @@ from autobill.suggest import (
     API_KEY_ENV,
     CONFIDENCE,
     AnswerCutOff,
+    BadAnswer,
     MerchantInfo,
     SuggesterError,
     SuggesterUnavailable,
@@ -191,7 +192,7 @@ def parse_answer(
             continue
         if isinstance(data, dict) and isinstance(data.get("results"), list):
             return _verdicts(data["results"], searched, merchants)
-    raise SuggesterError("AI 的回答里没有要求的 JSON 结果")
+    raise BadAnswer("AI 的回答里没有要求的 JSON 结果")
 
 
 def _verdicts(results: list, searched: bool, merchants: list[MerchantInfo]) -> dict[str, Verdict]:

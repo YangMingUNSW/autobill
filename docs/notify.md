@@ -62,6 +62,7 @@
   - `run` / `serve` 每次收完信、发报表之前，自动问新商户（`ai.auto_classify`），每次最多 `ai.per_run` 个（默认 20），剩下的下次再问。
   - 手动：`autobill classify [--limit 50] [--dry-run] [--retry]`，逐个打印分类、把握程度、有没有联网、理由，最后打印用了多少 token 和搜索次数。`--dry-run` 只看不存。
 - **出错**：密钥错、余额用完、连不上时，发一封"AI 分类出错"的提醒（同一个问题只发一次，恢复后自动清除）。这时新商户先算"未分类"，账单和报表照常。
+  - 只是某个商户的回答不合格（没按格式回答、太长被截断）时不算出错：一批里的先对半拆开重问，单个商户就算"不确定"，其余照常继续（实测 98 个商户里遇到过这两种情况）。
 - **邮件里的标记**：逐笔流水里，AI 分的类后面带"（AI）"，比如"餐饮（AI）"。
 - **提供方**（`autobill/ai_anthropic.py`，`config.yaml` 的 `ai.provider`）：
   - `deepseek`：DeepSeek 的 Anthropic 兼容接口 `https://api.deepseek.com/anthropic`，默认模型 `deepseek-v4-flash`。**联网搜索由 DeepSeek 在它那边完成**（`web_search` 服务端工具），所以一个 DeepSeek 密钥就够，不用另外接搜索服务。

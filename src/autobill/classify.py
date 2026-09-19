@@ -22,7 +22,7 @@ from autobill.config import AiConfig
 from autobill.model import TxnType
 from autobill.store.db import now
 from autobill.suggest import (
-    AnswerCutOff,
+    BadAnswer,
     CategorySuggester,
     MerchantInfo,
     SuggesterError,
@@ -81,8 +81,9 @@ def classify_merchants(
     save: bool = True,
 ) -> ClassifyResult:
     """Ask about up to `limit` (default ai.per_run) new merchants. Answers are saved one
-    by one; when the model fails part way, the answers before it are kept, the error is
-    in `result.error` and the merchants not answered are asked on a later run."""
+    by one. A bad answer about one merchant leaves just that one unsure; when the service
+    itself fails (key, balance, network), the answers before it are kept, the error is in
+    `result.error` and the merchants not answered are asked on a later run."""
     pending = pending_merchants(conn, rules)
     todo = pending[: limit or config.per_run]
     result = ClassifyResult(left=len(pending) - len(todo))
@@ -94,8 +95,7 @@ def classify_merchants(
             for merchant in batch:
                 verdict = first.get(merchant.name) or Verdict(None, "low", "AI 没有回答")
                 if not _usable(verdict) and config.web_search:
-                    asked = suggester.classify([merchant], categories, search=True)
-                    verdict = keep_valid(asked, [merchant], categories).get(merchant.name, verdict)
+                    verdict = _search(suggester, merchant, categories, verdict)
                 _record(conn, result, merchant, verdict, suggester.model, save)
     except SuggesterError as exc:
         result.error = exc
@@ -104,14 +104,24 @@ def classify_merchants(
 
 
 def _ask(suggester, batch: list[MerchantInfo], categories: list[str]) -> dict[str, Verdict]:
-    """Step 1 for a batch; one the model's answer does not fit is asked in halves."""
+    """Step 1 for a batch. A bad or cut-off answer is asked again in halves; about a
+    single merchant it is no answer (that merchant goes on to step 2)."""
     try:
         return keep_valid(suggester.classify(batch, categories, search=False), batch, categories)
-    except AnswerCutOff:
+    except BadAnswer:
         if len(batch) == 1:
-            raise
+            return {}
         half = len(batch) // 2
         return _ask(suggester, batch[:half], categories) | _ask(suggester, batch[half:], categories)
+
+
+def _search(suggester, merchant: MerchantInfo, categories: list[str], before: Verdict) -> Verdict:
+    """Step 2: look one merchant up. A bad answer keeps step 1's verdict."""
+    try:
+        asked = suggester.classify([merchant], categories, search=True)
+    except BadAnswer as exc:
+        return Verdict(before.category, before.confidence, f"联网查询没有结果：{exc}", True)
+    return keep_valid(asked, [merchant], categories).get(merchant.name, before)
 
 
 def _usable(verdict: Verdict) -> bool:
