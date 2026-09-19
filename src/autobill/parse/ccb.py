@@ -83,7 +83,11 @@ class _Statement:
         if cards:
             account_id = f"CCB:{cards[0]}"
             if len(cards) > 1:
-                self.warnings.append(f"这份账单里有多个卡号 {cards}，账户取 {cards[0]}")
+                # pipeline.apply_aliases drops this when config says they are one account
+                self.warnings.append(
+                    f"这份账单里有多个卡号 {cards}，账户取 {cards[0]}"
+                    "（同一账户的另一张卡可在 cards.card_aliases 里合并）"
+                )
         else:
             # Card numbers only appear on transaction rows (docs/banks/ccb.md §6).
             account_id = UNKNOWN_ACCOUNT

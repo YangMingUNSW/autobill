@@ -334,6 +334,10 @@ class _Statement:
             return TxnType.INSTALLMENT, None, installment
         if group == "其他" and "返现" in text:
             return TxnType.REBATE, None, None
+        if group == "取现/转出" and "取现" in text:
+            return TxnType.CASH, None, None
+        if group == "利息":
+            return TxnType.INTEREST, None, None
         self.warnings.append(f"未知的交易类型（分组 {group}）：{text}，暂记为调整")
         return TxnType.ADJUSTMENT, None, installment
 

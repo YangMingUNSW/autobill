@@ -31,7 +31,7 @@ system:
   backfill_months: 12
 
 cards:
-  card_aliases:                      # 换卡后的新尾号 → 原账户
+  card_aliases:                      # 同一账户的其他卡号（换卡、一户两卡）→ 记在哪个账户下
     "CCB:5678": "CCB:1234"
 
 banks:                               # 按银行的策略，取值依据见 docs/banks/README.md

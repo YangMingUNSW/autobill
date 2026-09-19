@@ -103,6 +103,9 @@ class CardsConfig(BaseModel):
 
     # Empty: cards with a statement in the last two months or so are expected.
     portfolio: list[PortfolioCard] = Field(default_factory=list)
+    # "CCB:0009": "CCB:0004" - another card number of the same account (a replaced card,
+    # or the second card of a two-card account) is filed under one account id.
+    card_aliases: dict[str, str] = Field(default_factory=dict)
 
 
 class AiConfig(BaseModel):

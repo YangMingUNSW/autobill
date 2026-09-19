@@ -218,3 +218,21 @@ def test_unparseable_amount_is_a_warning_not_a_crash():
     bill = parse_one(msg)
     assert bill.status == "WARN"
     assert any("明细行解析失败" in w for w in bill.warnings)
+
+
+@pytest.mark.parametrize(
+    ("group", "text", "kind"),
+    [
+        # both seen on the author's 2026-06 VISA statement (not yet a fixture)
+        ("取现/转出", "境外取现 MFS5080 VENEZIA IT", TxnType.CASH),
+        ("利息", "利息 本期已优惠的利息金额:0.00元", TxnType.INTEREST),
+        ("取现/转出", "转出 某某", TxnType.ADJUSTMENT),  # a transfer out is still unknown
+    ],
+)
+def test_cash_and_interest_groups(group, text, kind):
+    from autobill.parse.abc import _Statement
+
+    statement = _Statement.__new__(_Statement)
+    statement.warnings = []
+    assert statement._classify(group, text)[0] == kind
+    assert bool(statement.warnings) == (kind == TxnType.ADJUSTMENT)  # only unknowns warn
