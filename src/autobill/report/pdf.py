@@ -81,6 +81,8 @@ def html_to_pdf(
             # Oracle servers). The page is our own local HTML without scripts, so printing it
             # unsandboxed is acceptable.
             command.insert(1, "--no-sandbox")
+            # Docker gives /dev/shm only 64 MB; Chrome would crash writing big pages there.
+            command.insert(2, "--disable-dev-shm-usage")
         try:
             done = run(command, capture_output=True, timeout=TIMEOUT_SECONDS, check=False)
         except subprocess.TimeoutExpired:

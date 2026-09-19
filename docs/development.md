@@ -179,15 +179,15 @@ uv run autobill --help        # 运行程序本身
   - 作者按 setup.md 设好后，在家里电脑上 `check-mailbox` 全部正常；转发一封真实账单，`run` 解析成功，iPhone 收到进度邮件；再运行一次不重复发送。
 - **怎么验证**：见 [setup.md 第 5 步](setup.md#5-运行m8a-手动m8b-放到服务器上定时运行)。
 
-### M8b 服务器定时运行 → 打 `v0.2.0`（第一版可用）
+### M8b 服务器定时运行和提醒 → 打 `v0.2.0`（第一版可用）
 - **交付**：
-  - Oracle 服务器上部署：uv、Chromium、中文字体 `fonts-noto-cjk`、时区按北京时间；
-  - systemd timer 每 30 分钟运行 `autobill run`，单实例锁；
-  - 密码放在权限 600 的环境变量文件里；
-  - 出错时（包括连续登录失败）发告警邮件；
-  - 历史账单回填（最近 12 个月）。
-- **做完的标准**：服务器上 `check-mailbox` 全部正常；一封真实账单被自动转发、拉取、解析，并收到进度邮件；重复运行不会重复发送。
-- **完成后**：打 `v0.2.0` 标签，**第一版可用**。
+  - `notify/alerts.py`：不认识的邮件、解析失败、新卡号、邮箱登录失败时发提醒邮件，同一个问题只发一次（`alerts` 表，表结构版本 4）；
+  - **Docker**：`Dockerfile`（两阶段构建，只有 Python 3.12 和 AutoBill，约 330 MB，普通用户运行）、`compose.yaml`、`autobill.env.example`，`autobill serve` 每 30 分钟运行一次；进度邮件默认不附 PDF；
+  - `.github/workflows/docker.yml`：每个 PR 构建并做冒烟测试（导入样本、生成一封进度邮件、确认镜像里没有个人文件）；合并到 main 和打版本标签时发布 amd64 + arm64 镜像到 ghcr.io；
+  - 备选：`deploy/systemd/` 的 oneshot 服务和定时器；
+  - [deploy.md](deploy.md)：两种部署方式、日常命令。
+- **做完的标准**：服务器上 `docker compose run --rm autobill check-mailbox` 全部正常；`docker compose up -d` 后按时运行；一封真实账单发到别名后，30 分钟内收到进度邮件；重复运行不会重复发送。
+- **完成后**：打 `v0.2.0` 标签（会自动发布 `0.2.0` 版镜像），**第一版可用**。
 
 **补样本（P1b）**：随时穿插进行，不单独占一个步骤。拿到新样本后按 [security.md 的检查清单](security.md#以后加入新样本时的检查清单) 脱敏，加进 `tests/fixtures/`，补上快照，并更新[样本覆盖矩阵](banks/README.md#样本覆盖矩阵)。
 

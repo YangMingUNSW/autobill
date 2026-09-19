@@ -1,0 +1,9 @@
+# Only what the image needs: pyproject.toml, uv.lock, README.md, LICENSE and src/.
+# Everything else stays out - above all anything personal (data, config, previews).
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!LICENSE
+!src/
+**/__pycache__

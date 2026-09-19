@@ -2,11 +2,11 @@
 
 [中文](README.md) · **English**
 
-A small, self-hosted tool that turns Chinese credit-card statement e-mails into a monthly spending summary. Your data stays on your own computer.
+A small, self-hosted tool that turns Chinese credit-card statement e-mails into tidy monthly progress e-mails. Deploy it with one Docker command; your data stays on your own server and mailbox.
 
-Bank statements are auto-forwarded to a dedicated mailbox. AutoBill reads that mailbox over IMAP (read-only), parses each statement with **deterministic rules (no AI)**, reconciles it item by item against the bank's own totals, stores it in SQLite, converts foreign currencies to CNY, and e-mails a summary report.
+Banks send their e-statements to a dedicated mailbox. AutoBill reads it over IMAP on a schedule (read-only), parses each statement with **deterministic rules** (no AI touches the amounts), reconciles it item by item against the bank's own totals, converts foreign currencies to CNY, and e-mails a progress report per statement month: which cards have issued, what is owed, where the money went. The original statements stay in your mailbox.
 
-> **Status:** first version in development. Parsing, reconciliation, local import and a terminal report with categories, trend and top merchants work for all three banks (ABC, CCB, BOC); e-mailed reports and automatic fetching are in progress. See the roadmap in [project.md](project.md#6-分期路线) (Chinese).
+> **Status:** every feature of the first version (M0-M8) is done: parsing and reconciliation for three banks, statement-month progress e-mails, alert e-mails and Docker deployment. Final checks run on the author's own server before `v0.2.0`. Roadmap in [project.md](project.md#6-分期路线) (Chinese).
 
 ## Supported banks (first version)
 | Bank | Format | Status |
@@ -16,12 +16,29 @@ Bank statements are auto-forwarded to a dedicated mailbox. AutoBill reads that m
 | Bank of China (BOC) | PDF attachment | ✅ supported (incl. combined multi-card statements) |
 
 ## What it does / doesn't do
-- ✅ Summaries and charts: total spend, by category, by card, trends, top merchants; shows the payment due date.
+- ✅ Statement-month progress e-mails, laid out for Apple Mail on iPhone (dark mode included): cards issued so far, total owed, daily spending chart, categories; every transaction folded away, one tap to open.
+- ✅ Standard statements (optional, local command): `autobill statement` renders one uniform HTML and PDF per statement (needs Edge or Chrome).
 - ✅ Itemised reconciliation against each statement's own totals.
 - ✅ Multi-currency: original currencies kept, converted to CNY at the rate of the statement e-mail's date.
-- ❌ No payment reminders, no per-transaction listing in reports, no bank APIs, no AI.
+- ✅ Alerts: an unknown e-mail, a failed statement, a new card number or a failed mailbox login each send one alert, never repeated.
+- ❌ No payment reminders (due dates are shown), no bank APIs; no AI for parsing or amounts (later only for category suggestions).
 
-## Try it (development version)
+## Deploy (Docker)
+The server only needs Docker:
+
+```bash
+mkdir -p autobill/data && cd autobill
+curl -fsSLO https://raw.githubusercontent.com/YangMingUNSW/autobill/main/compose.yaml
+curl -fsSL https://raw.githubusercontent.com/YangMingUNSW/autobill/main/config.example.yaml -o data/config.yaml
+curl -fsSL https://raw.githubusercontent.com/YangMingUNSW/autobill/main/autobill.env.example -o autobill.env
+# fill in data/config.yaml and autobill.env (the mailbox password), then:
+docker compose run --rm autobill check-mailbox
+docker compose up -d
+```
+
+Images exist for amd64 and arm64 (servers, NAS boxes, Apple silicon Macs). Full steps, mailbox setup and everyday commands: [docs/deploy.md](docs/deploy.md) and [docs/setup.md](docs/setup.md) (Chinese).
+
+## Try it (no mailbox needed)
 Requires [uv](https://docs.astral.sh/uv/) and Git. Uses the anonymised sample statements in the repo; no mailbox needed:
 
 ```powershell

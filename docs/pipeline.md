@@ -44,8 +44,8 @@ FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表�
 - `(bill_id, channel, kind)` 唯一。`kind` 分为 `bill_new`（首次入库）和 `bill_corrected`（内容被更正），这样更正后的内容也能推送出去。
 
 ## 运行层
-- 单实例文件锁，防止上一次还没跑完、下一次定时任务又启动。
-- 每次运行写一条 `runs` 记录。**运行中出错**（授权码失效、IMAP 连不上等）时发告警邮件。
+- **不会同时跑两个**：Docker 里是 `autobill serve` 一个循环（M8b）；不用 Docker 时是 systemd 的 oneshot 服务加定时器，上一次还没结束时不会再启动一个。所以不需要自己写文件锁。
+- **运行中出错**（邮箱登录失败、账单解析失败、不认识的邮件、新卡号）时发提醒邮件，同一个问题只发一次，见 [notify.md](notify.md#提醒邮件)。每次运行的输出进 systemd 日志（`journalctl -u autobill`）；`runs` 表以后再说。
 - **程序根本没在运行**（关机、休眠、断网）的情况，本机没法告警自己，只能靠**以后**的 Oracle 看门狗（见 [notify.md](notify.md#以后企业微信中转与看门狗)）。第一版接受这个风险：最坏的结果只是某个月没收到报表。
 
 ## CLI
@@ -55,6 +55,7 @@ FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表�
 - `report --month`：在终端输出某个月的汇总。M3–M6 先用它看结果，M7 开始发邮件。
 - **M3 已实现** `import-dir` 和 `report --month`，其余命令在后面的里程碑里加。
 - **M7 起**：`import-dir` 导入完成后，给所有还没发过报表的账单（`reported_at` 为空）逐一发邮件；`--no-send` 跳过发送。没配置邮箱或没有授权码时只提示、不发。`preview-email [--cycle 2026-09] [-o 文件]` 把某个账单月（默认最新）的下一封进度邮件写成 HTML 文件，不发信。
+- **M8b 起**：`serve [--interval 30]` 一直运行，每隔几分钟跑一次 `run` 的全部步骤（Docker 默认用它）；某一次出错只记日志，不退出。
 - **M8a 起**：`check-mailbox` 登录收信和发信邮箱、列出文件夹里的邮件数，不改动也不发送任何东西；`run [--no-send]` 从邮箱拉取新邮件（"作为附件"转发的会先拆开）、解析，再发进度邮件。
 - **M7d 起**：`uncategorised [--cycle 2026-09] [--limit 20] [--suggest]` 列出还没分类的商户，生成可以复制进 `rules.yaml` 的 YAML；`--suggest` 让配置好的 AI 给建议（见 [notify.md](notify.md#分类建议与-ai-接口)）。
 
@@ -72,19 +73,12 @@ FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表�
 - `fx_rates` 汇率缓存丢了也没关系，重建时会重新获取。
 
 ## 部署
-**第一版：家里这台 Windows 电脑**
-- 用 `uv` 安装；Windows 计划任务每 15 分钟执行一次 `autobill run`。
-- 计划任务的两个设置：
-  - **"仅在用户登录时运行"**，否则读不到 Windows 凭据管理器里的授权码；
-  - **"错过计划时间后尽快运行"**，否则休眠期间错过的任务不会补跑。
-- 电脑关机就不跑，开机后自动补上。账单离还款日一般还有二十多天，晚几个小时没有关系。
-- 开发和运行在同一台电脑上，测试必须用独立的数据目录（`AUTOBILL_DATA_DIR`），不能碰真实数据库。
-
-**M8b：搬到 Oracle 服务器**（2026-09-19 作者倾向，见 project.md 的"部署"决策）
-- 数据库和 App 专用密码会放在服务器上：密码写在权限 600 的环境变量文件里，服务器只允许 SSH 密钥登录。
-- 下面这段是原来的"以后"设想，M8b 时按新决策重写：
-- Oracle 上只部署一个很小的中转服务，用 uv + systemd 运行，不用 Docker（机器只有 1 GB 内存）。
-- 把临时公网 IP 换成固定 IP，家里电脑加一个 WireGuard peer。
+**M8b 起：Docker**（2026-09-19 定），步骤见 [deploy.md](deploy.md)。
+- 镜像由 GitHub Actions 构建（amd64 + arm64），每次构建都会在容器里导入样本、生成一封进度邮件，确认镜像里没有任何个人文件，然后发布到 `ghcr.io/yangmingunsw/autobill`（main 分支是 `latest`，版本标签是 `0.2.0` 这样的号）。
+- `docker compose up -d` 运行 `autobill serve`：立刻跑一次，之后每 30 分钟一次；某一次出错不会让它停下，下一次照常。只有一个循环，所以不会同时跑两个。
+- 配置、数据库、原始邮件都在挂载的 `data/` 文件夹里；密码在 `autobill.env`（600），不进镜像。
+- 不用 Docker 时：`deploy/systemd/` 的 oneshot 服务 + 每 30 分钟的定时器。
+- 在自己电脑上仍然可以开发和测试（测试用独立的临时数据目录），但服务器跑起来后不要在电脑上再 `run`（`--no-send` 除外），否则报表会发两遍。
 
 ## 技术栈
 - Python ≥3.12（本机装有 3.12 和 3.14）、uv + hatchling、ruff、pytest。

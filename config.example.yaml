@@ -37,6 +37,11 @@ fx:                                  # 折算人民币用的汇率，见 docs/da
   source: "https://api.frankfurter.dev/v1"   # 按账单邮件发出当天取汇率，免费、不需要 key
   fallback_to_cny: { USD: 7.10, AUD: 4.60, EUR: 7.80 }   # 联网失败时使用，报表里标注"配置汇率"
 
+statement:                           # 标准账单（docs/statement.md）
+  email_pdf: false                   # 进度邮件附上每份新账单的 PDF：默认不附（原始账单在邮箱里看）；打开要有 Edge/Chrome，Docker 镜像里没有
+  output_dir: null                   # autobill statement 的输出目录，默认 <数据目录>/statements
+  pdf_browser: null                  # 浏览器路径，默认自动找
+
 notifier:
   smtp_report:
     enabled: false                   # 填好真实邮箱后改成 true

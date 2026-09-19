@@ -72,7 +72,7 @@
 3. `uv run autobill check-mailbox`：登录收信和发信，列出文件夹里有几封邮件，**不改动、不发送任何东西**。看到"全部正常"再往下。
 4. `uv run autobill run --no-send`：拉取、解析，不发报表，先看解析结果对不对。
 5. `uv run autobill run`：这次会把进度邮件发到你的 iCloud 收件箱。再运行一次，应该什么都不发（不重复）。
-6. 定时运行（每 30 分钟一次）在 M8b 放到 Oracle 服务器上，见 [pipeline.md](pipeline.md#部署)。
+6. 定时运行（每 30 分钟一次）放在服务器上，推荐用 Docker，见 [deploy.md](deploy.md)。服务器跑起来后，自己电脑上就不要再 `run` 了（`--no-send` 除外），否则报表会发两遍。
 
 **如果某封账单显示 `UNRECOGNIZED`（不认识）或 `FAILED`（解析失败）**：程序已经记下读过它了，再运行也不会重读。等程序修好后（或者你改了规则），运行 `uv run autobill run --rescan`：从头重读文件夹，处理过的账单会跳过，之前失败或不认识的会重新处理。原始邮件一直在 iCloud 的文件夹里，也在数据目录的 `raw` 文件夹里，不会丢。
 

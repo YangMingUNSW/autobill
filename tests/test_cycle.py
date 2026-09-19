@@ -189,11 +189,14 @@ def test_email_attaches_each_new_statement_as_pdf(db):
     assert "AutoBill-ABC-0003-2026-09-16.pdf</div>" in html and "完整标准账单在附件里" in html
 
 
-def test_email_without_a_browser_says_so(db):
+def test_email_without_pdf_has_no_attachment_row(db):
+    """The default (statement.email_pdf off): the originals are in the mailbox already."""
     conn, fx = db
     msg = email(conn, fx, attach=None)
     assert list(msg.iter_attachments()) == []
-    assert "这次没有附完整账单 PDF" in msg.get_body(("html",)).get_content()
+    html = msg.get_body(("html",)).get_content()
+    assert 'class="doc"' not in html and "AutoBill-ABC-" not in html and "Edge" not in html
+    assert "全部 8 笔流水" in html  # the folded transactions are still there
 
 
 def test_email_is_made_for_ios_mail(db):

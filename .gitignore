@@ -22,3 +22,6 @@ __pycache__/
 .venv/
 .pytest_cache/
 .ruff_cache/
+
+# Docker deployment: the real password file and the data folder next to compose.yaml
+/autobill.env

@@ -87,6 +87,10 @@ class StatementConfig(BaseModel):
 
     output_dir: str | None = None  # default: <data dir>/statements
     pdf_browser: str | None = None  # Edge/Chrome executable; found automatically if unset
+    # Attach each new statement's PDF to the progress e-mail. Off by default (2026-09-19):
+    # the original statements are in the mailbox anyway, and printing needs a browser,
+    # which the Docker image does not carry.
+    email_pdf: bool = False
 
 
 class PortfolioCard(BaseModel):
@@ -147,12 +151,26 @@ def config_path() -> Path:
     return Path(override) if override else data_dir() / "config.yaml"
 
 
+class ConfigUnreadable(SystemExit):
+    """config.yaml exists but may not be read: say why in plain words instead of a
+    traceback (typically Docker running as another user id than the file's owner)."""
+
+
 def load_config() -> Config:
     """Read config.yaml if it exists; otherwise use defaults matching config.example.yaml."""
     path = config_path()
     if not path.exists():
         return Config()
-    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    try:
+        text = path.read_text(encoding="utf-8")
+    except PermissionError:
+        raise ConfigUnreadable(
+            f"没有权限读取 {path}。\n"
+            "用 Docker 时：容器里程序的用户编号要和这个文件的主人一样。"
+            "在 compose.yaml 旁边的 .env 里写上"
+            " AUTOBILL_UID 和 AUTOBILL_GID（用 id -u 和 id -g 查），见 docs/deploy.md。"
+        ) from None
+    raw = yaml.safe_load(text) or {}
     fx = raw.get("fx") or {}
     # YAML gives floats for 7.10; go through str so the Decimal is exact.
     fallback = fx.get("fallback_to_cny")

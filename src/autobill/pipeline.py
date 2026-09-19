@@ -27,6 +27,9 @@ class Outcome:
     bank: str | None = None
     bills: list[Bill] = field(default_factory=list)
     error: str | None = None
+    message_id: str = ""
+    subject: str = ""
+    from_addr: str = ""
 
 
 def save_raw(data_dir: Path, msg: RawMessage) -> Path:
@@ -74,7 +77,7 @@ def process(
     ).fetchone()
     if known is not None:
         if known["status"] not in RETRY_STATUSES:
-            return Outcome(mail.source, "SKIPPED")  # e-mail-level dedupe: already processed
+            return Outcome(mail.source, "SKIPPED", message_id=msg.message_id)  # e-mail dedupe
         # It failed or was not recognised before; the code may have been fixed since.
         conn.execute("DELETE FROM emails WHERE id = ?", (known["id"],))
 
@@ -120,7 +123,10 @@ def process(
     except BaseException:
         conn.execute("ROLLBACK")
         raise
-    return Outcome(mail.source, status, parser.bank if parser else None, bills, error)
+    bank = parser.bank if parser else None
+    return Outcome(
+        mail.source, status, bank, bills, error, msg.message_id, msg.subject, msg.from_addr
+    )
 
 
 RETRY_STATUSES = {"FAILED", "UNRECOGNIZED"}  # met again: processed again, not skipped

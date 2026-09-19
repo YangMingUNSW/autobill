@@ -14,7 +14,7 @@ from pathlib import Path
 
 from autobill.model import Bill, BillBalance, Transaction
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS emails (
@@ -120,6 +120,18 @@ CREATE TABLE IF NOT EXISTS folder_cursors (
     uidvalidity INTEGER NOT NULL,          -- when it changes, UIDs were renumbered: rescan
     last_uid    INTEGER NOT NULL,          -- every message up to this UID has been processed
     updated_at  TEXT NOT NULL
+);
+""",
+    4: """
+CREATE TABLE IF NOT EXISTS alerts (
+    id         INTEGER PRIMARY KEY,
+    kind       TEXT NOT NULL,             -- unrecognized / failed / new_card / mailbox
+    key        TEXT NOT NULL,             -- Message-ID, account id, ...: the same problem
+    title      TEXT NOT NULL,
+    body       TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    sent_at    TEXT,                      -- NULL until e-mailed; each alert is sent once
+    UNIQUE (kind, key)
 );
 """,
 }
