@@ -9,11 +9,13 @@
 - 放在 Windows 凭据管理器（`keyring`）或 `.env` 里；`.env` 在 Linux 上设成 chmod 600。
 - 用 pydantic-settings 的 `SecretStr` 读取，打日志时显示为 `**********`。
 - 需要的环境变量：
-  - `AUTOBILL_IMAP_PASSWORD`：中心邮箱授权码
-  - `AUTOBILL_SMTP_PASSWORD`：发件授权码，和上面是同一个邮箱时可以复用
+  - `AUTOBILL_IMAP_PASSWORD`：收信邮箱的密码。作者用的是 iCloud 的 **App 专用密码**
+  - `AUTOBILL_SMTP_PASSWORD`：发信密码；**没设时自动用上面那个**（iCloud 收发是同一个邮箱）
   - `AUTOBILL_BOC_PDF_PASSWORD`：可选，实测中行 PDF 没有加密
   - `AUTOBILL_WECOM_SECRET`：以后接企业微信时使用
 - 授权码一旦泄露，就去邮箱里撤销，再重新生成。
+- **iCloud App 专用密码能做什么**（M8a，作者已确认接受）：读写这个 Apple ID 的 iCloud 邮件、通讯录、日历；**不能**碰照片、iCloud 云盘、钥匙串、付款，也不能改 Apple ID 密码。作者的这个 iCloud 邮箱只用于 AutoBill，所以泄露时能看到的只有账单和报表，外加通讯录和日历。泄露时在 account.apple.com 吊销；改 Apple ID 密码会让所有 App 专用密码失效。
+- **M8a 的实现**：收信密码只从环境变量读取；`Mailbox` 的 `repr`、错误信息和命令输出都不含它（有测试）。
 - **M7 的实现**：发信授权码只从环境变量 `AUTOBILL_SMTP_PASSWORD` 读取，不写进 `config.yaml`、日志、错误信息或任何文件；`Mailer` 的 `repr` 也不含它（有测试）。Windows 凭据管理器（`keyring`）在 M8 接计划任务时再加。
 
 ## 配置示例（`config.example.yaml`，入库；实际使用的 `config.yaml` 不入库）

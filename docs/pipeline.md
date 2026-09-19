@@ -55,6 +55,7 @@ FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表�
 - `report --month`：在终端输出某个月的汇总。M3–M6 先用它看结果，M7 开始发邮件。
 - **M3 已实现** `import-dir` 和 `report --month`，其余命令在后面的里程碑里加。
 - **M7 起**：`import-dir` 导入完成后，给所有还没发过报表的账单（`reported_at` 为空）逐一发邮件；`--no-send` 跳过发送。没配置邮箱或没有授权码时只提示、不发。`preview-email [--cycle 2026-09] [-o 文件]` 把某个账单月（默认最新）的下一封进度邮件写成 HTML 文件，不发信。
+- **M8a 起**：`check-mailbox` 登录收信和发信邮箱、列出文件夹里的邮件数，不改动也不发送任何东西；`run [--no-send]` 从邮箱拉取新邮件（"作为附件"转发的会先拆开）、解析，再发进度邮件。
 - **M7d 起**：`uncategorised [--cycle 2026-09] [--limit 20] [--suggest]` 列出还没分类的商户，生成可以复制进 `rules.yaml` 的 YAML；`--suggest` 让配置好的 AI 给建议（见 [notify.md](notify.md#分类建议与-ai-接口)）。
 
 **M3 的处理流程**（`autobill/pipeline.py`）：
@@ -63,11 +64,11 @@ FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表�
 3. 用注册表（`parse/registry.py`）找解析器：找不到是 `UNRECOGNIZED`；解析时抛 `TemplateChanged` 或格式错误是 `FAILED`，原因写进 `emails.error`。
 4. 在**一个事务**里写入 `emails` 行和账单；出错整体回滚。
 - 失败的邮件目前也会被记为"已处理"，修好解析器后要等 `reparse` 命令（以后）才能重新解析。
-- `rebuild`：清空数据库，从中心邮箱全量重新拉取、解析，**不受 12 个月回填范围限制**。
+- `rebuild`（以后）：清空数据库，从 iCloud 的 `AutoBill` 文件夹全量重新拉取、解析，**不受 12 个月回填范围限制**。
 
 ## 备份
-- **中心邮箱就是原件库**，本机数据库都可以从它重建（`rebuild`）。所以本机不另外做备份。
-- 前提是中心邮箱里的银行邮件不能被删，也不能被垃圾箱自动清理（见 [setup.md](setup.md)）。
+- **iCloud 的 `AutoBill` 文件夹就是原件库**，数据库都可以从它重建。程序对它只读，所以不另外备份原始邮件。
+- 前提是那里的银行邮件不被删，也不留在会被自动清理的"垃圾邮件"里（iCloud 规则会把它们移进 `AutoBill`，见 [setup.md](setup.md)）。
 - `fx_rates` 汇率缓存丢了也没关系，重建时会重新获取。
 
 ## 部署
@@ -79,8 +80,9 @@ FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表�
 - 电脑关机就不跑，开机后自动补上。账单离还款日一般还有二十多天，晚几个小时没有关系。
 - 开发和运行在同一台电脑上，测试必须用独立的数据目录（`AUTOBILL_DATA_DIR`），不能碰真实数据库。
 
-**以后：Oracle 只跑中转服务和看门狗**
-- 数据和授权码**始终留在家里**，不整体搬到云上。
+**M8b：搬到 Oracle 服务器**（2026-09-19 作者倾向，见 project.md 的"部署"决策）
+- 数据库和 App 专用密码会放在服务器上：密码写在权限 600 的环境变量文件里，服务器只允许 SSH 密钥登录。
+- 下面这段是原来的"以后"设想，M8b 时按新决策重写：
 - Oracle 上只部署一个很小的中转服务，用 uv + systemd 运行，不用 Docker（机器只有 1 GB 内存）。
 - 把临时公网 IP 换成固定 IP，家里电脑加一个 WireGuard peer。
 

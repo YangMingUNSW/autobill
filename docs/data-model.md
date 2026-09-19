@@ -145,7 +145,7 @@ class Bill(BaseModel):  # 一封邮件可以产出多份 Bill（中行合并账�
 ## SQLite 表
 开启 WAL、`busy_timeout` 和外键约束。实现在 `autobill/store/db.py`，表结构版本记在 `PRAGMA user_version`。
 
-- **M3 已建**：`emails`、`bills`、`bill_balances`、`transactions`、`fx_rates`。**M7c 加了** `cycle_threads`（表结构版本 2，旧数据库打开时自动升级）。其余几张表（`folder_cursors`、`accounts`/`cards`、`runs`）到 M8 再建。
+- **M3 已建**：`emails`、`bills`、`bill_balances`、`transactions`、`fx_rates`。**M7c 加了** `cycle_threads`（表结构版本 2），**M8a 加了** `folder_cursors`（版本 3）；旧数据库打开时自动升级。其余几张表（`folder_cursors`、`accounts`/`cards`、`runs`）到 M8 再建。
 - **金额存成文本**（如 `"28.25"`），读出来变回 `Decimal`。**不要在 SQL 里对金额 `SUM()`**：SQLite 会先转成浮点数。求和一律在 Python 里做。
 - `save_bill()` 更新已有账单时，`reported_at` 保留原值，汇总块和流水整体替换。
 
@@ -161,6 +161,7 @@ class Bill(BaseModel):  # 一封邮件可以产出多份 Bill（中行合并账�
 | `notifications`（以后） | 待发送消息（outbox），第一版用 `bills.reported_at` 代替 | **`(bill_id, channel, kind)` 唯一** |
 | `runs` | 每次运行的记录 | "运行中出错"告警要用；以后看门狗也要用 |
 | `fx_rates` | 汇率缓存 | `(date, currency)` 唯一 → `rate_to_cny`、`source`（`frankfurter` 或 `config`） |
+| `folder_cursors` | 邮箱文件夹读到哪里（M8a） | `folder` 唯一 → `uidvalidity`、`last_uid`：只拉 UID 更大的邮件；UIDVALIDITY 变了就从头再读，靠 Message-ID 去重 |
 | `cycle_threads` | 账单月进度邮件（M7c） | `cycle` 唯一（如 `2026-09`）→ `message_ids`（已发邮件的 Message-ID，JSON 列表）、`completed_at`（最近一封是否已齐） |
 
 ## 以后导出 Beancount 时怎么映射
