@@ -98,6 +98,25 @@ def share(value: Decimal, total: Decimal) -> str:
     return "<1%" if ratio < Decimal("0.005") else f"{ratio:.0%}"
 
 
+def category_bar_rows(categories: dict[str, Decimal]) -> list[Row]:
+    """Real categories largest first, the tail folded into 其他; 未分类 last, in grey,
+    because it is a to-do for rules.yaml rather than a kind of spending.
+    Shared by the report e-mail and the standard statement."""
+    categories = dict(categories)
+    total = sum(categories.values(), ZERO)
+    uncategorised = categories.pop(UNCATEGORISED, None)
+    items = sorted(categories.items(), key=lambda kv: -kv[1])
+    if len(items) > TOP_CATEGORIES:
+        rest = sum((v for _, v in items[TOP_CATEGORIES - 1 :]), ZERO)
+        items = items[: TOP_CATEGORIES - 1] + [("其他", rest)]
+    if uncategorised is not None:
+        items.append((UNCATEGORISED, uncategorised))
+    rows = bar_rows(items, total)
+    if uncategorised is not None:
+        rows[-1].color = COLORS["context"]
+    return rows
+
+
 @dataclass
 class BillDigest:
     bank_name: str
@@ -157,21 +176,7 @@ class MonthSection:
 
     @property
     def category_rows(self) -> list[Row]:
-        """Real categories largest first, the tail folded into 其他; 未分类 last, in grey,
-        because it is a to-do for rules.yaml rather than a kind of spending."""
-        categories = dict(self.summary.categories)
-        total = sum(categories.values(), ZERO)
-        uncategorised = categories.pop(UNCATEGORISED, None)
-        items = sorted(categories.items(), key=lambda kv: -kv[1])
-        if len(items) > TOP_CATEGORIES:
-            rest = sum((v for _, v in items[TOP_CATEGORIES - 1 :]), ZERO)
-            items = items[: TOP_CATEGORIES - 1] + [("其他", rest)]
-        if uncategorised is not None:
-            items.append((UNCATEGORISED, uncategorised))
-        rows = bar_rows(items, total)
-        if uncategorised is not None:
-            rows[-1].color = COLORS["context"]
-        return rows
+        return category_bar_rows(self.summary.categories)
 
     @property
     def credit_rows(self) -> list[Row]:

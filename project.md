@@ -33,7 +33,8 @@
 |---|---|
 | 解析方式 | 纯规则，不接 AI；`BaseParser` 接口本身留有扩展余地 |
 | 邮件来源 | 主邮箱按银行发件人自动转发到中心邮箱；历史账单在网页里分小批"作为附件"转发；只回填最近 12 个月。**这一点确认过两次，不改成直接读主邮箱** |
-| 报表内容 | **只做汇总和可视化**：总支出、分类、按卡分布、趋势、Top 商户；**不列逐笔流水**；只展示还款日，**不做提醒** |
+| 报表内容 | **邮件报表只做汇总和可视化**：总支出、分类、按卡分布、趋势、Top 商户；邮件里**不列逐笔流水**；只展示还款日，**不做提醒** |
+| 标准账单 | 每份账单生成一份**统一模板的 HTML 和 PDF，包含全部逐笔流水**（M7b，2026-09-19 作者提出）；参考美国信用卡账单的法定结构、Apple Card、Monzo；不仿冒银行品牌。见 [docs/statement.md](docs/statement.md) |
 | 报表时机 | **每收到一份账单发一封**：本期摘要 + 涉及月份的最新汇总 + 标注还缺哪些卡。没有定时月报；`report --month` 可以随时手动查看 |
 | 币种 | 每笔记原币种；总支出 = 账单上各币种入账金额分别相加，再按**账单邮件当天的网上汇率**（Frankfurter）折算成人民币，不追求精确 |
 | 推送渠道 | 第一版只有邮件；企业微信以后再说（只推摘要、只推本人），不用第三方推送服务 |
@@ -76,6 +77,7 @@
 | [docs/banks/](docs/banks/README.md) | 银行注册表、样本覆盖矩阵，以及[农行](docs/banks/abc.md)、[建行](docs/banks/ccb.md)、[中行](docs/banks/boc.md)的格式规格 | `autobill/parse/{abc,ccb,boc}.py` |
 | [docs/data-model.md](docs/data-model.md) | 模型、符号约定、对账算法、汇率、SQLite 表、Beancount 映射 | `autobill/model.py`、`autobill/reconcile.py`、`autobill/fx.py` |
 | [docs/pipeline.md](docs/pipeline.md) | 状态机、去重、运行层、CLI、备份、部署、技术栈 | `autobill/pipeline.py`、`autobill/store/`、`autobill/cli.py` |
+| [docs/statement.md](docs/statement.md) | 标准账单：设计参考、版面、PDF 生成 | `autobill/report/statement.py`、`autobill/report/pdf.py` |
 | [docs/notify.md](docs/notify.md) | 统计口径、分类规则、报表时机和内容、邮件、⏳ 企业微信 | `autobill/report/`、`autobill/notify/` |
 | [docs/security.md](docs/security.md) | 密钥、配置示例、数据隔离、.gitignore/.gitattributes/pre-commit、新样本脱敏清单 | `autobill/config.py` |
 | [docs/setup.md](docs/setup.md) | **操作手册**（你本人要做的）：银行电子账单、中心邮箱、转发规则、历史账单、计划任务 | — |
@@ -87,7 +89,7 @@
 
 | 阶段 | 内容 | 验收 |
 |:---|:---|:---|
-| **第一版（当前）** | M0 骨架 → M1 模型和工具函数 → M2 农行解析器 → M3 第一条完整链路 → M4 建行 → M5 中行（`v0.1.0`）→ M6 分类和报表 → M7 邮件报表 → M8 IMAP 和计划任务（`v0.2.0`） | 每一步的标准见 [development.md §5](docs/development.md#5-里程碑第一版m0m8)；最终标准是一封真实账单从转发到收到报表全程自动完成 |
+| **第一版（当前）** | M0 骨架 → M1 模型和工具函数 → M2 农行解析器 → M3 第一条完整链路 → M4 建行 → M5 中行（`v0.1.0`）→ M6 分类和报表 → M7 邮件报表 → **M7b 标准账单** → M8 IMAP 和计划任务（`v0.2.0`） | 每一步的标准见 [development.md §5](docs/development.md#5-里程碑第一版m0m8)；最终标准是一封真实账单从转发到收到报表全程自动完成 |
 | **补样本（P1b）** | 穿插在第一版中间进行 | 每家银行 ≥3 期，覆盖[样本覆盖矩阵](docs/banks/README.md#样本覆盖矩阵)里的主要场景，"推断"全部改成"已验证" |
 | **以后（按需）** | 第 2 节"以后再说"那一列 | 用过第一版之后再决定 |
 

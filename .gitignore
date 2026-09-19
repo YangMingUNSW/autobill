@@ -5,6 +5,11 @@
 config.yaml
 rules.yaml
 
+# Generated output written inside the repo by mistake (e-mail preview, statements)
+/preview.html
+/statements/
+*.statement.pdf
+
 # Runtime data (normally lives outside the repo in %LOCALAPPDATA%\autobill)
 /data/
 *.db
