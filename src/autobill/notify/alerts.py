@@ -5,7 +5,8 @@ Once AutoBill runs unattended on a server, nobody reads its output. So these are
   * an e-mail AutoBill does not recognise (a new bank, or a bank's own notice);
   * a statement that failed to parse (the bank probably changed its template);
   * a card number never seen before (a new card - or a replaced one needing an alias);
-  * the mailbox login failing (e.g. the app-specific password was revoked).
+  * the mailbox login failing (e.g. the app-specific password was revoked);
+  * AI classification failing (e.g. a wrong key or no balance left).
 
 Every alert is stored once in the alerts table, keyed by (kind, key), and e-mailed once;
 the same problem is never repeated every half hour. A mailbox alert is cleared by the
@@ -29,7 +30,7 @@ REPORT_HEADER = "X-AutoBill-Report"  # alerts are ours too: never parsed as stat
 
 @dataclass(frozen=True)
 class Alert:
-    kind: str  # unrecognized / failed / new_card / mailbox
+    kind: str  # unrecognized / failed / new_card / mailbox / ai
     key: str  # what makes it the same problem (Message-ID, account id, ...)
     title: str
     body: str
@@ -76,6 +77,17 @@ def mailbox(error: str) -> Alert:
         f"原因：{error}\n\n"
         "如果改过 Apple ID 密码，所有 App 专用密码都会失效：重新生成一个，填到运行 AutoBill 的"
         "机器上（服务器是 ~/.config/autobill.env）。修好之前，新账单会留在 iCloud 里，不会丢。",
+    )
+
+
+def ai(error: str) -> Alert:
+    return Alert(
+        "ai",
+        "error",
+        "AI 分类出错",
+        f"原因：{error}\n\n"
+        "常见原因是密钥填错或余额用完。修好之前，新商户先算“未分类”，账单和报表照常。"
+        "修好后下一次运行会自动补上；同一个问题只提醒这一次。",
     )
 
 

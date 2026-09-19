@@ -64,29 +64,16 @@ def uncategorised_merchants(
     return sorted(found.values(), key=lambda u: (-u.cny, u.name))
 
 
-def rules_snippet(unknowns: list[Unknown], suggestions: dict[str, str] | None = None) -> str:
-    """YAML to paste into rules.yaml. Suggested merchants are grouped under their category
-    and marked as suggestions; the rest are listed for the author to sort."""
-    suggestions = suggestions or {}
+def rules_snippet(unknowns: list[Unknown]) -> str:
+    """YAML to paste into rules.yaml: each merchant listed for the author to sort."""
     out = [
         "# 复制到 rules.yaml（数据目录里没有这个文件就新建一个；内置规则照样生效）。",
         '# 可以把商户名改短，或者改成通用词，比如 "word:KELLYS"。见 docs/notify.md#分类规则',
     ]
-    by_category: dict[str, list[Unknown]] = {}
-    for u in unknowns:
-        if u.name in suggestions:
-            by_category.setdefault(suggestions[u.name], []).append(u)
-    for category, items in by_category.items():
-        out += ["", f"{category}:   # AI 建议，确认后再用"]
-        out += [
-            f"  - {json.dumps(u.name, ensure_ascii=False)}   # {u.count} 笔 {u.amount_text}"
-            for u in items
-        ]
-    rest = [u for u in unknowns if u.name not in suggestions]
-    if rest:
+    if unknowns:
         out += ["", "# 还没归类：把每一行挪到合适的分类下面"]
         out += [
             f"#  - {json.dumps(u.name, ensure_ascii=False)}   # {u.count} 笔 {u.amount_text}"
-            for u in rest
+            for u in unknowns
         ]
     return "\n".join(out)

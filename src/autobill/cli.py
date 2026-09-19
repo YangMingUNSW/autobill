@@ -13,6 +13,7 @@ import typer
 
 from autobill import __version__
 from autobill.categorize import load_rules
+from autobill.classify import classify_merchants, forget_unsure
 from autobill.config import data_dir, load_config
 from autobill.fetch.imap import PASSWORD_ENV as IMAP_PASSWORD_ENV
 from autobill.fetch.imap import ImapSource, Mailbox, MailboxError, imap_password
@@ -28,7 +29,7 @@ from autobill.report.pdf import PdfError, find_browser, html_to_pdf
 from autobill.report.statement import render_statement_html
 from autobill.report.uncategorised import rules_snippet, uncategorised_merchants
 from autobill.store.db import connect, load_bill
-from autobill.suggest import SuggesterUnavailable, get_suggester, suggest_categories
+from autobill.suggest import SuggesterUnavailable, get_suggester
 
 _sleep = time.sleep  # tests replace it
 
@@ -251,6 +252,7 @@ def _run_once(send: bool = True, rescan: bool = False) -> int:
         if send:
             _send_alerts(conn)  # may fail too when both use the same password
         return 1
+    _auto_classify(conn, config)
     if not send:
         typer.echo("按 --no-send 的要求，没有发送报表和提醒邮件。")
         return 0
@@ -261,6 +263,28 @@ def _run_once(send: bool = True, rescan: bool = False) -> int:
         return exc.exit_code
     _send_alerts(conn)
     return 0
+
+
+def _auto_classify(conn, config) -> None:
+    """Let the AI classify new merchants before the reports are built (ai.auto_classify).
+    A failure is alerted once and never stops the run: those merchants stay 未分类."""
+    if not (config.ai.provider and config.ai.auto_classify):
+        return
+    try:
+        suggester = get_suggester(config.ai)
+    except SuggesterUnavailable as exc:
+        typer.echo(f"AI 分类没有完成：{exc}")
+        alerts.record(conn, [alerts.ai(str(exc))])
+        return
+    result = classify_merchants(conn, suggester, load_rules(conn), config.ai)
+    if result.verdicts:
+        line = f"AI 分类：问了 {len(result.verdicts)} 个新商户，分好 {len(result.used)} 个"
+        typer.echo(line + (f"，还有 {result.left} 个下次再问" if result.left else ""))
+    if result.error is not None:
+        typer.echo(f"AI 分类没有完成：{result.error}")
+        alerts.record(conn, [alerts.ai(str(result.error))])
+    else:
+        alerts.clear(conn, "ai", "error")
 
 
 def _send_alerts(conn) -> None:
@@ -293,7 +317,7 @@ def _send_reports(conn) -> None:
         missing = f"{PASSWORD_ENV} 或 {IMAP_PASSWORD_ENV}"
         typer.echo(f"没有找到环境变量 {missing}（邮箱密码），这次不发送报表。")
         return
-    fx, rules = FxRates(conn, config.fx), load_rules()
+    fx, rules = FxRates(conn, config.fx), load_rules(conn)
     browser = None
     if config.statement.email_pdf:  # opt-in: statement.email_pdf in config.yaml
         browser = find_browser(config.statement.pdf_browser)
@@ -399,9 +423,6 @@ def uncategorised(
         str | None, typer.Option("--cycle", help="Only this statement month, e.g. 2026-09.")
     ] = None,
     limit: Annotated[int, typer.Option("--limit", help="How many merchants to list.")] = 20,
-    suggest: Annotated[
-        bool, typer.Option("--suggest", help="Ask the configured AI for category suggestions.")
-    ] = False,
 ) -> None:
     """List merchants no rule matches, with a snippet to paste into rules.yaml."""
     if cycle:
@@ -411,7 +432,7 @@ def uncategorised(
             raise typer.BadParameter(str(exc)) from None
     conn = _db()
     config = load_config()
-    rules = load_rules()
+    rules = load_rules(conn)  # merchants the AI has classified are not listed
     unknowns = uncategorised_merchants(conn, FxRates(conn, config.fx), rules, cycle)
     if not unknowns:
         typer.echo("没有未分类的消费。")
@@ -420,17 +441,56 @@ def uncategorised(
     typer.echo(f"未分类的商户共 {len(unknowns)} 个，按金额列出前 {len(shown)} 个：")
     for i, u in enumerate(shown, 1):
         typer.echo(f"{i:>3}. {u.name}  {u.count} 笔  {u.amount_text}")
-    suggestions: dict[str, str] = {}
-    if suggest:
-        try:
-            suggester = get_suggester(config.ai)
-            # Only merchant names and category names leave this computer.
-            suggestions = suggest_categories(suggester, [u.name for u in shown], rules.categories)
-        except SuggesterUnavailable as exc:
-            typer.echo("")
-            typer.echo(f"{exc}，这次不给建议。")
     typer.echo("")
-    typer.echo(rules_snippet(shown, suggestions))
+    typer.echo(rules_snippet(shown))
+
+
+@app.command()
+def classify(
+    limit: Annotated[
+        int | None, typer.Option("--limit", help="Merchants to ask about (default ai.per_run).")
+    ] = None,
+    retry: Annotated[
+        bool, typer.Option("--retry", help="Ask again about merchants the AI was unsure of.")
+    ] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Show the answers without saving them.")
+    ] = False,
+) -> None:
+    """Classify merchants the rules miss with the configured AI (see docs/notify.md)."""
+    conn = _db()
+    config = load_config()
+    try:
+        suggester = get_suggester(config.ai)
+    except SuggesterUnavailable as exc:
+        typer.echo(f"{exc}。")
+        raise typer.Exit(1) from None
+    if retry and not dry_run:
+        typer.echo(f"重新询问之前没把握的 {forget_unsure(conn)} 个商户。")
+    result = classify_merchants(
+        conn, suggester, load_rules(conn), config.ai, limit=limit, save=not dry_run
+    )
+    if not result.verdicts and result.error is None:
+        typer.echo("没有需要 AI 分类的新商户。")
+    for name, v in result.verdicts.items():
+        answer = v.category if name in result.used else f"不确定（猜 {v.category or '无'}）"
+        how = "联网查过" if v.searched else "凭知识"
+        typer.echo(f"{answer:<8} {name}  [{v.confidence}，{how}] {v.reason}")
+    typer.echo("")
+    summary = f"问了 {len(result.verdicts)} 个，分好 {len(result.used)} 个"
+    if result.left:
+        summary += f"；还有 {result.left} 个，再运行一次继续"
+    typer.echo(summary + ("（--dry-run：没有保存）" if dry_run else "。"))
+    usage = getattr(suggester, "usage", None)
+    if usage:
+        typer.echo(
+            f"用量：输入 {usage['input_tokens']} tokens，输出 {usage['output_tokens']} tokens，"
+            f"联网搜索 {usage['web_searches']} 次。"
+        )
+    if result.error is not None:
+        kept = "" if dry_run else "（上面这些已经保存）"
+        typer.echo(f"AI 分类中断：{result.error}{kept}")
+        raise typer.Exit(1)
 
 
 @app.command()
@@ -481,7 +541,8 @@ def statement(
         folder.mkdir(parents=True, exist_ok=True)
         html_path = folder / f"{row['statement_date']}.html"
         html_path.write_text(
-            render_statement_html(load_bill(conn, row["id"]), fx), encoding="utf-8"
+            render_statement_html(load_bill(conn, row["id"]), fx, load_rules(conn)),
+            encoding="utf-8",
         )
         written = [html_path.name]
         if browser is not None:

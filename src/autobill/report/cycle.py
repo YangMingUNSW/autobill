@@ -522,7 +522,7 @@ def build_cycle_email(
     today: date | None = None,
 ) -> tuple[EmailMessage, CycleReport]:
     """The progress e-mail for one month, with the new statements attached as PDF."""
-    rules = rules or load_rules()
+    rules = rules or load_rules(conn)
     pdfs: dict[int, tuple[str, bytes]] = {}
     for bill_id in new_bill_ids:
         bill = load_bill(conn, bill_id)
@@ -583,7 +583,7 @@ def preview_cycle_html(
         conn,
         cycle,
         fx,
-        rules or load_rules(),
+        rules or load_rules(conn),
         portfolio=portfolio,
         new_bill_ids=list(names),
         attachments=names,

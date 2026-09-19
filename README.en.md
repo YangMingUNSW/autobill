@@ -21,7 +21,7 @@ Banks send their e-statements to a dedicated mailbox. AutoBill reads it over IMA
 - ✅ Itemised reconciliation against each statement's own totals.
 - ✅ Multi-currency: original currencies kept, converted to CNY at the rate of the statement e-mail's date.
 - ✅ Alerts: an unknown e-mail, a failed statement, a new card number or a failed mailbox login each send one alert, never repeated.
-- ❌ No payment reminders (due dates are shown), no bank APIs; no AI for parsing or amounts (later only for category suggestions).
+- ❌ No payment reminders (due dates are shown), no bank APIs; no AI for parsing or amounts (optionally, AI classifies merchants the rules miss).
 
 ## Deploy (Docker)
 The server only needs Docker:

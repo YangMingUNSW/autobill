@@ -142,11 +142,13 @@ def _day_label(day: date) -> str:
     return f"{day.month} 月 {day.day} 日 · 周{WEEKDAYS[day.weekday()]}"
 
 
-def _line(t: Transaction, category: str, show_card: bool, show_currency: bool) -> TxnLine:
+def _line(
+    t: Transaction, category: str, show_card: bool, show_currency: bool, by_ai: bool = False
+) -> TxnLine:
     title = t.merchant or t.description_raw
     meta: list[str] = []
     if t.txn_type == TxnType.PURCHASE:
-        meta.append(category)
+        meta.append(f"{category}（AI）" if by_ai else category)
     if t.merchant and t.merchant_location:
         meta.append(t.merchant_location)
     if t.orig_amount is not None and t.orig_currency:
@@ -309,7 +311,9 @@ def build_view(bill: Bill, fx: FxRates, rules: Rules, now: datetime | None = Non
     groups: dict[date, list[TxnLine]] = {}
     for t in sorted(bill.transactions, key=lambda t: (t.trans_date, t.line_no)):
         category = rules.categorize(t.description_raw, t.txn_type, t.merchant)
-        groups.setdefault(t.trans_date, []).append(_line(t, category, show_card, show_currency))
+        by_ai = rules.by_ai(t.description_raw, t.txn_type, t.merchant)
+        line = _line(t, category, show_card, show_currency, by_ai)
+        groups.setdefault(t.trans_date, []).append(line)
     days = [DayGroup(_day_label(d), lines) for d, lines in groups.items()]
 
     due_cny: Decimal | None = ZERO
