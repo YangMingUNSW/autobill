@@ -74,7 +74,7 @@ FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表�
 
 ## 部署
 **M8b 起：Docker**（2026-09-19 定），步骤见 [deploy.md](deploy.md)。
-- 镜像由 GitHub Actions 构建（amd64 + arm64），每次构建都会在容器里导入样本、打印 PDF 并检查中文，确认镜像里没有任何个人文件，然后发布到 `ghcr.io/yangmingunsw/autobill`（main 分支是 `latest`，版本标签是 `0.2.0` 这样的号）。
+- 镜像由 GitHub Actions 构建（amd64 + arm64），每次构建都会在容器里导入样本、生成一封进度邮件，确认镜像里没有任何个人文件，然后发布到 `ghcr.io/yangmingunsw/autobill`（main 分支是 `latest`，版本标签是 `0.2.0` 这样的号）。
 - `docker compose up -d` 运行 `autobill serve`：立刻跑一次，之后每 30 分钟一次；某一次出错不会让它停下，下一次照常。只有一个循环，所以不会同时跑两个。
 - 配置、数据库、原始邮件都在挂载的 `data/` 文件夹里；密码在 `autobill.env`（600），不进镜像。
 - 不用 Docker 时：`deploy/systemd/` 的 oneshot 服务 + 每 30 分钟的定时器。

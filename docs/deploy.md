@@ -1,6 +1,6 @@
 # 部署到服务器（M8b）
 
-**推荐用 Docker**（2026-09-19 定）：镜像由 GitHub Actions 自动构建，发布在 `ghcr.io/yangmingunsw/autobill`，同时有 x86（amd64）和 ARM（arm64）两种，Linux 服务器、群晖这类 NAS、苹果芯片的 Mac 都能跑。镜像里已经带好 Python、Chromium（打印 PDF）和中文字体，**服务器上只需要装 Docker**。
+**推荐用 Docker**（2026-09-19 定）：镜像由 GitHub Actions 自动构建，发布在 `ghcr.io/yangmingunsw/autobill`，同时有 x86（amd64）和 ARM（arm64）两种，Linux 服务器、群晖这类 NAS、苹果芯片的 Mac 都能跑。镜像里只有 Python 和 AutoBill（约 330 MB，不带浏览器：进度邮件不附 PDF，原始账单在邮箱里看），**服务器上只需要装 Docker**。
 
 作者用的是一台 Oracle Cloud 免费服务器（Ubuntu 24.04，1 核 1 GB）。
 
@@ -35,7 +35,7 @@ autobill-docker/
 ├── autobill.env        # 邮箱密码，只有你能读（600）
 └── data/
     ├── config.yaml     # 你的配置
-    └── ...             # 程序自己生成：数据库、原始邮件、标准账单
+    └── ...             # 程序自己生成：数据库、原始邮件
 ```
 
 ### 3. 填配置和密码
@@ -65,13 +65,13 @@ docker compose up -d                               # 启动：立刻跑一次，
 - **数据都在 `data/` 里**：换镜像、更新版本都不会丢。备份就是复制这个文件夹。
 - 容器以普通用户（uid 1000）运行，不是 root。
 - 出问题时会发**提醒邮件**到你的邮箱（见 [notify.md](notify.md#提醒邮件)），不用盯着日志。只有"收信和发信用同一个密码，而这个密码失效了"时发不出提醒，这时看日志，或者注意到进度邮件不来了。
-- 内存：`compose.yaml` 限制容器最多用 700 MB，给 1 GB 的服务器留余量；打印 PDF 时 Chromium 用得最多。
+- 内存：`compose.yaml` 限制容器最多用 300 MB，实际用得更少；1 GB 的服务器绰绰有余。
 
 ## 不用 Docker（备选）
 直接在服务器上装 Python 环境，用 systemd 定时运行。文件在 `deploy/systemd/`。
 
 ```bash
-sudo apt install -y git chromium fonts-noto-cjk      # Ubuntu 上 chromium 是 snap 版，1 GB 的机器建议改装 Google Chrome 的 .deb
+sudo apt install -y git
 curl -LsSf https://astral.sh/uv/install.sh | sh
 git clone https://github.com/YangMingUNSW/autobill.git ~/autobill
 cd ~/autobill && uv sync --frozen
@@ -86,4 +86,4 @@ sudo systemctl daemon-reload && sudo systemctl enable --now autobill.timer
 
 ## 其他
 - 推荐同时装 `fail2ban`（`sudo apt install fail2ban`），把反复乱试 SSH 的 IP 自动拉黑。服务器只允许密钥登录，它们本来也进不来，只是让日志清净。
-- **为什么 2026-09-19 先说不用 Docker、后来又改用**：一开始担心 1 GB 的机器构建和运行带浏览器的镜像太吃力。改成"镜像在 GitHub 上构建、服务器只下载运行"后，这个顾虑基本消失了：服务器上只多一个约 100 MB 常驻的 Docker。而对开源项目来说，别人能一条命令部署才是最重要的。
+- **为什么 2026-09-19 先说不用 Docker、后来又改用**：一开始担心 1 GB 的机器构建和运行带浏览器的镜像太吃力（实测带 Chromium 的镜像 1.72 GB，打印 PDF 时内存峰值 632 MB）。后来改成"镜像在 GitHub 上构建、服务器只下载运行"，作者又决定进度邮件不附 PDF（原始账单在邮箱里看），镜像去掉浏览器、改成两阶段构建，只剩约 330 MB，这个顾虑就没有了。对开源项目来说，别人能一条命令部署才是最重要的。

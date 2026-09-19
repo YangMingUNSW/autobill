@@ -4,9 +4,9 @@
 
 A small, self-hosted tool that turns Chinese credit-card statement e-mails into tidy monthly progress e-mails. Deploy it with one Docker command; your data stays on your own server and mailbox.
 
-Banks send their e-statements to a dedicated mailbox. AutoBill reads it over IMAP on a schedule (read-only), parses each statement with **deterministic rules** (no AI touches the amounts), reconciles it item by item against the bank's own totals, converts foreign currencies to CNY, and e-mails a progress report per statement month: which cards have issued, what is owed, where the money went, with a standard PDF of every statement attached.
+Banks send their e-statements to a dedicated mailbox. AutoBill reads it over IMAP on a schedule (read-only), parses each statement with **deterministic rules** (no AI touches the amounts), reconciles it item by item against the bank's own totals, converts foreign currencies to CNY, and e-mails a progress report per statement month: which cards have issued, what is owed, where the money went. The original statements stay in your mailbox.
 
-> **Status:** every feature of the first version (M0-M8) is done: parsing and reconciliation for three banks, standard statement PDFs, statement-month progress e-mails, alert e-mails and Docker deployment. Final checks run on the author's own server before `v0.2.0`. Roadmap in [project.md](project.md#6-分期路线) (Chinese).
+> **Status:** every feature of the first version (M0-M8) is done: parsing and reconciliation for three banks, statement-month progress e-mails, alert e-mails and Docker deployment. Final checks run on the author's own server before `v0.2.0`. Roadmap in [project.md](project.md#6-分期路线) (Chinese).
 
 ## Supported banks (first version)
 | Bank | Format | Status |
@@ -17,7 +17,7 @@ Banks send their e-statements to a dedicated mailbox. AutoBill reads it over IMA
 
 ## What it does / doesn't do
 - ✅ Statement-month progress e-mails, laid out for Apple Mail on iPhone (dark mode included): cards issued so far, total owed, daily spending chart, categories; every transaction folded away, one tap to open.
-- ✅ Standard statements: one uniform HTML and PDF per statement with every transaction, attached to the e-mail.
+- ✅ Standard statements (optional, local command): `autobill statement` renders one uniform HTML and PDF per statement (needs Edge or Chrome).
 - ✅ Itemised reconciliation against each statement's own totals.
 - ✅ Multi-currency: original currencies kept, converted to CNY at the rate of the statement e-mail's date.
 - ✅ Alerts: an unknown e-mail, a failed statement, a new card number or a failed mailbox login each send one alert, never repeated.

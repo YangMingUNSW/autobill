@@ -13,5 +13,4 @@ services:
     env_file: ./autobill.env
     volumes:
       - ./data:/data  # config.yaml, database, original e-mails, statements
-    shm_size: 256m  # room for Chromium when printing PDFs
-    mem_limit: 700m  # fits a 1 GB server; Chromium is the big one
+    mem_limit: 300m  # plenty: no browser inside; fits a 1 GB server with room to spare

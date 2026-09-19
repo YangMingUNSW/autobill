@@ -21,7 +21,7 @@
 | SQLite，用唯一键保证导入幂等 | outbox、账单更正推送（第一版用 `reported_at` 代替） |
 | 汇率：Frankfurter + 缓存 + 兜底汇率 | RETRY/DEAD 退避重试 |
 | 分类规则 | DKIM 来源校验 |
-| 报表：先终端输出，再发邮件；按账单月发进度邮件，附标准账单 PDF | 缺账单心跳 |
+| 报表：先终端输出，再发邮件；按账单月发进度邮件 | 缺账单心跳 |
 | IMAP 只读游标拉取，含拆附件和银行识别 | 企业微信、Oracle 中转和看门狗 |
 | Docker 部署（`autobill serve` 每 30 分钟一次），出错时发提醒邮件 | Beancount 导出、Fava 查账网页 |
 | | Docker 打包（可选，第一版跑通后再做；代码尽量不依赖 Windows 特有功能） |
@@ -35,8 +35,8 @@
 | AI | **解析和金额永远不用 AI**；分类建议可以接 AI，M7d 预留了接口（`autobill/suggest.py`、`config.yaml` 的 `ai`），只发商户名，建议只打印、不自动生效（2026-09-19 作者确认要给以后接 AI 留接口）。见 [docs/notify.md](docs/notify.md#分类建议与-ai-接口) |
 | 分类 | 连锁品牌 + 行业通用词（整词匹配 `word:`），原始描述和商户名一起匹配；账单里没有 MCC，不用它；未分类的商户用 `autobill uncategorised` 补规则（M7d） |
 | 邮件来源 | **银行直接把电子账单发到作者 iCloud 邮箱的一个别名**（在各家银行改收件邮箱，2026-09-19 定，不再经过 QQ 转发）；iCloud 规则把它移进 `AutoBill` 文件夹，程序用 **App 专用密码**只读这个文件夹。这个 iCloud 邮箱只用于 AutoBill；App 专用密码能访问它的邮件、通讯录和日历，作者已确认接受。历史账单由作者从 QQ 邮箱分小批"作为附件"手动转发；只回填最近 12 个月。见 [docs/setup.md](docs/setup.md) |
-| 报表内容 | **第一眼只看汇总和可视化**：进度圆环、各卡状态、应还合计、本月分类、新账单的每日消费、还款日。**逐笔流水折叠在邮件里**，默认收起、轻点展开（2026-09-19 作者要求，替换了原来的"邮件不列逐笔流水"）；完整账单是附件 PDF。只展示还款日，**不做提醒**。视觉参考 Apple 原生 App、Apple Card、Copilot Money，见 [docs/notify.md](docs/notify.md#邮件内容) |
-| 标准账单 | 每份账单生成一份**统一模板的 HTML 和 PDF，包含全部逐笔流水**（M7b，2026-09-19 作者提出）；参考美国信用卡账单的法定结构、Apple Card、Monzo；不仿冒银行品牌。见 [docs/statement.md](docs/statement.md) |
+| 报表内容 | **第一眼只看汇总和可视化**：进度圆环、各卡状态、应还合计、本月分类、新账单的每日消费、还款日。**逐笔流水折叠在邮件里**，默认收起、轻点展开（2026-09-19 作者要求，替换了原来的"邮件不列逐笔流水"）；原始账单在邮箱里看（不再附 PDF）。只展示还款日，**不做提醒**。视觉参考 Apple 原生 App、Apple Card、Copilot Money，见 [docs/notify.md](docs/notify.md#邮件内容) |
+| 标准账单 | 每份账单生成一份**统一模板的 HTML 和 PDF，包含全部逐笔流水**（M7b，2026-09-19 作者提出）；参考美国信用卡账单的法定结构、Apple Card、Monzo；不仿冒银行品牌。见 [docs/statement.md](docs/statement.md)；**2026-09-19 作者决定：原始账单直接在邮箱里看，进度邮件不再附 PDF**，`statement.email_pdf` 默认关，Docker 镜像不带浏览器 |
 | 报表时机 | **按账单月发进度邮件**（M7c，2026-09-19 定，替换了“每份账单一封”）：账单月 = 出账日所在月份；卡包配置每月应出账的卡；每次运行每个账单月只发一封（已出账 N/M、新账单摘要、附标准账单 PDF）；超过通常账单日 7 天没到算“可能无账单”；同月邮件同主题并带 In-Reply-To，折叠成一个对话。没有定时月报；`report --month` 可以随时手动查看。见 [docs/notify.md](docs/notify.md#账单月进度邮件) |
 | 收报表的客户端 | **只有 iPhone 上的苹果邮件（iCloud 邮箱）**（2026-09-19 作者说明）：排版只针对 WebKit，可以用 `<style>`、深色模式、内嵌 SVG |
 | 币种 | 每笔记原币种；总支出 = 账单上各币种入账金额分别相加，再按**账单邮件当天的网上汇率**（Frankfurter）折算成人民币，不追求精确 |
@@ -80,7 +80,7 @@
 | [docs/banks/](docs/banks/README.md) | 银行注册表、样本覆盖矩阵，以及[农行](docs/banks/abc.md)、[建行](docs/banks/ccb.md)、[中行](docs/banks/boc.md)的格式规格 | `autobill/parse/{abc,ccb,boc}.py` |
 | [docs/data-model.md](docs/data-model.md) | 模型、符号约定、对账算法、汇率、SQLite 表、Beancount 映射 | `autobill/model.py`、`autobill/reconcile.py`、`autobill/fx.py` |
 | [docs/pipeline.md](docs/pipeline.md) | 状态机、去重、运行层、CLI、备份、部署、技术栈 | `autobill/pipeline.py`、`autobill/store/`、`autobill/cli.py` |
-| [docs/statement.md](docs/statement.md) | 标准账单：设计参考、版面、PDF 生成 | `autobill/report/statement.py`、`autobill/report/pdf.py` |
+| [docs/statement.md](docs/statement.md) | 标准账单（本地命令，可选）：设计参考、版面、PDF 生成 | `autobill/report/statement.py`、`autobill/report/pdf.py` |
 | [docs/deploy.md](docs/deploy.md) | 部署：Docker（推荐）和 systemd（备选）、密码文件、日常命令 | `Dockerfile`、`compose.yaml`、`deploy/systemd/` |
 | [docs/notify.md](docs/notify.md) | 统计口径、分类规则、报表时机和内容、邮件、⏳ 企业微信 | `autobill/report/`、`autobill/notify/` |
 | [docs/security.md](docs/security.md) | 密钥、配置示例、数据隔离、.gitignore/.gitattributes/pre-commit、新样本脱敏清单 | `autobill/config.py` |

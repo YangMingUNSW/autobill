@@ -294,9 +294,11 @@ def _send_reports(conn) -> None:
         typer.echo(f"没有找到环境变量 {missing}（邮箱密码），这次不发送报表。")
         return
     fx, rules = FxRates(conn, config.fx), load_rules()
-    browser = find_browser(config.statement.pdf_browser)
-    if browser is None:
-        typer.echo("没有找到 Edge 或 Chrome，这次邮件不附标准账单 PDF。")
+    browser = None
+    if config.statement.email_pdf:  # opt-in: statement.email_pdf in config.yaml
+        browser = find_browser(config.statement.pdf_browser)
+        if browser is None:
+            typer.echo("没有找到 Edge 或 Chrome，这次邮件不附标准账单 PDF。")
     result = send_pending_reports(
         conn,
         Mailer(smtp, password),

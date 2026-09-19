@@ -101,9 +101,29 @@ def test_import_dir_sends_reports_when_configured(cli_env, monkeypatch):
     result = runner.invoke(app, ["import-dir", str(FIXTURES / "abc")])
     assert result.exit_code == 0, result.output
     assert "已发送报表邮件 1 封（新账单 3 份）" in result.output  # one statement month
-    assert "不附标准账单 PDF" in result.output  # no browser in this test
+    assert "PDF" not in result.output  # no PDF by default: nothing to say about browsers
     assert SECRET not in result.output
     assert sum(len(s.sent) for s in FakeSMTP.instances) == 1
+
+
+def test_pdf_attachments_are_opt_in(cli_env, monkeypatch):
+    looked = []
+    monkeypatch.setattr(
+        "autobill.cli.find_browser", lambda configured=None: looked.append(1) or None
+    )
+    write_config(cli_env)
+    monkeypatch.setenv("AUTOBILL_SMTP_PASSWORD", SECRET)
+    runner.invoke(app, ["import-dir", "--no-send", str(FIXTURES / "abc")])
+    runner.invoke(app, ["import-dir", str(FIXTURES / "abc")])
+    assert looked == []  # default: no browser is even looked for
+    with (cli_env / "config.yaml").open("a", encoding="utf-8") as f:
+        f.write("statement:\n  email_pdf: true\n")
+    import sqlite3
+
+    with sqlite3.connect(cli_env / "autobill.db") as db:  # make the bills unreported again
+        db.execute("UPDATE bills SET reported_at = NULL")
+    result = runner.invoke(app, ["import-dir", str(FIXTURES / "abc")])
+    assert looked and "不附标准账单 PDF" in result.output  # opted in, but no browser here
 
 
 def test_import_dir_without_config_does_not_send(cli_env):

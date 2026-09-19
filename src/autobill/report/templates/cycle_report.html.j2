@@ -293,6 +293,7 @@
     <div class="chips">{% for g in n.top %}<span class="chip"><span class="e">{{ g.emoji }}</span>{{ g.name }}<span class="v">{{ g.amount }}</span></span>{% endfor %}</div>
     {% endif %}
   </section>
+  {% if n.view.days or n.attachment %}
   <section class="group" style="margin-top:12px">
     {% if n.view.days %}
     <input type="checkbox" id="tx{{ i }}" class="acc">
@@ -322,21 +323,19 @@
       {% endfor %}
     </div>
     {% endif %}
+    {% if n.attachment %}
     <div class="cell">
       <div class="doc"><span>PDF</span></div>
       <div class="body">
         <div class="text">
-          {% if n.attachment %}
           <div class="title" style="font-size:15px">{{ n.attachment }}</div>
           <div class="sub">完整标准账单在附件里 · 全部 {{ n.view.transaction_count }} 笔流水</div>
-          {% else %}
-          <div class="title">这次没有附完整账单 PDF</div>
-          <div class="sub">发送的电脑上没找到 Edge 或 Chrome</div>
-          {% endif %}
         </div>
       </div>
     </div>
+    {% endif %}
   </section>
+  {% endif %}
   {% endfor %}
 
   {% if r.complete and r.due_lines %}

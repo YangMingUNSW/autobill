@@ -33,22 +33,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Smoke test - import the samples, print PDFs with Chinese text
+      - name: Smoke test - import the samples, render a progress e-mail
         run: |
           docker run --rm --entrypoint sh -v "$PWD/tests/fixtures:/fixtures:ro" autobill:test -c '
             set -e
             test "$(id -u)" = 1000
             export AUTOBILL_DATA_DIR=/tmp/ab
-            autobill import-dir /fixtures --no-send
-            autobill statement --all -o /tmp/out
-            test "$(ls /tmp/out/*/*.pdf | wc -l)" = 8
-            python -c "
-          import glob, pdfplumber
-          text = pdfplumber.open(sorted(glob.glob(\"/tmp/out/ABC-0003/*.pdf\"))[0]).pages[0].extract_text()
-          cjk = sum(0x4E00 <= ord(c) <= 0x9FFF for c in text)
-          print(\"CJK characters on page 1:\", cjk)
-          assert cjk > 20, \"Chinese text missing: fonts-noto-cjk?\"
-          " 2>/dev/null
+            autobill import-dir /fixtures --no-send | tail -3
+            autobill preview-email --cycle 2026-09 -o /tmp/p.html
+            grep -q "2026年9月" /tmp/p.html
             autobill serve --help >/dev/null
           '
 
@@ -56,8 +49,8 @@ jobs:
         run: |
           docker run --rm --entrypoint sh autobill:test -c '
             test -z "$(ls -A /data)"
-            # only /app comes from the repository; nothing personal may be there
-            ! find /app /home/autobill /data \( -name "*.eml" -o -name "*.db" -o -name "config.yaml" -o -name "*.env" -o -name "private-terms.txt" \) | grep .
+            # only /opt/venv comes from the repository; nothing personal may be there
+            ! find /opt/venv /home/autobill /data \( -name "*.eml" -o -name "*.db" -o -name "config.yaml" -o -name "*.env" -o -name "private-terms.txt" \) | grep .
           '
 
       - name: Log in to GitHub Container Registry
