@@ -85,7 +85,7 @@ class BaseParser(ABC):
 | `parse_amount()` | 单个金额，符号按原样返回（`CR` 后缀视为负数）；转换成我们的符号约定是解析器的事 |
 | `parse_amount_currency()` | 农行 `-28.25/USD` |
 | `parse_currency_amount()` | `AUD 0.00`、`CNY 0.00` |
-| `parse_directed_amount()` | 中行 `存款/CRED 0.07` → 金额 + 方向；中英文标签必须一致，金额不能再带正负号 |
+| `parse_directed_amount()` | 中行 `存款/CRED 0.07` → 金额 + 方向；中英文标签必须一致，金额不能再带正负号；不带标签的 `0.00` 当作 0 |
 | `parse_currency()` | `人民币(CNY)`、`人民币 （CNY）`、`外币/AUD`、`RMB`、`美元` → ISO 代码；标签里出现两种币种就报错。认识约 50 个常见币种（含旅行常见的 CHF、KRW、THB 等），不在列表里的代码报错而不是放行，遇到新的再加 |
 | `parse_date()` / `infer_year()` | 完整日期 / 只有月日时按账单周期推断年份 |
 | `is_pdf()` | 按内容识别 PDF |
