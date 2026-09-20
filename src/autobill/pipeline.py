@@ -195,6 +195,22 @@ class SendResult:
     failed: tuple[str, str] | None = None  # (statement month, error); the first failure stops
 
 
+def _attach_backup(conn: sqlite3.Connection, message, cycle: str, config) -> None:
+    """A gzipped copy of the database rides along with the month's e-mail. A failure here
+    must never cost the report itself, so it is reported by the caller's logs, not raised."""
+    from autobill import backup as backup_module
+
+    if not config.enabled:
+        return
+    data = backup_module.dump(conn)
+    message.add_attachment(
+        data, maintype="application", subtype="gzip", filename=backup_module.name_for(cycle)
+    )
+    folder = backup_module.database_path(conn)
+    if folder is not None:
+        backup_module.write(data, folder.parent / "backups", cycle, config.keep)
+
+
 def send_pending_reports(
     conn: sqlite3.Connection,
     mailer,
@@ -203,6 +219,7 @@ def send_pending_reports(
     *,
     portfolio=(),
     today=None,
+    backup=None,
 ) -> SendResult:
     """One e-mail per statement month, sent once the month is complete: every expected card
     has issued its statement or run out of time (docs/notify.md#账单月邮件). Oldest month
@@ -212,6 +229,9 @@ def send_pending_reports(
     send is retried on the next run and a successful one is never repeated. The first
     failure stops the run: when the login or server is broken, every later send would
     fail the same way.
+
+    `backup` (config.backup) carries a copy of the database out with the e-mail, so the
+    mailbox holds one per month: see autobill/backup.py.
     """
     from autobill.report.cycle import build_cycle_email, cycle_complete, record_sent
 
@@ -238,6 +258,8 @@ def send_pending_reports(
                 rules=rules,
                 today=today,
             )
+            if backup is not None:
+                _attach_backup(conn, message, cycle, backup)
             mailer.send(message)
         except Exception as exc:  # noqa: BLE001 - report the error, keep the bills pending
             result.failed = (cycle, f"{type(exc).__name__}: {exc}")

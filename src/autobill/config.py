@@ -101,6 +101,16 @@ class PortfolioCard(BaseModel):
     statement_day: int | None = Field(default=None, ge=1, le=31)  # roughly; for "约 X 号出账"
 
 
+class BackupConfig(BaseModel):
+    """A copy of the database in the month's e-mail (autobill/backup.py). The mailbox is
+    then the off-site copy; the server keeps the last few next to the database."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    enabled: bool = True
+    keep: int = Field(default=6, ge=1)  # monthly copies kept on the server
+
+
 class CardsConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -132,6 +142,7 @@ class Config(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     ai: AiConfig = Field(default_factory=AiConfig)
+    backup: BackupConfig = Field(default_factory=BackupConfig)
     cards: CardsConfig = Field(default_factory=CardsConfig)
     mail_fetcher: FetcherConfig = Field(default_factory=FetcherConfig)
     fx: FxConfig = Field(default_factory=FxConfig)

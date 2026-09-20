@@ -69,10 +69,27 @@ docker compose up -d                               # 启动：立刻跑一次，
 | 手动让 AI 分类、看它的理由 | `docker compose run --rm autobill classify --dry-run`（只看不存），去掉 `--dry-run` 就保存 |
 | 其他命令 | `docker compose run --rm autobill <命令>`，比如 `uncategorised`、`report --month 2026-09` |
 
-- **数据都在 `data/` 里**：换镜像、更新版本都不会丢。备份就是复制这个文件夹：先 `docker compose stop` 再复制（数据库用 WAL 模式，运行中最近的改动还在 `autobill.db-wal` 里，只复制 `autobill.db` 会丢），复制完 `docker compose up -d`。
+- **数据都在 `data/` 里**：换镜像、更新版本都不会丢。**备份不用手动做**：每月那封账单邮件自带一份压缩的数据库，服务器上也留在 `data/backups/`（见 [notify.md](notify.md#每月备份)）。想立刻手动取一份，就先 `docker compose stop` 再复制整个 `data/`（数据库是 WAL 模式，最近的改动还在 `autobill.db-wal` 里，只复制 `autobill.db` 会丢），复制完 `docker compose up -d`。
 - 容器以普通用户运行，不是 root：默认 uid 1000，`.env` 里的 `AUTOBILL_UID` / `AUTOBILL_GID` 可以改成你自己的。
 - 出问题时会发**提醒邮件**到你的邮箱（见 [notify.md](notify.md#提醒邮件)），不用盯着日志。只有"收信和发信用同一个密码，而这个密码失效了"时发不出提醒，这时看日志，或者注意到进度邮件不来了。
 - 内存：`compose.yaml` 限制容器最多用 300 MB，实际用得更少；1 GB 的服务器绰绰有余。
+
+## 从备份还原
+
+每月那封账单邮件都附着一份压缩的数据库（见 [notify.md](notify.md#每月备份)），服务器上 `data/backups/` 里也留着最近几份。还原：
+
+```bash
+cd ~/autobill-docker
+docker compose stop                                   # 先停，别让它一边写一边换
+gunzip -c data/backups/autobill-2026-10.db.gz > data/autobill.db
+rm -f data/autobill.db-wal data/autobill.db-shm       # 旧的 WAL 属于旧数据库，留着会串
+docker compose up -d
+docker compose logs --tail 20                         # 确认起来了
+```
+
+- 从**邮件附件**还原就是一样的步骤，先把 `autobill-2026-10.db.gz` 传到服务器（`scp` 或者在手机上存到别处再传）。
+- **那一步 `rm` 不能省**：SQLite 的 WAL 文件和数据库是一套的，换了数据库却留着旧 WAL，轻则丢数据重则打不开。
+- 还原之后，那个月的账单邮件会再发一封（备份是在发信之前取的，里面还不知道已经发过）。
 
 ## 不用 Docker（备选）
 直接在服务器上装 Python 环境，用 systemd 定时运行。文件在 `deploy/systemd/`。
