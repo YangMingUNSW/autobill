@@ -336,6 +336,7 @@ def _send_reports(conn) -> None:
         FxRates(conn, config.fx),
         load_rules(conn),
         portfolio=config.cards.portfolio,
+        backup=config.backup,
     )
     sent = f"已发送报表邮件 {result.emails} 封（新账单 {len(result.sent)} 份）"
     typer.echo(f"{sent}，收件人 {mailer.config.to_addr}。")

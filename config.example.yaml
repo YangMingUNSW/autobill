@@ -37,6 +37,10 @@ ai:                                  # AI 分类：规则分不出来的商户�
   max_searches: 1                    # 每个商户最多搜几次：一次查不到就算了，不为难查的小店多花钱
   per_run: 20                        # 每次运行最多问几个新商户（控制费用）
 
+backup:                              # 每月那封邮件带一份数据库备份，见 docs/notify.md#每月备份
+  enabled: true                      # 关掉就不带附件，也不在服务器上留副本
+  keep: 6                            # 服务器上保留最近几份（邮箱里的不受影响）
+
 fx:                                  # 折算人民币用的汇率，见 docs/data-model.md#汇率
   source: "https://api.frankfurter.dev/v1"   # 按账单邮件发出当天取汇率，免费、不需要 key
   fallback_to_cny: { USD: 7.10, AUD: 4.60, EUR: 7.80 }   # 联网失败时使用，报表里标注"配置汇率"
