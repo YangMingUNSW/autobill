@@ -84,6 +84,14 @@
   svg.donut .none { stroke: var(--other); opacity: .45; }
   svg.donut .donut-num { fill: var(--label); font-size: 24px; font-weight: 700; font-family: ui-rounded, -apple-system, sans-serif; font-variant-numeric: tabular-nums; }
   svg.donut .donut-cap { fill: var(--label2); font-size: 12px; font-weight: 500; }
+  /* spending trend: this month in the accent, earlier months grey (validated pair) */
+  svg.trend { width: 100%; height: auto; display: block; margin: 6px 0 8px; }
+  svg.trend .bar { fill: var(--other); }
+  svg.trend .bar.now { fill: var(--accent); }
+  svg.trend .axis { stroke: var(--sep); stroke-width: 1.5; }
+  svg.trend text { fill: var(--label2); font-size: 20px; font-family: -apple-system, sans-serif; }
+  svg.trend .tick.now, svg.trend .value { fill: var(--label); font-weight: 600; }
+  svg.trend .gap { fill: var(--label3); }
   .change { display: inline-block; font-size: 13px; color: var(--label2); background: var(--fill); border-radius: 12px; padding: 3px 10px; }
 
   /* list cells with inset hairlines, as in Settings and Wallet */
@@ -208,6 +216,14 @@
     <div class="caption">{{ r.arrived }} 张卡合计 · 已扣返现和退款 · 外币折人民币</div>
   </section>
   {% if r.segments[-1].tone == "none" %}<div class="sf">未分类的商户：在电脑上运行 autobill uncategorised，补进 rules.yaml，下次就能归类。</div>{% endif %}
+  {% endif %}
+
+  {% if r.trend_shown %}
+  <div class="sh">近 {{ r.trend|length }} 个月</div>
+  <section class="card">
+    {{ r.trend_chart }}
+    <div class="caption">{{ r.trend_caption }}</div>
+  </section>
   {% endif %}
 
   {% if r.merchants %}

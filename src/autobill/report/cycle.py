@@ -25,7 +25,7 @@ import json
 import math
 import sqlite3
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from email.message import EmailMessage
@@ -56,6 +56,7 @@ EXPECTED_WINDOW = timedelta(days=62)  # without a portfolio: cards with a statem
 WEEKDAYS = "一二三四五六日"
 CHIPS = {"arrived": "已出账", "pending": "待出账", "missing": "可能无账单"}
 NAMED = 4  # categories named in the stacked bar; 4 + grey passes the palette validator
+TREND_MONTHS = 6  # statement months in the spending trend, this one included
 
 
 def cycle_of(statement_date: date) -> str:
@@ -151,6 +152,7 @@ class CycleReport:
     transaction_count: int
     generated_at: str
     spend_change: str = ""  # "比 9 月 +12%"; empty when last month has no statements
+    trend: list[MonthBar] = field(default_factory=list)  # oldest first, this month last
 
     def _count(self, state: str) -> int:
         return sum(1 for c in self.cards if c.state == state)
@@ -197,6 +199,32 @@ class CycleReport:
         return f"本月合计应还 {total} · {self.arrived} 张卡 · 消费 ¥{self.spend_total}"
 
     @property
+    def trend_shown(self) -> bool:
+        """One bar alone says nothing: the trend needs a second month with statements."""
+        return sum(1 for b in self.trend if b.value is not None) >= 2
+
+    @property
+    def trend_chart(self) -> Markup:
+        return trend_svg(self.trend)
+
+    @property
+    def trend_caption(self) -> str:
+        """ "6 个月平均 ¥14,200 · 本月比平均多 19%": the average of the months shown."""
+        values = [b.value for b in self.trend if b.value is not None]
+        if len(values) < 2:
+            return ""
+        average = sum(values, ZERO) / len(values)
+        text = f"{len(values)} 个月平均 ¥{average:,.0f}"
+        now = self.trend[-1].value
+        if average > 0 and now is not None:
+            ratio = (now - average) / average
+            if round(abs(ratio), 2) == 0:
+                text += " · 本月和平均差不多"
+            else:
+                text += f" · 本月比平均{'多' if ratio > 0 else '少'} {abs(ratio):.0%}"
+        return text
+
+    @property
     def category_donut(self) -> Markup:
         return donut_svg(self.segments, f"¥{self.spend_total}", "本月消费")
 
@@ -208,6 +236,73 @@ class CycleReport:
         total = sum((s.weight for s in self.segments), ZERO)
         center = share(top, total) if total > 0 else ""
         return donut_svg(self.merchants, center, f"前 {len(self.merchants)} 名占比")
+
+
+@dataclass
+class MonthBar:
+    """One statement month of the spending trend."""
+
+    cycle: str  # "2026-09"
+    value: Decimal | None  # CNY spent, as 本月消费 counts it; None: no statements that month
+    current: bool = False
+
+    @property
+    def label(self) -> str:
+        return f"{int(self.cycle[5:])}月"
+
+
+def trend_svg(bars: list[MonthBar]) -> Markup:
+    """One column per statement month, Apple Card's monthly activity: this month in the
+    accent, the months before in grey (emphasis, not categories). Marks follow the dataviz
+    spec: 4px rounded top, square base, one hairline baseline, only this month's value
+    written on its column; every month's value is in the aria-label and the plain-text
+    part. A month without statements is a dash, so the months stay evenly spaced."""
+    if not bars:
+        return Markup("")
+    # viewBox units: text is sized ~20 so it is ~11px when a phone scales 600 to ~330.
+    width, height, top_pad, bottom_pad = 600, 210, 40, 34
+    plot_h = height - top_pad - bottom_pad
+    base = height - bottom_pad
+    slot = width / len(bars)
+    bar_w = 40.0  # ~22px on a phone: under the 24px cap
+    peak = max((b.value for b in bars if b.value is not None and b.value > 0), default=ZERO)
+    said = "，".join(
+        f"{b.label} " + (f"¥{b.value:,.0f}" if b.value is not None else "无账单") for b in bars
+    )
+    parts = [
+        f'<svg class="trend" viewBox="0 0 {width} {height}" role="img" '
+        f'aria-label="{escape("近 " + str(len(bars)) + " 个月消费（人民币）：" + said)}">',
+        f'<line class="axis" x1="0" y1="{base}" x2="{width}" y2="{base}" />',
+    ]
+    for i, bar in enumerate(bars):
+        cx = i * slot + slot / 2
+        now = " now" if bar.current else ""
+        parts.append(
+            f'<text class="tick{now}" x="{cx:.1f}" y="{height - 6}" text-anchor="middle">'
+            f"{bar.label}</text>"
+        )
+        if bar.value is None:
+            parts.append(
+                f'<text class="gap" x="{cx:.1f}" y="{base - 8}" text-anchor="middle">—</text>'
+            )
+            continue
+        top = base
+        if bar.value > 0 and peak > 0:
+            h = max(float(bar.value / peak) * plot_h, 2.0)
+            x, top = cx - bar_w / 2, base - h
+            r = min(4.0, bar_w / 2, h)
+            parts.append(
+                f'<path class="bar{now}" d="M{x:.1f},{base} V{top + r:.1f} '
+                f"Q{x:.1f},{top:.1f} {x + r:.1f},{top:.1f} H{x + bar_w - r:.1f} "
+                f'Q{x + bar_w:.1f},{top:.1f} {x + bar_w:.1f},{top + r:.1f} V{base} Z" />'
+            )
+        if bar.current:
+            parts.append(
+                f'<text class="value" x="{cx:.1f}" y="{top - 8:.1f}" text-anchor="middle">'
+                f"¥{bar.value:,.0f}</text>"
+            )
+    parts.append("</svg>")
+    return Markup("".join(parts))
 
 
 def donut_svg(segments: list[Segment], center: str, caption: str) -> Markup:
@@ -347,6 +442,17 @@ def previous_cycle(cycle: str) -> str:
     return (start - timedelta(days=1)).strftime("%Y-%m")
 
 
+def spend_trend(
+    conn: sqlite3.Connection, cycle: str, fx: FxRates, rules: Rules, spend: Decimal
+) -> list[MonthBar]:
+    """The last TREND_MONTHS statement months, oldest first; `spend` is this month's."""
+    cycles = [cycle]
+    while len(cycles) < TREND_MONTHS:
+        cycles.insert(0, previous_cycle(cycles[0]))
+    bars = [MonthBar(c, month_spend_cny(conn, c, fx, rules)) for c in cycles[:-1]]
+    return [*bars, MonthBar(cycle, spend, current=True)]
+
+
 def latest_bills(conn: sqlite3.Connection, cycle: str) -> dict[str, int]:
     """Account -> the id of its statement in this month (the newest, if a card issued twice)."""
     start, end = month_bounds(cycle)
@@ -432,6 +538,7 @@ def build_cycle_report(
     tones = {s.name: s.tone for s in segments}
     days, count = merge_transactions(views)
     before = previous_cycle(cycle)
+    trend = spend_trend(conn, cycle, fx, rules, spend)
     return CycleReport(
         cycle=cycle,
         cards=cards,
@@ -442,7 +549,8 @@ def build_cycle_report(
         days=days,
         transaction_count=count,
         generated_at=(now or datetime.now(CHINA)).strftime("%Y-%m-%d %H:%M"),
-        spend_change=_change(spend, month_spend_cny(conn, before, fx, rules), before),
+        spend_change=_change(spend, trend[-2].value, before),
+        trend=trend,
     )
 
 
@@ -475,6 +583,12 @@ def plain_text(report: CycleReport) -> str:
         out.append(f"本月合计应还：¥{report.due_total}")
     spent = f"本月消费：¥{report.spend_total}"
     out.append(f"{spent}（{report.spend_change}）" if report.spend_change else spent)
+    if report.trend_shown:
+        months = " · ".join(
+            f"{b.label} " + (f"¥{b.value:,.0f}" if b.value is not None else "无账单")
+            for b in report.trend
+        )
+        out.append(f"近 {len(report.trend)} 个月：{months}")
     out.append("")
     for card in report.cards:
         line = f"{card.label}：{card.chip} {card.amount}".rstrip()
