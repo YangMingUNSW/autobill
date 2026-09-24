@@ -23,6 +23,7 @@ from autobill.report.cycle import (
     cycle_title,
     donut_svg,
     expected_cards,
+    month_spend_cny,
     thread_ids,
 )
 from autobill.report.style import COLORS, amount_with_symbol, bar_rows, category_bar_rows
@@ -382,6 +383,68 @@ def test_credits_read_as_plus_in_green(db):
     html = email(conn, fx).get_body(("html",)).get_content()
     assert re.search(r'<div class="amt num credit">\+[^<0-9]*[0-9.,]+</div>', html)  # a rebate
     assert 'class="amt num credit">-' not in html
+
+
+# --- the six-month spending trend -----------------------------------------------------
+
+
+def test_the_trend_is_six_statement_months_ending_with_this_one(db):
+    """Fixtures: CCB 2026-06 and 07, BOC 2026-08, ABC 2026-09; nothing in April or May."""
+    conn, fx = db
+    r = report(conn, fx)
+    assert [b.label for b in r.trend] == ["4月", "5月", "6月", "7月", "8月", "9月"]
+    assert [b.current for b in r.trend] == [False] * 5 + [True]
+    assert r.trend[0].value is None and r.trend[1].value is None  # a gap, not skipped
+    for bar in r.trend[2:5]:
+        assert bar.value == month_spend_cny(conn, bar.cycle, fx, load_rules())
+    # This month's column is exactly the 本月消费 figure above it.
+    assert f"{r.trend[-1].value:,.2f}" == r.spend_total
+
+
+def test_the_trend_chart_highlights_this_month_only(db):
+    conn, fx = db
+    r = report(conn, fx)
+    chart = str(r.trend_chart)
+    # June has spending; July and August spent nothing (a flat baseline, no column).
+    assert [b.value > 0 for b in r.trend[2:5]] == [True, False, False]
+    assert chart.count('class="bar"') == 1 and chart.count('class="bar now"') == 1
+    assert chart.count('class="gap"') == 2  # April and May have no statements: a dash
+    assert chart.count('class="value"') == 1  # only this month's value is written
+    assert f">¥{r.trend[-1].value:,.0f}<" in chart
+    for bar in r.trend:  # every month's value is still there for a screen reader
+        assert bar.label in re.search(r'aria-label="([^"]*)"', chart)[1]
+
+
+def test_the_trend_caption_compares_this_month_with_the_average(db):
+    conn, fx = db
+    r = report(conn, fx)
+    values = [b.value for b in r.trend if b.value is not None]
+    average = sum(values, D(0)) / len(values)
+    ratio = (r.trend[-1].value - average) / average
+    word = "多" if ratio > 0 else "少"
+    assert r.trend_caption == f"4 个月平均 ¥{average:,.0f} · 本月比平均{word} {abs(ratio):.0%}"
+
+
+def test_the_trend_is_in_the_email_between_spending_and_merchants(db):
+    conn, fx = db
+    msg = email(conn, fx)
+    html = msg.get_body(("html",)).get_content()
+    spending, trend, merchants = (
+        html.index(f'<div class="sh">{h}</div>')
+        for h in ("本月消费", "近 6 个月", "花得最多的商户")
+    )
+    assert spending < trend < merchants
+    text = msg.get_body(("plain",)).get_content()
+    assert "近 6 个月：4月 无账单 · 5月 无账单 · 6月 ¥" in text
+
+
+def test_one_month_alone_shows_no_trend(db):
+    """2025-06 is the oldest statement month: nothing before it to compare with."""
+    conn, fx = db
+    r = report(conn, fx, cycle="2025-06", today=date(2025, 7, 30))
+    assert not r.trend_shown and r.trend_caption == ""
+    html = email(conn, fx, cycle="2025-06", today=date(2025, 7, 30)).get_body(("html",))
+    assert "近 6 个月" not in html.get_content()
 
 
 def test_the_donut_has_one_slice_per_legend_row(db):

@@ -16,7 +16,7 @@ Banks send their e-statements to a dedicated mailbox. AutoBill reads it over IMA
 | Bank of China (BOC) | PDF attachment | ✅ supported (incl. combined multi-card statements) |
 
 ## What it does / doesn't do
-- ✅ Statement-month progress e-mails, laid out for Apple Mail on iPhone (dark mode included): cards issued so far, total owed, categories and top merchants; every transaction folded away, one tap to open.
+- ✅ Statement-month progress e-mails, laid out for Apple Mail on iPhone (dark mode included): cards issued so far, total owed, categories, a six-month trend and top merchants; every transaction folded away, one tap to open.
 - ✅ Standard statements (optional, local command): `autobill statement` renders one uniform HTML and PDF per statement (needs Edge or Chrome).
 - ✅ Itemised reconciliation against each statement's own totals.
 - ✅ Multi-currency: original currencies kept, converted to CNY at the rate of the statement e-mail's date.
