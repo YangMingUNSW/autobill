@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import math
 import sqlite3
+import statistics
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
@@ -34,7 +35,7 @@ from email.utils import formatdate, make_msgid
 from jinja2 import Environment, PackageLoader, select_autoescape
 from markupsafe import Markup, escape
 
-from autobill.categorize import UNCATEGORISED, Rules, load_rules
+from autobill.categorize import OTHER, UNCATEGORISED, Rules, load_rules
 from autobill.config import PortfolioCard
 from autobill.fx import FxRates
 from autobill.model import ZERO, Bill, TxnType
@@ -57,6 +58,12 @@ WEEKDAYS = "一二三四五六日"
 CHIPS = {"arrived": "已出账", "pending": "待出账", "missing": "可能无账单"}
 NAMED = 4  # categories named in the stacked bar; 4 + grey passes the palette validator
 TREND_MONTHS = 6  # statement months in the spending trend, this one included
+# A category is compared with its median over the months just before this one ("平时"),
+# and noted only when it is clearly off: by both this much money and this share.
+BASELINE_MONTHS = 3
+NOTE_MIN_DIFF = Decimal("300")
+NOTE_MIN_RATIO = Decimal("0.3")
+NOTE_MAX = 3
 
 
 def cycle_of(statement_date: date) -> str:
@@ -138,6 +145,7 @@ class Segment:
     weight: Decimal  # flex-grow: the bar is split in proportion to the amounts
     tone: str  # CSS class: s1..s4 (fixed categorical order), other, none (未分类)
     emoji: str = ""
+    note: str = ""  # "比平时多 ¥800": only when this category is clearly off its usual
 
 
 @dataclass
@@ -223,6 +231,10 @@ class CycleReport:
             else:
                 text += f" · 本月比平均{'多' if ratio > 0 else '少'} {abs(ratio):.0%}"
         return text
+
+    @property
+    def has_notes(self) -> bool:
+        return any(s.note for s in self.segments)
 
     @property
     def category_donut(self) -> Markup:
@@ -415,18 +427,68 @@ def merge_transactions(views: list[tuple[str, StatementView]]) -> tuple[list[Day
     return days, len(lines)
 
 
-def month_spend_cny(
+@dataclass(frozen=True)
+class MonthTotals:
+    """What an earlier statement month spent, counted exactly as this month is."""
+
+    spend: Decimal  # as 本月消费: refunds and rebates taken off
+    categories: dict[str, Decimal]  # spending per category, as the category rows
+
+
+def month_totals(
     conn: sqlite3.Connection, cycle: str, fx: FxRates, rules: Rules
-) -> Decimal | None:
-    """CNY spent in a statement month, for the month-on-month line; None when that month
-    has no statements at all."""
+) -> MonthTotals | None:
+    """A statement month's spending and categories in CNY; None when that month has no
+    statements at all."""
     bills = latest_bills(conn, cycle)
     if not bills:
         return None
-    total = ZERO
+    spend = ZERO
+    categories: dict[str, Decimal] = {}
     for bill_id in bills.values():
-        total += build_view(load_bill(conn, bill_id), fx, rules).spend_cny_value
-    return total
+        view = build_view(load_bill(conn, bill_id), fx, rules)
+        spend += view.spend_cny_value
+        for name, value in view.categories.items():
+            categories[name] = categories.get(name, ZERO) + value
+    return MonthTotals(spend, categories)
+
+
+def month_spend_cny(
+    conn: sqlite3.Connection, cycle: str, fx: FxRates, rules: Rules
+) -> Decimal | None:
+    """CNY spent in a statement month; None when that month has no statements at all."""
+    totals = month_totals(conn, cycle, fx, rules)
+    return totals.spend if totals is not None else None
+
+
+def category_notes(
+    segments: list[Segment], categories: dict[str, Decimal], earlier: list[MonthTotals]
+) -> dict[str, str]:
+    """ "比平时多 ¥800" for the named category rows that are clearly off their usual.
+
+    Usual is the median over `earlier` (the months just before this one that have
+    statements), so one month with a flight in it does not move it. At least two such
+    months are needed. A row is noted when it differs from its usual by NOTE_MIN_DIFF
+    and by NOTE_MIN_RATIO both, more or less alike; at most NOTE_MAX, the largest first.
+    其他 and 未分类 are catch-alls and never compared.
+    """
+    if len(earlier) < 2:
+        return {}
+    found = []
+    for s in segments:
+        if not s.tone.startswith("s") or s.name in (OTHER, UNCATEGORISED):
+            continue
+        now = categories.get(s.name, ZERO)
+        usual = statistics.median(m.categories.get(s.name, ZERO) for m in earlier)
+        diff = now - usual
+        if abs(diff) < NOTE_MIN_DIFF or (usual > 0 and abs(diff) / usual < NOTE_MIN_RATIO):
+            continue
+        found.append((diff, s.name))
+    found.sort(key=lambda item: (-abs(item[0]), item[1]))
+    return {
+        name: f"比平时{'多' if diff > 0 else '少'} ¥{abs(diff):,.0f}"
+        for diff, name in found[:NOTE_MAX]
+    }
 
 
 def _change(spend: Decimal, before: Decimal | None, cycle: str) -> str:
@@ -442,14 +504,23 @@ def previous_cycle(cycle: str) -> str:
     return (start - timedelta(days=1)).strftime("%Y-%m")
 
 
+def earlier_cycles(cycle: str, count: int) -> list[str]:
+    """The `count` statement months before `cycle`, oldest first."""
+    cycles: list[str] = []
+    while len(cycles) < count:
+        cycles.insert(0, previous_cycle(cycles[0] if cycles else cycle))
+    return cycles
+
+
 def spend_trend(
-    conn: sqlite3.Connection, cycle: str, fx: FxRates, rules: Rules, spend: Decimal
+    cycle: str, history: dict[str, MonthTotals | None], spend: Decimal
 ) -> list[MonthBar]:
-    """The last TREND_MONTHS statement months, oldest first; `spend` is this month's."""
-    cycles = [cycle]
-    while len(cycles) < TREND_MONTHS:
-        cycles.insert(0, previous_cycle(cycles[0]))
-    bars = [MonthBar(c, month_spend_cny(conn, c, fx, rules)) for c in cycles[:-1]]
+    """The last TREND_MONTHS statement months, oldest first; `spend` is this month's and
+    `history` holds the months before it (month_totals)."""
+    bars = [
+        MonthBar(c, history[c].spend if history[c] is not None else None)
+        for c in earlier_cycles(cycle, TREND_MONTHS - 1)
+    ]
     return [*bars, MonthBar(cycle, spend, current=True)]
 
 
@@ -534,11 +605,18 @@ def build_cycle_report(
         for name, value in view.merchants.items():
             merchants[name] = merchants.get(name, ZERO) + value
 
+    # Each earlier month is read once, for the trend and the category notes alike.
+    history = {c: month_totals(conn, c, fx, rules) for c in earlier_cycles(cycle, TREND_MONTHS - 1)}
     segments = category_segments(categories)
+    baseline = earlier_cycles(cycle, BASELINE_MONTHS)  # within the trend's months
+    earlier = [m for c in baseline if (m := history[c]) is not None]
+    notes = category_notes(segments, categories, earlier)
+    for s in segments:
+        s.note = notes.get(s.name, "")
     tones = {s.name: s.tone for s in segments}
     days, count = merge_transactions(views)
     before = previous_cycle(cycle)
-    trend = spend_trend(conn, cycle, fx, rules, spend)
+    trend = spend_trend(cycle, history, spend)
     return CycleReport(
         cycle=cycle,
         cards=cards,
@@ -597,7 +675,10 @@ def plain_text(report: CycleReport) -> str:
         out.append(f"{line}（{card.note}）")
     if report.segments:
         out += ["", "分类："]
-        out += [f"{s.name} {s.share} ¥{s.amount}" for s in report.segments]
+        out += [
+            f"{s.name} {s.share} ¥{s.amount}" + (f"（{s.note}）" if s.note else "")
+            for s in report.segments
+        ]
     out += ["", f"全部 {report.transaction_count} 笔流水见 HTML 版本。"]
     return "\n".join(out)
 

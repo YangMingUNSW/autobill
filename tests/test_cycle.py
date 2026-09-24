@@ -16,9 +16,11 @@ from autobill.fx import FxRates
 from autobill.notify.mail import Mailer
 from autobill.pipeline import process, send_pending_reports
 from autobill.report.cycle import (
+    MonthTotals,
     Segment,
     build_cycle_email,
     build_cycle_report,
+    category_notes,
     cycle_complete,
     cycle_title,
     donut_svg,
@@ -445,6 +447,76 @@ def test_one_month_alone_shows_no_trend(db):
     assert not r.trend_shown and r.trend_caption == ""
     html = email(conn, fx, cycle="2025-06", today=date(2025, 7, 30)).get_body(("html",))
     assert "近 6 个月" not in html.get_content()
+
+
+# --- categories against their usual ------------------------------------------------
+
+
+def notes(now: dict[str, str], *earlier: dict[str, str]) -> dict[str, str]:
+    """category_notes with plain numbers: this month, then the months before it."""
+    values = {k: D(v) for k, v in now.items()}
+    segments = [Segment(name, "", "", v, f"s{i + 1}") for i, (name, v) in enumerate(values.items())]
+    months = [MonthTotals(D(0), {k: D(v) for k, v in m.items()}) for m in earlier]
+    return category_notes(segments, values, months)
+
+
+def test_a_category_clearly_off_its_usual_is_noted_either_way():
+    assert notes(
+        {"餐饮": "3200", "交通": "600"},
+        {"餐饮": "2400", "交通": "1000"},
+        {"餐饮": "2300", "交通": "1100"},
+        {"餐饮": "2500", "交通": "900"},
+    ) == {"餐饮": "比平时多 ¥800", "交通": "比平时少 ¥400"}
+
+
+def test_small_changes_are_not_noted():
+    # 250 more is under ¥300; 500 more on a usual 2,500 is only 20%.
+    assert notes({"餐饮": "750", "超市": "3000"}, {"餐饮": "500", "超市": "2500"},
+                 {"餐饮": "500", "超市": "2500"}) == {}  # fmt: skip
+
+
+def test_usual_is_the_median_so_one_big_month_does_not_move_it():
+    """A flight in one earlier month must not make this month look cheap."""
+    got = notes({"旅行": "1000"}, {"旅行": "1000"}, {"旅行": "9000"}, {"旅行": "1100"})
+    assert got == {}
+
+
+def test_at_most_three_notes_the_largest_first():
+    got = notes(
+        {"A": "1400", "B": "1300", "C": "1200", "D": "1100"},
+        {"A": "0", "B": "0", "C": "0", "D": "0"},
+        {"A": "0", "B": "0", "C": "0", "D": "0"},
+    )
+    assert list(got) == ["A", "B", "C"]
+
+
+def test_catch_alls_and_thin_history_are_never_noted():
+    assert notes({"其他": "5000", "未分类": "5000"}, {}, {}) == {}
+    assert notes({"餐饮": "5000"}, {"餐饮": "100"}) == {}  # one earlier month is not enough
+
+
+def test_the_notes_are_in_the_email(db):
+    """Fixtures: June to August spent almost nothing, so this month's large categories
+    stand out; the caption then says what 平时 means."""
+    conn, fx = db
+    r = report(conn, fx)
+    noted = [s for s in r.segments if s.note]
+    assert 1 <= len(noted) <= 3 and all(s.note.startswith("比平时") for s in noted)
+    msg = email(conn, fx)
+    html = msg.get_body(("html",)).get_content()
+    for s in noted:
+        assert f'<span class="note">{s.note}</span>' in html
+    assert "平时指前 3 个月的中位数" in html
+    text = msg.get_body(("plain",)).get_content()
+    assert f"{noted[0].name} {noted[0].share} ¥{noted[0].amount}（{noted[0].note}）" in text
+
+
+def test_no_notes_without_earlier_months(db):
+    conn, fx = db
+    r = report(conn, fx, cycle="2025-06", today=date(2025, 7, 30))
+    assert not any(s.note for s in r.segments)
+    html = email(conn, fx, cycle="2025-06", today=date(2025, 7, 30)).get_body(("html",))
+    assert "平时指" not in html.get_content()
 
 
 def test_the_donut_has_one_slice_per_legend_row(db):
