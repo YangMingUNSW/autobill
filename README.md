@@ -1,67 +1,116 @@
-# AutoBill 信用卡账单汇总
+# AutoBill
 
-**中文** · [English](README.en.md)
+[![CI](https://github.com/YangMingUNSW/autobill/actions/workflows/ci.yml/badge.svg)](https://github.com/YangMingUNSW/autobill/actions/workflows/ci.yml)
+[![Docker image](https://github.com/YangMingUNSW/autobill/actions/workflows/docker.yml/badge.svg)](https://github.com/YangMingUNSW/autobill/actions/workflows/docker.yml)
+![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-把分散在各家银行邮件里的信用卡账单，自动整理成一封封好看的月度进度邮件。自己部署（Docker 一条命令），数据只在你自己的服务器和邮箱里。
+English | [简体中文](README.zh-CN.md)
 
-银行把电子账单发到一个专用邮箱，AutoBill 定时通过 IMAP **只读**拉取，用**固定规则**解析每一份账单（金额不经过 AI），和银行自己印在账单上的汇总数逐项对账，把外币折算成人民币，然后按"账单月"给你发进度邮件：哪些卡已出账、合计应还多少、钱花在哪。原始账单就在你的邮箱里，随时可以看。
+Self-hosted, rule-based summaries of Chinese credit-card statements. AutoBill reads the e-statements your banks send to a dedicated mailbox, reconciles every statement against the bank's own totals, and sends you one clean e-mail per month, designed for Apple Mail on iPhone. Your data never leaves your own server and mailbox.
 
-> **开发进度**：`v0.2.0` 已发布，在作者自己的服务器上用 Docker 每 30 分钟运行：三家银行的解析和对账、账单月邮件（收齐后一封）、提醒邮件、AI 给规则分不出来的商户分类。路线见 [project.md](project.md#6-分期路线)。
+<p align="center">
+  <img src="docs/images/email-light.png" width="300" alt="The monthly e-mail, first screen (light mode): total due, each card's statement and due dates, spending">
+  &nbsp;&nbsp;
+  <img src="docs/images/email-dark.png" width="300" alt="The same e-mail in dark mode">
+</p>
+<p align="center"><sub>Screenshots use invented demo data (<a href="scripts/demo_screenshots.py">scripts/demo_screenshots.py</a>). The e-mail is in Simplified Chinese, for its intended users in mainland China.</sub></p>
 
-## 支持的银行（第一版）
-| 银行 | 账单格式 | 状态 |
+> **Status:** `v0.2.0` runs every 30 minutes in Docker on the author's own server: parsing and reconciliation for three banks, one e-mail per statement month, alert e-mails, and optional AI categorisation of merchants the rules miss. See the [roadmap](project.md#6-分期路线) (Chinese).
+
+## Features
+- **Deterministic parsing.** Every statement is parsed with fixed rules, never AI, and checked item by item against the totals the bank prints on it. Any mismatch is reported, never silently ignored.
+- **One e-mail per statement month.** Sent once every expected card has issued its statement, so you get one complete picture instead of one e-mail per card.
+- **Multi-currency.** Original currencies are kept and converted to CNY at the exchange rate of the statement e-mail's date ([Frankfurter](https://frankfurter.dev)).
+- **Categories.** Keyword rules first; merchants the rules miss can optionally be categorised by an AI endpoint you configure, which only ever sees merchant name, location and currency.
+- **Read-only mailbox.** Messages are never deleted, moved or marked as read.
+- **Alerts.** An unrecognised e-mail, a statement that fails to parse, a new card or a mailbox login failure sends one alert, never repeated.
+- **Backups.** Each monthly e-mail carries a compressed copy of the database.
+
+## How it works
+```mermaid
+flowchart LR
+    A["Bank e-statements"] --> B["Dedicated mailbox<br/>AutoBill folder"]
+    B -- "IMAP, read-only<br/>every 30 min" --> C["Parse<br/>ABC, CCB: HTML<br/>BOC: PDF"]
+    C --> D["Reconcile<br/>item by item"]
+    D --> E[("SQLite")]
+    E --> F["Convert to CNY<br/>Categorise"]
+    F --> G["Month complete:<br/>send one e-mail"]
+    G --> H["📱 Apple Mail"]
+```
+
+## What the e-mail shows
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/email-spending.png" alt="Spending by category as a donut chart, with notes under categories that are clearly off their usual">
+      <p><b>Spending</b> by category with month-over-month change. A category clearly off its usual level (the median of the previous three months) gets a quiet note, whether up or down.</p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/email-trend.png" alt="Last six months: one column per month, the current month highlighted">
+      <p><b>Last six months</b>: one column per statement month, the current month highlighted, with the average.</p>
+      <img src="docs/images/email-transactions.png" alt="All transactions grouped by day, each showing its card and category">
+      <p><b>All transactions</b> from every card in one list by day, collapsed until tapped. Foreign purchases show the local currency first, with the CNY equivalent.</p>
+    </td>
+  </tr>
+</table>
+
+The e-mail also lists each card's statement date, due date and amount due (foreign-currency cards in both currencies) and the top merchants. Due dates are shown; payment reminders are deliberately out of scope.
+
+## Supported banks
+| Bank | Statement format | Status |
 |---|---|---|
-| 中国农业银行 | HTML 邮件 | ✅ 已支持 |
-| 中国建设银行 | HTML 邮件 | ✅ 已支持（消费部分待更多样本确认） |
-| 中国银行 | PDF 附件 | ✅ 已支持（含多卡合并账单） |
+| Agricultural Bank of China (ABC) | HTML e-mail | ✅ Supported |
+| China Construction Bank (CCB) | HTML e-mail | ✅ Supported (spending rows need more samples) |
+| Bank of China (BOC) | PDF attachment | ✅ Supported, including combined multi-card statements |
 
-## 做什么，不做什么
-- ✅ **账单月进度邮件**：为 iPhone 自带的邮件 App 排版（深色模式），每月一个对话：已出账几张卡、合计应还、分类、近 6 个月趋势和商户排行；逐笔流水折叠在邮件里，轻点展开。
-- ✅ **标准账单**（可选，本地命令）：`autobill statement` 把每份账单生成统一格式的 HTML 和 PDF（需要本机有 Edge 或 Chrome）。
-- ✅ **逐项对账**：每份账单都和银行自己的汇总数核对，对不上会告诉你差在哪。
-- ✅ **多币种**：每笔保留原币种，按账单邮件当天的汇率折算人民币。
-- ✅ **提醒**：不认识的邮件、解析失败、新卡号、邮箱登录失败时发一封提醒，同一个问题只提醒一次。
-- ❌ 不做还款提醒（只展示还款日），不接银行接口；金额和解析不用 AI（AI 只给规则分不出来的商户分类，可选）。
-
-## 部署（Docker）
-服务器上只需要 Docker：
+## Quick start (Docker)
+All the server needs is Docker:
 
 ```bash
 mkdir -p autobill/data && cd autobill
 curl -fsSLO https://raw.githubusercontent.com/YangMingUNSW/autobill/main/compose.yaml
 curl -fsSL https://raw.githubusercontent.com/YangMingUNSW/autobill/main/config.example.yaml -o data/config.yaml
 curl -fsSL https://raw.githubusercontent.com/YangMingUNSW/autobill/main/autobill.env.example -o autobill.env
-# 填好 data/config.yaml 和 autobill.env（邮箱密码），然后：
+# Fill in data/config.yaml and autobill.env (mailbox password), then:
 docker compose run --rm autobill check-mailbox
 docker compose up -d
 ```
 
-镜像有 x86 和 ARM 两种（服务器、NAS、苹果芯片 Mac 都能跑）。完整步骤、邮箱设置和日常命令见 [docs/deploy.md](docs/deploy.md) 和 [docs/setup.md](docs/setup.md)。
+Multi-arch images (`linux/amd64`, `linux/arm64`) are published to `ghcr.io/yangmingunsw/autobill`, so it runs on a VPS, a NAS or an Apple silicon Mac. Full setup, mailbox configuration and everyday commands: [docs/deploy.md](docs/deploy.md) and [docs/setup.md](docs/setup.md) (Chinese).
 
-## 试一试（不用邮箱）
-需要 [uv](https://docs.astral.sh/uv/) 和 Git。下面用仓库自带的脱敏样本，不需要真实邮箱：
+## Try it locally (no mailbox needed)
+Requires [uv](https://docs.astral.sh/uv/) and Git. Uses the anonymised sample statements in this repository:
 
 ```powershell
 git clone https://github.com/YangMingUNSW/autobill.git
 cd autobill
-$env:AUTOBILL_DATA_DIR = "$env:TEMP\autobill-dev"   # 用临时目录，不影响正式数据
-uv run autobill import-dir tests/fixtures           # 导入样本账单
-uv run autobill report --month 2026-08              # 在终端查看 8 月汇总
+$env:AUTOBILL_DATA_DIR = "$env:TEMP\autobill-dev"      # scratch data directory
+uv run autobill import-dir tests/fixtures --no-send    # import the samples
+uv run autobill preview-email --cycle 2026-09          # render September's e-mail to HTML
+uv run autobill report --month 2026-08                 # print August's summary
 ```
 
-## 仓库里有什么
-| 路径 | 内容 |
+An optional `autobill statement` command renders every statement in one uniform layout as HTML and PDF (requires Edge or Chrome).
+
+<p align="center"><img src="docs/images/statement.png" width="260" alt="A standard statement: payment information and account summary"></p>
+
+## Documentation
+| Path | Contents |
 |---|---|
-| [project.md](project.md) | 总览、第一版范围、已定决策、架构、风险 |
-| [docs/](docs/) | 各模块设计、三家银行的账单格式规格、开发流程、操作手册 |
-| [tests/fixtures/](tests/fixtures/README.md) | 作者本人的真实账单，**已脱敏**（只去掉了身份信息） |
-| [CLAUDE.md](CLAUDE.md) | 给 AI 编程助手看的项目规则 |
-| [CHANGELOG.md](CHANGELOG.md) | 版本变更记录 |
+| [project.md](project.md) | Overview, scope, decisions, architecture, risks |
+| [docs/](docs/) | Module design, bank statement format specs, development process, setup guide |
+| [tests/fixtures/](tests/fixtures/README.md) | The author's real statements, anonymised (identity data removed) |
+| [CHANGELOG.md](CHANGELOG.md) | Release notes |
+| [CLAUDE.md](CLAUDE.md) | Rules for AI coding assistants working on this repository |
 
-文档用中文写；代码和注释用英文。
+Design documents are written in Simplified Chinese; code, comments and commit messages are in English.
 
-## 参与开发
-流程、里程碑和测试规范见 [docs/development.md](docs/development.md)。
+## Contributing
+Issues and pull requests are welcome. Please read [docs/development.md](docs/development.md) (Chinese) for the workflow and testing conventions: one change per pull request, and CI must pass.
 
-## 许可证
+## Security
+Please report vulnerabilities privately as described in [SECURITY.md](SECURITY.md). Do not open a public issue.
+
+## License
 [MIT](LICENSE) © Larry Row
