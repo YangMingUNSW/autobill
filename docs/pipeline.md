@@ -9,7 +9,7 @@
 
 ```text
 FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表邮件，成功后记下 bills.reported_at
-   ├── 确定性错误（TemplateChanged、校验失败）──▶ FAILED（发告警邮件；修好解析器后 reparse）
+   ├── 确定性错误（TemplateChanged、校验失败、解析时的任何异常）──▶ FAILED（发告警邮件；修好解析器后 reparse）
    ├── 临时错误（IO、网络、数据库锁）──▶ 保持 FETCHED，下次运行自然会重试
    ├── 没有解析器认领 ──▶ UNRECOGNIZED（发告警邮件）
    └── 不是账单，或超出回填范围 ──▶ IGNORED
@@ -65,7 +65,7 @@ FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表�
 **M3 的处理流程**（`autobill/pipeline.py`）：
 1. 读出 `RawMessage`；Message-ID 已经在 `emails` 表里的，直接跳过（`SKIPPED`）。所以**同一个目录导入两次，数据库不变**。
 2. 原件写入 `<数据目录>/raw/<sha256>.eml`（先写临时文件再改名）。
-3. 用注册表（`parse/registry.py`）找解析器：找不到是 `UNRECOGNIZED`；解析时抛 `TemplateChanged` 或格式错误是 `FAILED`，原因写进 `emails.error`。
+3. 用注册表（`parse/registry.py`）找解析器：找不到是 `UNRECOGNIZED`；解析时抛 `TemplateChanged` 或格式错误是 `FAILED`，原因写进 `emails.error`。**解析时的其他任何错误**（PDF 损坏或加密、数值不符合数据模型、解析器自己的 bug）也记 `FAILED`：解析只处理内存里已经存下的邮件，同一封邮件每次都会同样失败，属于确定性错误；如果直接抛出去，这次运行会停在它这里，之后每次都停在同一处，后面的邮件全被挡住，也收不到提醒。
 4. 在**一个事务**里写入 `emails` 行和账单；出错整体回滚。
 - 失败的邮件目前也会被记为"已处理"，修好解析器后要等 `reparse` 命令（以后）才能重新解析。
 - `rebuild`（以后）：清空数据库，从 iCloud 的 `AutoBill` 文件夹全量重新拉取、解析，**不受 12 个月回填范围限制**。

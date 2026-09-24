@@ -17,7 +17,6 @@ from autobill.fetch.source import RawMail
 from autobill.model import Bill
 from autobill.parse.base import TemplateChanged
 from autobill.parse.registry import find_parser
-from autobill.parse.util import FormatError
 from autobill.store.db import now, save_bill
 
 
@@ -128,7 +127,13 @@ def _parse(msg: RawMessage, aliases: dict[str, str] | None):
             raise TemplateChanged(f"{parser.name} returned no bills")
         bills = [apply_aliases(b, aliases or {}) for b in bills]
         return parser, bills, _worst([b.status for b in bills]), None
-    except (TemplateChanged, FormatError) as exc:
+    except Exception as exc:  # noqa: BLE001 - see below
+        # Not only TemplateChanged and FormatError: a damaged or encrypted PDF, a value the
+        # model rejects or a parser bug is just as deterministic, since parsing works on
+        # the stored bytes in memory and would fail the same way every run. Raising would
+        # stop the whole run at this e-mail, again and again, with every later one stuck
+        # behind it and no alert. FAILED records the reason, alerts the author and lets
+        # the rest go on.
         return parser, [], "FAILED", f"{type(exc).__name__}: {exc}"
 
 

@@ -100,6 +100,28 @@ def test_template_change_is_failed_with_reason(env):
     assert conn.execute("SELECT COUNT(*) FROM bills").fetchone()[0] == 0
 
 
+def test_any_parser_error_is_failed_and_the_next_email_goes_on(env):
+    """A damaged PDF raises pdfplumber's own error, not TemplateChanged. It must still end
+    as FAILED (which alerts the author), not stop the run: with the IMAP cursor, a raised
+    error would stop at the same e-mail every run and hold back every later one."""
+    conn, data_dir = env
+    msg = EmailMessage()
+    msg["From"] = "boczhangdan@bankofchina.com"
+    msg["Subject"] = "中国银行信用卡电子账单"
+    msg["Message-ID"] = "<damaged-pdf@example.invalid>"
+    msg["Date"] = "Wed, 02 Sep 2026 18:01:38 +0800"
+    msg.set_content("<p>电子合并账单</p>", subtype="html")
+    msg.add_attachment(b"%PDF-1.4 not really a PDF", "application", "octet-stream")
+    outcome = process(conn, data_dir, RawMail(msg.as_bytes(), "test:damaged"))
+    assert outcome.status == "FAILED" and outcome.bank == "BOC"
+    assert outcome.error.startswith("PdfminerException")
+    status, error = conn.execute("SELECT status, error FROM emails").fetchone()
+    assert status == "FAILED" and error == outcome.error
+
+    good = FIXTURES / "abc" / "abc_mc_2026-09.eml"
+    assert process(conn, data_dir, RawMail(good.read_bytes(), "test:good")).status == "OK"
+
+
 def test_directory_source_reads_only_eml(tmp_path):
     shutil.copy(FIXTURES / "abc" / "abc_mc_2026-09.eml", tmp_path / "a.eml")
     (tmp_path / "notes.txt").write_text("x")
