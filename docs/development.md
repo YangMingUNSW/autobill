@@ -221,6 +221,16 @@ uv run autobill --help        # 运行程序本身
 
 **新增样本**：只做上面的第 2 步，再加上快照测试和覆盖矩阵的更新。
 
+**更新 README 的截图**（`docs/images/`，2026-09-24 加）：月度邮件的样式改了之后，重新生成一遍，和样式改动放在同一个 PR 里。
+```powershell
+uv run --with playwright playwright install chromium   # 第一次用时装一次
+uv run --with playwright python scripts/demo_screenshots.py
+```
+- 数据**全部是编的**（脚本里写死的卡、商户、金额），不读任何真实账单和数据库，所以截图可以公开；它不是"脱敏脚本"。
+- 编的数据照样走真实代码（`save_bill`、月度报表、模板），截图就是程序实际渲染的样子；全程离线，汇率直接写进临时数据库。
+- 生成 6 张图：首屏（浅色、深色）、本月消费、近 6 个月、展开的流水、标准账单；每张控制在 300 KB 以内。
+- Playwright 只是这个脚本用，不是项目依赖；已经有 Chrome/Chromium 时可以用 `--browser <路径>` 跳过安装。
+
 ## 10. 用 AI（Claude）开发的注意事项
 - **一个对话只做一个里程碑步骤**。开头告诉它"做 M2，先读 CLAUDE.md 和 docs/banks/abc.md"。
 - **先让它给出计划，看过之后再让它动手。**
