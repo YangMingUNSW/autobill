@@ -68,7 +68,6 @@ class TxnLine:
     # For the month's merged list, where lines from every card sit together:
     when: date | None = None
     card: str = ""  # "农业银行 0003"
-    cny_value: Decimal | None = None  # unformatted, to find the month's largest purchase
 
 
 @dataclass
@@ -140,9 +139,7 @@ class StatementView:
     due_cny_value: Decimal | None = None
     spend_cny_value: Decimal = ZERO
     categories: dict[str, Decimal] = field(default_factory=dict)
-    chart_days: list[date] = field(default_factory=list)
     merchants: dict[str, Decimal] = field(default_factory=dict)  # CNY spent per merchant
-    daily_values: dict[date, Decimal] = field(default_factory=dict)
 
 
 def day_label(day: date) -> str:
@@ -192,7 +189,6 @@ def _line(
         cny=f"≈¥{money(cents(cny))}" if cny is not None and t.currency != "CNY" else "",
         when=t.trans_date,
         card=card,
-        cny_value=cny,
     )
 
 
@@ -389,9 +385,7 @@ def build_view(bill: Bill, fx: FxRates, rules: Rules, now: datetime | None = Non
         due_cny_value=due_cny,
         spend_cny_value=spend_cny,
         categories=categories,
-        chart_days=chart_days,
         merchants=merchants,
-        daily_values=daily,
     )
 
 

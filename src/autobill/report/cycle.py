@@ -44,7 +44,6 @@ from autobill.report.statement import (
     StatementView,
     TxnLine,
     build_view,
-    daily_svg,
     day_label,
 )
 from autobill.report.style import amount_with_symbol, card_label, emoji_for, money, share
@@ -141,18 +140,6 @@ class Segment:
 
 
 @dataclass
-class Highlight:
-    """The month's largest single purchase."""
-
-    title: str
-    local: str  # what was paid, in the currency it was paid in
-    cny: str  # "≈¥612"; empty when it was already in CNY
-    when: str  # "10月8日"
-    card: str
-    emoji: str
-
-
-@dataclass
 class CycleReport:
     cycle: str
     cards: list[CardState]
@@ -162,11 +149,8 @@ class CycleReport:
     merchants: list[Segment]  # where the money went, across every card
     days: list[DayGroup]  # every card's transactions in one list, by date
     transaction_count: int
-    daily_chart: Markup  # one bar per day, all cards added up
-    daily_caption: str
     generated_at: str
     spend_change: str = ""  # "比 9 月 +12%"; empty when last month has no statements
-    biggest: Highlight | None = None
 
     def _count(self, state: str) -> int:
         return sum(1 for c in self.cards if c.state == state)
@@ -324,11 +308,8 @@ def _amount_orig(bill: Bill, view: StatementView) -> str:
     return " + ".join(amount_with_symbol(b.amount_due, b.currency) for b in owed)
 
 
-def merge_transactions(
-    views: list[tuple[str, StatementView]],
-) -> tuple[list[DayGroup], int, Highlight | None]:
-    """Every card's transactions as one list by date - the month read as one statement -
-    and the largest single purchase in it."""
+def merge_transactions(views: list[tuple[str, StatementView]]) -> tuple[list[DayGroup], int]:
+    """Every card's transactions as one list by date: the month read as one statement."""
     lines = [line for _, view in views for day in view.days for line in day.lines]
     lines.sort(key=lambda t: (t.when or date.min, t.card, t.line_no))
     groups: dict[date, list[TxnLine]] = {}
@@ -336,19 +317,7 @@ def merge_transactions(
         if line.when is not None:
             groups.setdefault(line.when, []).append(line)
     days = [DayGroup(day_label(when), rows) for when, rows in groups.items()]
-    spent = [t for t in lines if not t.excluded and not t.tag and t.cny_value is not None]
-    top = max(spent, key=lambda t: t.cny_value or ZERO, default=None)
-    biggest = None
-    if top is not None and top.when is not None:
-        biggest = Highlight(
-            top.title,
-            top.local,
-            top.cny,
-            f"{top.when.month}月{top.when.day}日",
-            top.card,
-            emoji_for(top.category),
-        )
-    return days, len(lines), biggest
+    return days, len(lines)
 
 
 def month_spend_cny(
@@ -461,18 +430,7 @@ def build_cycle_report(
 
     segments = category_segments(categories)
     tones = {s.name: s.tone for s in segments}
-    days, count, biggest = merge_transactions(views)
-
-    chart_days = sorted({day for _, view in views for day in view.chart_days})
-    daily: dict[date, Decimal] = {}
-    for _, view in views:
-        for when, value in view.daily_values.items():
-            daily[when] = daily.get(when, ZERO) + value
-    peak = max(daily.values(), default=ZERO)
-    active = sum(1 for day in chart_days if daily.get(day, ZERO) > 0)
-    caption = f"{len(chart_days)} 天里有 {active} 天有消费" + (
-        f"，最多的一天 ¥{money(cents(peak))}" if peak else ""
-    )
+    days, count = merge_transactions(views)
     before = previous_cycle(cycle)
     return CycleReport(
         cycle=cycle,
@@ -483,11 +441,8 @@ def build_cycle_report(
         merchants=_top_merchants(merchants, rules, tones),
         days=days,
         transaction_count=count,
-        daily_chart=daily_svg(chart_days, daily, average=True),
-        daily_caption=caption,
         generated_at=(now or datetime.now(CHINA)).strftime("%Y-%m-%d %H:%M"),
         spend_change=_change(spend, month_spend_cny(conn, before, fx, rules), before),
-        biggest=biggest,
     )
 
 
@@ -529,9 +484,6 @@ def plain_text(report: CycleReport) -> str:
     if report.segments:
         out += ["", "分类："]
         out += [f"{s.name} {s.share} ¥{s.amount}" for s in report.segments]
-    if report.biggest:
-        big = report.biggest
-        out += ["", f"最大的一笔：{big.title} {big.local} · {big.when} · {big.card}"]
     out += ["", f"全部 {report.transaction_count} 笔流水见 HTML 版本。"]
     return "\n".join(out)
 

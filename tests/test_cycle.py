@@ -165,19 +165,6 @@ def test_every_cards_transactions_are_in_one_list(db):
     assert labels == sorted(labels, key=lambda text: (len(text), text)) or len(labels) > 1
 
 
-def test_the_largest_purchase_is_picked_out(db):
-    conn, fx = db
-    r = report(conn, fx)
-    spent = [
-        line
-        for day in r.days
-        for line in day.lines
-        if not line.excluded and not line.tag and line.cny_value is not None
-    ]
-    assert r.biggest is not None
-    assert r.biggest.local == max(spent, key=lambda t: t.cny_value).local
-
-
 def test_zero_statement_needs_no_payment(db):
     conn, fx = db
     r = report(conn, fx, cycle="2026-08", today=date(2026, 9, 30))
@@ -220,7 +207,7 @@ def test_email_is_made_for_ios_mail(db):
     assert '<div class="preheader">本月合计应还 ¥' in html
     assert "<img" not in html and "href=" not in html and "http" not in html
     assert "<script" not in html  # inline SVG only, no script and no outside images
-    assert 'class="bar"' in html and 'class="slice' in html  # daily chart and donut
+    assert 'class="slice' in html  # the donuts are inline SVG
     assert "请尽快还款" not in html and "还款提醒" not in html
     assert msg["X-AutoBill-Report"] == "true"
     text = msg.get_body(("plain",)).get_content()
@@ -230,8 +217,13 @@ def test_email_is_made_for_ios_mail(db):
 def test_the_email_is_one_month_report(db):
     conn, fx = db
     html = email(conn, fx, today=date(2026, 9, 30)).get_body(("html",)).get_content()
-    for heading in ("本月消费", "每日消费", "最大的一笔", "花得最多的商户", "全部流水"):
+    for heading in ("本月消费", "花得最多的商户", "全部流水"):
         assert f'<div class="sh">{heading}</div>' in html, heading
+    # Dropped 2026-09-24: the cards' statement periods differ, so a daily chart across
+    # them was uneven at both ends, and the largest purchase added little.
+    for heading in ("每日消费", "最大的一笔"):
+        assert heading not in html, heading
+    assert '<svg class="daily"' not in html
     assert "本月合计应还" in html
     assert '<div class="sh">还款日</div>' not in html  # the card rows carry the due date
     assert "新账单" not in html  # every card is in the one report, new or not
