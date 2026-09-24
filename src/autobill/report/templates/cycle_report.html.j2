@@ -1,8 +1,7 @@
 {#- Statement-month progress e-mail (docs/notify.md#账单月进度邮件), for Apple Mail on iPhone.
     Apple's own design language: large title, inset grouped lists with inset hairlines,
-    an Activity-ring progress, Wallet-style card thumbnails, Calendar-style date tiles,
-    a Screen Time-style daily chart; Copilot Money-style emoji category tiles and one
-    stacked category bar. Long lists fold away with the CSS checkbox hack (no script). -#}
+    Wallet-style card thumbnails; Copilot Money-style emoji category tiles and donut
+    charts. Long lists fold away with the CSS checkbox hack (no script). -#}
 {%- macro icon(state) -%}
 {%- if state == "arrived" -%}
 <svg class="ico" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.3l2.3 2.3 4.7-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -131,13 +130,6 @@
   .rows .pct { font-size: 13px; color: var(--label2); width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
   .rows .amt { font-size: 15px; min-width: 84px; text-align: right; }
 
-  /* daily spending, all cards added up */
-  svg.daily { width: 100%; height: auto; display: block; margin: 16px 0 6px; }
-  svg.daily .bar { fill: var(--accent); }
-  svg.daily .axis { stroke: var(--sep); stroke-width: 1.5; }
-  svg.daily .avg { stroke: var(--label3); stroke-width: 2; stroke-dasharray: 6 6; }
-  svg.daily text { fill: var(--label2); font-size: 20px; font-family: -apple-system, sans-serif; }
-  svg.daily .value { fill: var(--label); font-weight: 600; }
   /* accordion: CSS checkbox hack, closed by default */
   .acc { display: none; }
   label.cell { cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -216,33 +208,6 @@
     <div class="caption">{{ r.arrived }} 张卡合计 · 已扣返现和退款 · 外币折人民币</div>
   </section>
   {% if r.segments[-1].tone == "none" %}<div class="sf">未分类的商户：在电脑上运行 autobill uncategorised，补进 rules.yaml，下次就能归类。</div>{% endif %}
-  {% endif %}
-
-  {% if r.daily_caption %}
-  <div class="sh">每日消费</div>
-  <section class="card">
-    {{ r.daily_chart }}
-    <div class="caption">{{ r.daily_caption }}。虚线是日均。</div>
-  </section>
-  {% endif %}
-
-  {% if r.biggest %}
-  <div class="sh">最大的一笔</div>
-  <section class="group">
-    <div class="cell">
-      <span class="tile">{{ r.biggest.emoji }}</span>
-      <div class="body">
-        <div class="text">
-          <div class="title">{{ r.biggest.title }}</div>
-          <div class="sub">{{ r.biggest.when }} · {{ r.biggest.card }}</div>
-        </div>
-        <div class="trail">
-          <div class="amt num">{{ r.biggest.local }}</div>
-          {% if r.biggest.cny %}<div class="sub num">{{ r.biggest.cny }}</div>{% endif %}
-        </div>
-      </div>
-    </div>
-  </section>
   {% endif %}
 
   {% if r.merchants %}
