@@ -16,10 +16,12 @@ from autobill.fx import FxRates
 from autobill.notify.mail import Mailer
 from autobill.pipeline import process, send_pending_reports
 from autobill.report.cycle import (
+    Segment,
     build_cycle_email,
     build_cycle_report,
     cycle_complete,
     cycle_title,
+    donut_svg,
     expected_cards,
     thread_ids,
 )
@@ -401,6 +403,14 @@ def test_the_donut_has_one_slice_per_legend_row(db):
     for segment in r.segments:  # the aria-label says what a screen reader cannot see
         assert f"{segment.name} {segment.share}" in donut
     assert str(donut).count("<circle") == len(r.segments) + 1  # + the track behind them
+
+
+def test_merchant_names_in_the_donut_are_escaped():
+    """Merchant names come from the statement: a quote or "<" must not break the e-mail."""
+    segment = Segment('Bar "Q" & <Grill>', "1.00", "100%", Decimal("1"), "s1")
+    donut = str(donut_svg([segment], "¥1", "本月消费"))
+    assert 'aria-label="本月消费：Bar &#34;Q&#34; &amp; &lt;Grill&gt; 100%"' in donut
+    assert "<Grill>" not in donut
 
 
 def test_stacked_categories_name_four_and_fold_the_rest(db):

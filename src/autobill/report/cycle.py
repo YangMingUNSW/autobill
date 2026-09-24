@@ -32,7 +32,7 @@ from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 
 from jinja2 import Environment, PackageLoader, select_autoescape
-from markupsafe import Markup
+from markupsafe import Markup, escape
 
 from autobill.categorize import UNCATEGORISED, Rules, load_rules
 from autobill.config import PortfolioCard
@@ -231,6 +231,7 @@ def donut_svg(segments: list[Segment], center: str, caption: str) -> Markup:
     the legend below it. Colours come from CSS classes, so the chart follows light and dark
     mode; a 2px gap keeps neighbouring slices apart. Every slice is named with its share in
     the legend, so a slice too thin to see is never the only place a number appears.
+    Merchant names come from the statement, so every text is escaped ("H&M", a quote).
     """
     total = sum((s.weight for s in segments), ZERO)
     if not segments or total <= 0:
@@ -242,7 +243,7 @@ def donut_svg(segments: list[Segment], center: str, caption: str) -> Markup:
     said = "，".join(f"{s.name} {s.share}" for s in segments)
     parts = [
         f'<svg class="donut" viewBox="0 0 {size} {size}" width="{size}" height="{size}" '
-        f'role="img" aria-label="{caption}：{said}">',
+        f'role="img" aria-label="{escape(caption)}：{escape(said)}">',
         f'<circle class="track" cx="{size / 2}" cy="{size / 2}" r="{r}" />',
         f'<g transform="rotate(-90 {size / 2} {size / 2})">',
     ]
@@ -258,8 +259,8 @@ def donut_svg(segments: list[Segment], center: str, caption: str) -> Markup:
     parts.append("</g>")
     if center:
         parts.append(
-            f'<text class="donut-num" x="50%" y="49%" text-anchor="middle">{center}</text>'
-            f'<text class="donut-cap" x="50%" y="63%" text-anchor="middle">{caption}</text>'
+            f'<text class="donut-num" x="50%" y="49%" text-anchor="middle">{escape(center)}</text>'
+            f'<text class="donut-cap" x="50%" y="63%" text-anchor="middle">{escape(caption)}</text>'
         )
     parts.append("</svg>")
     return Markup("".join(parts))
