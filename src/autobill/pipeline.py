@@ -193,11 +193,13 @@ class SendResult:
     sent: list[int] = field(default_factory=list)  # bill ids now reported
     emails: int = 0
     failed: tuple[str, str] | None = None  # (statement month, error); the first failure stops
+    backup_errors: list[tuple[str, str]] = field(default_factory=list)  # (month, error)
 
 
 def _attach_backup(conn: sqlite3.Connection, message, cycle: str, config) -> None:
     """A gzipped copy of the database rides along with the month's e-mail. A failure here
-    must never cost the report itself, so it is reported by the caller's logs, not raised."""
+    must never cost the report itself: send_pending_reports catches it and the caller
+    prints it."""
     from autobill import backup as backup_module
 
     if not config.enabled:
@@ -259,7 +261,10 @@ def send_pending_reports(
                 today=today,
             )
             if backup is not None:
-                _attach_backup(conn, message, cycle, backup)
+                try:
+                    _attach_backup(conn, message, cycle, backup)
+                except Exception as exc:  # noqa: BLE001 - the report matters more than its copy
+                    result.backup_errors.append((cycle, f"{type(exc).__name__}: {exc}"))
             mailer.send(message)
         except Exception as exc:  # noqa: BLE001 - report the error, keep the bills pending
             result.failed = (cycle, f"{type(exc).__name__}: {exc}")
