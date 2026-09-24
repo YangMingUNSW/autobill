@@ -109,6 +109,22 @@ def test_backup_can_be_turned_off(db, isolated_data_dir):
     assert not (isolated_data_dir / "backups").exists()
 
 
+@pytest.mark.parametrize("step", ["dump", "write"])
+def test_a_failed_backup_never_costs_the_report(db, monkeypatch, step):
+    """Say the server's backups folder is not writable: the month's e-mail still goes out
+    and counts as sent, and the error is handed back for the log."""
+    conn, fx = db
+
+    def broken(*args, **kwargs):
+        raise PermissionError("backups folder is not writable")
+
+    monkeypatch.setattr(backup, step, broken)
+    result = send(conn, fx)
+    assert result.emails == 1 and result.failed is None
+    assert result.backup_errors == [("2026-09", "PermissionError: backups folder is not writable")]
+    assert conn.execute("SELECT COUNT(*) FROM bills WHERE reported_at IS NULL").fetchone()[0] == 0
+
+
 def test_no_backup_is_asked_for_by_default(db, isolated_data_dir):
     """send_pending_reports without a backup config (preview, tests) attaches nothing."""
     conn, fx = db

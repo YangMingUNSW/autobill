@@ -144,6 +144,7 @@ python3 ~/autobill/scripts/export_ai_categories.py ~/autobill-docker/data/autobi
 - **用 SQLite 自己的备份接口，不是复制文件**：数据库是 WAL 模式，最新的改动还在 `autobill.db-wal` 里，直接 `cp autobill.db` 会丢（2026-09-20 手动备份时真踩过一次，有测试钉住）。
 - **只在自动发的月度邮件里带**，`resend` 重发不带（否则你每看一次就多一份重复附件）。
 - 备份是在生成邮件时取的，所以里面还不知道"这个月已经发过报表"。**还原之后那个月的邮件会再发一封**——无害，总比反过来好。
+- **备份失败不挡报表**：比如服务器上的 `backups/` 没有写权限，月度邮件照常发出（能附上的话照样带附件），日志里多一行"数据库备份失败……"。
 - 不想要：`config.yaml` 写 `backup: {enabled: false}`。
 - **`raw/` 那 25 MB 原始邮件不备份**：它们本来就还在你的 iCloud 邮箱里，真丢了重新拉一遍即可。
 - **怎么还原**：见 [deploy.md](deploy.md#从备份还原)。
