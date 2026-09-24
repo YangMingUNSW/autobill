@@ -135,6 +135,7 @@
   .rows .rbody { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 10px 0; }
   .rows .row + .row .rbody { border-top: .5px solid var(--sep); }
   .rows .name { flex: 1; min-width: 0; font-size: 15px; }
+  .rows .note { display: block; font-size: 12px; color: var(--label2); margin-top: 2px; }
   .rows .pct { font-size: 13px; color: var(--label2); width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
   .rows .amt { font-size: 15px; min-width: 84px; text-align: right; }
 
@@ -206,14 +207,14 @@
       <div class="row">
         <span class="tile {{ g.tone }}">{{ g.emoji }}</span>
         <div class="rbody">
-          <span class="name"><i class="key {{ g.tone }}"></i>{{ g.name }}</span>
+          <span class="name"><i class="key {{ g.tone }}"></i>{{ g.name }}{% if g.note %}<span class="note">{{ g.note }}</span>{% endif %}</span>
           <span class="pct">{{ g.share }}</span>
           <span class="amt num">{{ g.amount }}</span>
         </div>
       </div>
       {% endfor %}
     </div>
-    <div class="caption">{{ r.arrived }} 张卡合计 · 已扣返现和退款 · 外币折人民币</div>
+    <div class="caption">{{ r.arrived }} 张卡合计 · 已扣返现和退款 · 外币折人民币{% if r.has_notes %} · 平时指前 3 个月的中位数{% endif %}</div>
   </section>
   {% if r.segments[-1].tone == "none" %}<div class="sf">未分类的商户：在电脑上运行 autobill uncategorised，补进 rules.yaml，下次就能归类。</div>{% endif %}
   {% endif %}
