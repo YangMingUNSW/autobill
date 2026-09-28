@@ -33,6 +33,7 @@ from autobill.report.monthly import month_bounds, monthly_summary, render_text
 from autobill.report.pdf import PdfError, find_browser, html_to_pdf
 from autobill.report.statement import render_statement_html
 from autobill.report.uncategorised import rules_snippet, uncategorised_merchants
+from autobill.report.year import build_year_report, render_year_html, year_plain_text
 from autobill.store.db import connect, load_bill
 from autobill.suggest import SuggesterUnavailable, get_suggester
 
@@ -419,6 +420,29 @@ def preview_email(
     )
     target.write_text(html, encoding="utf-8")
     typer.echo(f"已生成 {cycle} 账单月的进度邮件预览：{target}")
+    typer.echo("用浏览器打开，按 F12 切到手机尺寸，就能看到手机上的排版。")
+
+
+@app.command("year-review")
+def year_review(
+    year: Annotated[int, typer.Option("--year", help="Year to review, e.g. 2026.")],
+    output: Annotated[
+        Path | None, typer.Option("--output", "-o", help="HTML file to write.")
+    ] = None,
+) -> None:
+    """The year-in-review e-mail: an HTML file with -o, else as text here (sends nothing)."""
+    conn = _db()
+    has_bills = conn.execute(
+        "SELECT 1 FROM bills WHERE substr(statement_date, 1, 4) = ?", (str(year),)
+    ).fetchone()
+    if not has_bills:
+        raise typer.BadParameter(f"{year} 年没有出账的账单。")
+    report = build_year_report(conn, year, FxRates(conn, load_config().fx), load_rules(conn))
+    if output is None:
+        typer.echo(year_plain_text(report))
+        return
+    output.write_text(render_year_html(report), encoding="utf-8")
+    typer.echo(f"已生成 {year} 年度回顾的预览：{output}")
     typer.echo("用浏览器打开，按 F12 切到手机尺寸，就能看到手机上的排版。")
 
 
