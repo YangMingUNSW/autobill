@@ -23,14 +23,6 @@ repos:
         name: identity scan (ID / mobile / card numbers, statement locations)
         entry: uv run --frozen python scripts/check_identity.py
         language: system
-      - id: uv-export
-        name: requirements.txt from uv.lock (for GitHub's dependency graph)
-        # GitHub reads no uv.lock, so Dependabot alerts see the Python packages only through
-        # this file (docs/security.md#依赖漏洞提醒). When the hook rewrites it, git add it again.
-        entry: uv export --frozen --no-dev --no-hashes --no-emit-project --quiet --output-file requirements.txt
-        language: system
-        files: ^uv\.lock$
-        pass_filenames: false
 
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1
