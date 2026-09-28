@@ -30,6 +30,7 @@ jobs:
           context: .
           load: true
           tags: autobill:test
+          build-args: AUTOBILL_REVISION=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -44,6 +45,9 @@ jobs:
             grep -q "2026年9月" /tmp/p.html
             autobill serve --help >/dev/null
           '
+
+      - name: The image knows the commit it was built from
+        run: docker run --rm autobill:test --version | grep -F "(${GITHUB_SHA::7})"
 
       - name: Nothing personal in the image
         run: |
@@ -81,5 +85,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: AUTOBILL_REVISION=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
