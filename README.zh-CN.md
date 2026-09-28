@@ -26,6 +26,7 @@
 - **邮箱只读**：不删信、不移动、不标已读。
 - **提醒**：不认识的邮件、解析失败、新卡号、邮箱登录失败时发一封提醒，同一个问题只提醒一次。
 - **备份**：每月的邮件附一份压缩的数据库。
+- **年度回顾**：`autobill year-review` 把一年的 12 个账单月合成一封，样子和月度邮件一样：每月一根柱子、分类、花得最多的商户、去得最多的店、用哪些货币消费、各张卡。12 个月加起来就是全年。目前只能预览。
 
 ## 工作原理
 ```mermaid
@@ -89,6 +90,7 @@ $env:AUTOBILL_DATA_DIR = "$env:TEMP\autobill-dev"      # scratch data directory
 uv run autobill import-dir tests/fixtures --no-send    # import the samples
 uv run autobill preview-email --cycle 2026-09          # render September's e-mail to HTML
 uv run autobill report --month 2026-08                 # print August's summary
+uv run autobill year-review --year 2026                # the year so far, as text
 ```
 
 另有可选命令 `autobill statement`，把每份账单生成统一格式的 HTML 和 PDF（需要本机有 Edge 或 Chrome）。

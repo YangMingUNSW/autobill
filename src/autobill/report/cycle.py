@@ -265,12 +265,13 @@ class MonthBar:
         return f"{int(self.cycle[5:])}月"
 
 
-def trend_svg(bars: list[MonthBar]) -> Markup:
+def trend_svg(bars: list[MonthBar], name: str = "") -> Markup:
     """One column per statement month, Apple Card's monthly activity: this month in the
     accent, the months before in grey (emphasis, not categories). Marks follow the dataviz
     spec: 4px rounded top, square base, one hairline baseline, only this month's value
     written on its column; every month's value is in the aria-label and the plain-text
-    part. A month without statements is a dash, so the months stay evenly spaced."""
+    part. A month without statements is a dash, so the months stay evenly spaced.
+    `name` is what the aria-label calls the chart (default "近 6 个月消费")."""
     if not bars:
         return Markup("")
     # viewBox units: text is sized ~20 so it is ~11px when a phone scales 600 to ~330.
@@ -278,14 +279,15 @@ def trend_svg(bars: list[MonthBar]) -> Markup:
     plot_h = height - top_pad - bottom_pad
     base = height - bottom_pad
     slot = width / len(bars)
-    bar_w = 40.0  # ~22px on a phone: under the 24px cap
+    bar_w = min(40.0, slot * 0.56)  # six months: ~22px on a phone, under the 24px cap
     peak = max((b.value for b in bars if b.value is not None and b.value > 0), default=ZERO)
     said = "，".join(
         f"{b.label} " + (f"¥{b.value:,.0f}" if b.value is not None else "无账单") for b in bars
     )
+    name = name or f"近 {len(bars)} 个月消费"
     parts = [
         f'<svg class="trend" viewBox="0 0 {width} {height}" role="img" '
-        f'aria-label="{escape("近 " + str(len(bars)) + " 个月消费（人民币）：" + said)}">',
+        f'aria-label="{escape(name + "（人民币）：" + said)}">',
         f'<line class="axis" x1="0" y1="{base}" x2="{width}" y2="{base}" />',
     ]
     for i, bar in enumerate(bars):

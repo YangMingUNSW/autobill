@@ -1,0 +1,184 @@
+{#- The year in review (docs/notify.md#年度回顾), for Apple Mail on iPhone: the same look as
+    the month's e-mail (_email.css). Every number of the month's e-mail is counted the same
+    way here, so the twelve months add up to the year. -#}
+{%- macro row(g, small=False, tile=True) -%}
+<div class="row">
+  {% if tile %}<span class="tile{% if small %} sm{% endif %} {{ g.tone }}">{{ g.emoji }}</span>{% endif %}
+  <div class="rbody">
+    <span class="name"><i class="key {{ g.tone }}"></i>{{ g.name }}{% if g.note %}<span class="note">{{ g.note }}</span>{% endif %}</span>
+    <span class="pct">{{ g.share }}</span>
+    <span class="amt num">{{ g.amount }}</span>
+  </div>
+</div>
+{%- endmacro -%}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+{# iOS Mail would otherwise turn amounts, dates and card numbers into blue links #}
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+<meta name="x-apple-disable-message-reformatting">
+<title>{{ r.subject }}</title>
+<style>
+{% include "_email.css" +%}
+  /* the year's own pieces */
+  .stack { display: flex; gap: 2px; height: 10px; border-radius: 5px; overflow: hidden; margin: 2px 0 8px; }
+  .stack i { display: block; min-width: 3px; }
+  .stack .s1 { background: var(--s1); } .stack .s2 { background: var(--s2); }
+  .stack .s3 { background: var(--s3); } .stack .s4 { background: var(--s4); }
+  .stack .other { background: var(--other); }
+  .rows.visits .pct { width: 52px; }
+  /* long shop names: two lines at most, then an ellipsis */
+  .rows.clip .name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+                     overflow: hidden; overflow-wrap: anywhere; line-height: 1.3; }
+  .rows label.row { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .rows .panel .row .rbody { border-top: .5px solid var(--sep); }
+  .rows .chev { font-size: 20px; margin-left: -2px; }
+  .change { margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="preheader">{{ r.preview }}{% for _ in range(40) %}&#8199;&#847;{% endfor %}</div>
+<div class="wrap">
+
+  <div class="eyebrow">AutoBill · 年度回顾</div>
+  <h1>{{ r.year }} 年</h1>
+  <div class="subtitle">{{ r.span }}</div>
+
+  <section class="card">
+    <div class="caption">全年消费</div>
+    <div class="hero">{{ r.spend_total | yuan }}</div>
+    <div class="caption">月均 {{ r.average }} · {{ r.purchases }} 笔消费 · 已扣返现和退款</div>
+    {% if r.change %}<div class="change">{{ r.change }}</div>{% endif %}
+  </section>
+
+  {% if r.trend_shown %}
+  <div class="sh">每个月</div>
+  <section class="card">
+    {{ r.trend_chart }}
+    <div class="caption">{{ r.trend_caption }}</div>
+  </section>
+  {% endif %}
+
+  {% if r.categories %}
+  <div class="sh">花在哪些地方</div>
+  <section class="card">
+    <div class="donut-wrap">{{ r.category_donut }}</div>
+    <div class="rows">
+      {% for g in r.shown_categories %}
+      {{ row(g) }}
+      {% endfor %}
+      {% if r.folded_categories %}
+      <input type="checkbox" id="more-categories" class="acc">
+      <label for="more-categories" class="row">
+        <span class="tile">⋯</span>
+        <div class="rbody">
+          <span class="name"><i class="key other"></i>其余 {{ r.folded_categories|length }} 类<span class="note"><span class="when-closed">轻点展开</span><span class="when-open">轻点收起</span></span></span>
+          <span class="pct">{{ r.folded_share }}</span>
+          <span class="amt num">{{ r.folded_amount }}</span>
+          <span class="chev">›</span>
+        </div>
+      </label>
+      <div class="panel">
+        {% for g in r.folded_categories %}
+        {{ row(g) }}
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    <div class="caption">全部卡合计 · 外币折人民币</div>
+  </section>
+  {% endif %}
+
+  {% if r.merchants %}
+  <div class="sh">花得最多的商户</div>
+  <section class="card">
+    <div class="donut-wrap">{{ r.merchant_donut }}</div>
+    <div class="rows clip">
+      {% for m in r.merchants %}
+      {{ row(m, small=True) }}
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if r.visits %}
+  <div class="sh">去得最多的店</div>
+  <section class="card">
+    <div class="rows visits clip">
+      {% for v in r.visits %}
+      <div class="row">
+        <span class="tile sm {{ v.tone }}">{{ v.emoji }}</span>
+        <div class="rbody">
+          <span class="name">{{ v.name }}</span>
+          <span class="pct">{{ v.count }} 次</span>
+          <span class="amt num">{{ v.amount }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if r.currencies %}
+  <div class="sh">用哪些货币消费</div>
+  <section class="card">
+    <div class="stack" role="img" aria-label="{% for c in r.currencies %}{{ c.name }} {{ c.share }}{% if not loop.last %}，{% endif %}{% endfor %}">
+      {%- for c in r.currencies %}<i class="{{ c.tone }}" style="flex-grow: {{ c.weight }}"></i>{% endfor -%}
+    </div>
+    <div class="rows">
+      {% for c in r.currencies %}
+      {{ row(c, tile=False) }}
+      {% endfor %}
+    </div>
+    <div class="caption">按付款时的币种，折合人民币 · 只算消费</div>
+  </section>
+  {% endif %}
+
+  {% if r.cards %}
+  <div class="sh">各张卡</div>
+  <section class="group">
+    {% for c in r.cards %}
+    <div class="cell">
+      <div class="thumb"><span class="t-bank">{{ c.bank[:1] }}</span><span class="t-num">•• {{ c.last4 }}</span></div>
+      <div class="body">
+        <div class="text">
+          <div class="title">{{ c.label }}</div>
+          <div class="sub">占全年 {{ c.share }}</div>
+        </div>
+        <div class="trail"><div class="amt num">¥{{ c.amount }}</div></div>
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <div class="sh">返现和利息</div>
+  <section class="group">
+    <div class="cell">
+      <span class="tile s3">💰</span>
+      <div class="body">
+        <div class="text"><div class="title">返现</div><div class="sub">已经从全年消费里扣掉</div></div>
+        <div class="trail"><div class="amt num credit">+¥{{ r.rebates_text }}</div></div>
+      </div>
+    </div>
+    <div class="cell">
+      <span class="tile">🏦</span>
+      <div class="body">
+        <div class="text"><div class="title">利息和手续费</div><div class="sub">含分期利息 · 算在全年消费里</div></div>
+        <div class="trail"><div class="amt num">¥{{ r.charges_text }}</div></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    外币按每份账单邮件当天的汇率折合人民币<br>
+    AutoBill 自动生成 · 金额以银行原账单为准<br>
+    生成于 {{ r.generated_at }} · 版本 {{ r.build }}
+  </footer>
+</div>
+</body>
+</html>

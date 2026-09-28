@@ -26,6 +26,7 @@ Self-hosted, rule-based summaries of Chinese credit-card statements. AutoBill re
 - **Read-only mailbox.** Messages are never deleted, moved or marked as read.
 - **Alerts.** An unrecognised e-mail, a statement that fails to parse, a new card or a mailbox login failure sends one alert, never repeated.
 - **Backups.** Each monthly e-mail carries a compressed copy of the database.
+- **Year in review.** `autobill year-review` puts a year's twelve statement months together in the same style: a column per month, categories, top merchants, the shops you go back to, the currencies you paid in and each card. The twelve months add up to the year. Preview only for now.
 
 ## How it works
 ```mermaid
@@ -89,6 +90,7 @@ $env:AUTOBILL_DATA_DIR = "$env:TEMP\autobill-dev"      # scratch data directory
 uv run autobill import-dir tests/fixtures --no-send    # import the samples
 uv run autobill preview-email --cycle 2026-09          # render September's e-mail to HTML
 uv run autobill report --month 2026-08                 # print August's summary
+uv run autobill year-review --year 2026                # the year so far, as text
 ```
 
 An optional `autobill statement` command renders every statement in one uniform layout as HTML and PDF (requires Edge or Chrome).
