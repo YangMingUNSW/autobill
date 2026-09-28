@@ -73,7 +73,8 @@ notifier:
 - pre-commit（M0 建立，配置在 `.pre-commit-config.yaml`；CI 跑同一套）：
   - gitleaks；
   - 身份扫描 `scripts/check_identity.py`：拦截 18 位身份证号、11 位手机号、16 位以上的卡号；
-  - `.eml` 和 `.pdf` **只允许出现在 `tests/fixtures/` 下**，`.db` 一律拦截。
+  - `.eml` 和 `.pdf` **只允许出现在 `tests/fixtures/` 下**，`.db` 一律拦截；
+  - `uv-export`：`uv.lock` 变了就重新生成 `requirements.txt`（见下面的[依赖漏洞提醒](#依赖漏洞提醒)；这一项 CI 不跑）。
 - 身份扫描的几个要点：
   - **先解码再查**：`.eml` 按 MIME 解码，包括编码过的邮件头、套在里面的 `message/rfc822` 和 PDF 附件（按 `%PDF-` 识别）。只搜原始字节的话，base64 正文里的号码是看不到的。
   - **用校验位减少误报**：身份证号要通过末位校验码，卡号要通过 Luhn 校验。真号码一定能通过，Message-ID 这类随机数字串基本通不过。手机号没有校验位，11 位都算。
@@ -90,6 +91,12 @@ notifier:
 - **从数据库往仓库里搬东西**只有一条路：`scripts/export_ai_categories.py`，把 AI 分好的商户导成规则。它只读；带支付渠道字样的名字（国内付给个人的消费，描述里有收款人真名）直接扣下，可能是人名的（两三个汉字，或带汉字且整条就是原始描述）留给作者自己判断。它**认不出拉丁字母写的人名**，所以默认输出仍要扫一眼再粘。判断依据和测试见 [notify.md](notify.md#把-ai-的结论沉淀成规则)。
 - **数据库会作为附件离开服务器**：每月那封账单邮件带一份压缩的数据库，收件人只有作者自己配置的 `to_addr`（见 [notify.md](notify.md#每月备份)）。它落在作者自己的 iCloud 邮箱里，和银行原始账单待在同一个地方，没有引入新的暴露面；不想要就 `backup: {enabled: false}`。
 - 数据库落盘加密靠 BitLocker，再加上文件权限；SQLCipher 作为以后的可选项。
+
+## 依赖漏洞提醒
+- GitHub 的 **Dependabot 安全提醒**已打开（2026-09-29）：依赖里出现已知漏洞时，GitHub 发邮件提醒作者。只开提醒，**不开**自动修复 PR 和版本更新 PR，免得刷屏。
+- GitHub 的依赖图不认 `uv.lock`，也不认 `pyproject.toml` 里的依赖（官方支持的 Python 格式只有 pip 和 Poetry），打开提醒时它识别出的 Python 包是 0 个。所以仓库里放一份 **`requirements.txt`**：pre-commit 的 `uv-export` 从 `uv.lock` 自动生成，只含运行依赖、不带哈希。
+  - **不要手改**。`uv.lock` 变了，提交时钩子会重写它并让这次提交失败，重新 `git add requirements.txt` 再提交即可。
+  - 它只给 GitHub 看；安装、CI 和 Docker 镜像仍然只用 `uv.lock`。
 
 ## 样本与脱敏
 **这是公开仓库。** 测试样本 [`tests/fixtures/`](../tests/fixtures/README.md) 是作者本人的真实账单，2026-09-18 **一次性脱敏**。项目里**没有**脱敏脚本：脱敏不是产品功能。当时用的工具和原件都存在作者本机的仓库外目录里。
