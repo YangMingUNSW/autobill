@@ -78,8 +78,11 @@ REPAYMENT_RE = re.compile(r"还款|BOCNET|转账|银联入账", re.IGNORECASE)
 # offers all come from Visa in Singapore, often without saying rebate: "Visa 26 Apr-Sep FX
 # RewardSGP", "Visa BOC 3PCT F2F MAYSGP", "Visa ApplePay GlocalSGP"
 REBATE_RE = re.compile(r"返现|返消费金|阶梯返|REBA|CASHBACK|REWARD|^VISA.*SGP$", re.IGNORECASE)
-# A shop's row ends with its country code ("ICC SYDNEYAUS"), also when it is a refund.
-SHOP_RE = re.compile(r"[A-Z]{3}$")
+# Money paid in by someone, with no shop: only the payer's name ("张三"), or the company of
+# a payment app ("支付宝（中国）网络技术有限公司"). A shop's refund names the shop and its
+# country ("ICC SYDNEYAUS"); a fee put right says so ("年费减免", "…手续费冲销").
+PAYER_RE = re.compile(r"^[\u4e00-\u9fff]{2,4}$|^(支付宝|财付通).*公司$")
+NOT_A_PAYER_RE = re.compile(r"费|息|冲|退|返|减|免|调")
 
 
 # --- layer 1: PDF -> lines ------------------------------------------------------
@@ -156,7 +159,7 @@ class _Parsed:
 class BocPdfParser(BaseParser):
     bank = "BOC"
     name = "boc_pdf"
-    version = 2  # 2: Visa's offers are rebates, money paid in without a shop a repayment
+    version = 2  # 2: Visa's offers are rebates, money paid in by a payer a repayment
 
     def matches(self, msg: RawMessage) -> bool:
         from_bank = msg.from_addr == SENDER or SUBJECT in msg.subject
@@ -425,11 +428,9 @@ def _classify(description: str, amount: Decimal) -> TxnType:
             return TxnType.REBATE
         if REPAYMENT_RE.search(description):
             return TxnType.REPAYMENT
-        if SHOP_RE.search(description) or "冲销" in description:  # a shop's refund, a reversal
-            return TxnType.REFUND
-        # Money paid in with no shop: the payer's name ("张三"), a payment app ("支付宝（中国）
-        # 网络技术有限公司"); on the author's statements each settled the previous balance.
-        return TxnType.REPAYMENT
+        if PAYER_RE.search(description) and not NOT_A_PAYER_RE.search(description):
+            return TxnType.REPAYMENT  # on the author's statements each paid the last balance
+        return TxnType.REFUND
     if "年费" in description or "手续费" in description:
         return TxnType.FEE
     if "利息" in description:

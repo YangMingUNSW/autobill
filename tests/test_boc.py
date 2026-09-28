@@ -318,12 +318,15 @@ def test_missing_overview_raises_template_changed():
         ("BOCNET", TxnType.REPAYMENT),
         ("张三", TxnType.REPAYMENT),
         ("支付宝（中国）网络技术有限公司", TxnType.REPAYMENT),
-        # a shop's refund names the shop and its country, known to the parser or not
+        # a shop's refund names the shop and its country; a fee put right says so
         ("ICC SYDNEYAUS", TxnType.REFUND),
         ("支付宝CHN", TxnType.REFUND),
         ("上海华程西南国际旅-CHN", TxnType.REFUND),
         ("SOME SHOPTUR", TxnType.REFUND),
-        ("境外 VISA ATM 取现手续费冲销", TxnType.REFUND),  # a fee reversed
+        ("境外 VISA ATM 取现手续费冲销", TxnType.REFUND),
+        ("年费减免", TxnType.REFUND),  # four characters, but not a name
+        ("利息冲正", TxnType.REFUND),
+        ("某某网络科技有限公司", TxnType.REFUND),  # not known to be a payer: as before
     ],
 )
 def test_money_in_types(description, kind):
