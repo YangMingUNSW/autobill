@@ -35,7 +35,7 @@ ai:                                  # AI 分类：规则分不出来的商户�
   auto_classify: true                # run / serve 发报表前自动给新商户分类
   web_search: true                   # 没把握的商户让 AI 联网查（店名 + 城市 + 国家）
   max_searches: 1                    # 每个商户最多搜几次：一次查不到就算了，不为难查的小店多花钱
-  per_run: 20                        # 每次运行最多问几个新商户（控制费用）
+  per_run: 20                        # 每次运行最多问几个新商户（控制费用）；没问完的，账单邮件等下一轮问完再发
 
 backup:                              # 每月那封邮件带一份数据库备份，见 docs/notify.md#每月备份
   enabled: true                      # 关掉就不带附件，也不在服务器上留副本
