@@ -16,7 +16,8 @@ hand. A rule in rules.yaml always wins over a stored answer.
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass, field
+from collections import Counter
+from dataclasses import dataclass, field, replace
 
 from autobill.categorize import UNCATEGORISED, Rules
 from autobill.config import AiConfig
@@ -34,6 +35,7 @@ from autobill.suggest import (
 BATCH = 10  # merchants per step-1 request: the model thinks at length about each
 USE_UNSEARCHED = {"high"}
 USE_SEARCHED = {"high", "medium"}
+CHINA = {"CN", "CHN"}  # the country code a location ends with at home
 
 
 @dataclass
@@ -51,10 +53,11 @@ def choosable(categories: list[str]) -> list[str]:
 
 def pending_merchants(conn: sqlite3.Connection, rules: Rules) -> list[MerchantInfo]:
     """Uncategorised purchase merchants never asked before, the most frequent first.
-    Only the name, the printed location and the currency are kept."""
+    Only the name, the printed location and the currency paid in are kept."""
     asked = {r[0] for r in conn.execute("SELECT merchant FROM ai_categories")}
     found: dict[str, MerchantInfo] = {}
     counts: dict[str, int] = {}
+    paid: dict[str, list[str]] = {}
     rows = conn.execute(
         "SELECT description_raw, merchant, merchant_location, currency, orig_currency"
         " FROM transactions WHERE txn_type = ?",
@@ -68,8 +71,23 @@ def pending_merchants(conn: sqlite3.Connection, rules: Rules) -> list[MerchantIn
             continue
         counts[name] = counts.get(name, 0) + 1
         location = r["merchant_location"] if r["merchant"] else None  # else it is in the name
-        found.setdefault(name, MerchantInfo(name, location, r["orig_currency"] or r["currency"]))
-    return sorted(found.values(), key=lambda m: (-counts[m.name], m.name))
+        found.setdefault(name, MerchantInfo(name, location))
+        paid.setdefault(name, []).append(r["orig_currency"] or r["currency"])
+    merchants = [replace(m, currency=paid_in(paid[m.name], m.location)) for m in found.values()]
+    return sorted(merchants, key=lambda m: (-counts[m.name], m.name))
+
+
+def paid_in(currencies: list[str], location: str | None) -> str | None:
+    """The currency a shop charged, as far as the statements tell. A card kept in yuan books
+    a purchase abroad in CNY and shows nothing else (BOC): "CNY" with "AUS" made the model
+    turn down the Sydney shop it had found, so then no currency is given. A foreign one
+    seen on any of the shop's purchases is taken first."""
+    foreign = Counter(c for c in currencies if c and c != "CNY")
+    if foreign:
+        return foreign.most_common(1)[0][0]
+    if location and location.split()[-1].upper() not in CHINA:
+        return None  # booked in yuan abroad: what the shop charged is not known
+    return "CNY" if currencies else None
 
 
 def classify_merchants(

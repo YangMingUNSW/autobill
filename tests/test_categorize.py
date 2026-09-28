@@ -55,6 +55,22 @@ def test_built_in_rules_equal_the_example_file():
         ("网上消费 网银在线，京东商城-Apple产品京东自营旗舰店", "网购"),
         ("支付宝-SUMITOMO MITSUI CARD COMPANY ,L", "微信/支付宝（未细分）"),  # no "SUICA" inside
         ("境外消费 Sydney Park Hotel Newtown AU", UNCATEGORISED),  # an Australian pub, not a hotel
+        # the author's 2025 statements: kinds of spending no category fitted (2026-09-29)
+        ("NSW RENTAL BONDPARRAMATTAAUS", "住房"),
+        ("SERVICE NSW 4018SYDNEY", "政府缴费"),
+        ("SDRO INFRNGMNT PAYMEMAITLANDAUS", "政府缴费"),  # a fine
+        ("UNSW SYDNEY", "教育"),
+        ("BLUE STAR HAIR DESIG", "生活服务"),
+        ("AUSTRALIA POST SYDNEY", "生活服务"),
+        ("US VISA APPLICATION FEFAIRFAX", "旅行"),  # visas are travel, as 签证 is
+        ("BB-UKVILONDON", "旅行"),  # UK Visas and Immigration
+        ("飒拉商业（上海）有限公司", "购物"),  # Zara in China
+        ("GINZAROFUTO JAPAN", "购物"),  # Loft, romanised
+        ("NetEase UU Game Booster Hongkong", "娱乐"),
+        ("CANTALOUPE SYSTEMSAUS", "餐饮"),  # vending machines
+        ("NIPPON RENT-A-CAR HOKKAIDO", UNCATEGORISED),  # RENT is not a keyword: car hire
+        ("THE LOFT SYDNEY", UNCATEGORISED),  # a bar, not Loft
+        ("UNSW ROUNDHOUSE BAR", "餐饮"),  # the bar on campus, not 教育
     ],
 )
 def test_default_rules(description, category):

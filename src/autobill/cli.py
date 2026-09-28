@@ -578,19 +578,26 @@ def classify(
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="Show the answers without saving them.")
     ] = False,
+    searches: Annotated[
+        int | None,
+        typer.Option(
+            "--searches", min=1, max=10, help="Web searches per merchant (default ai.max_searches)."
+        ),
+    ] = None,
 ) -> None:
     """Classify merchants the rules miss with the configured AI (see docs/notify.md)."""
     conn = _db()
     config = load_config()
+    ai = config.ai if searches is None else config.ai.model_copy(update={"max_searches": searches})
     try:
-        suggester = get_suggester(config.ai)
+        suggester = get_suggester(ai)
     except SuggesterUnavailable as exc:
         typer.echo(f"{exc}。")
         raise typer.Exit(1) from None
     if retry and not dry_run:
         typer.echo(f"重新询问之前没把握的 {forget_unsure(conn)} 个商户。")
     result = classify_merchants(
-        conn, suggester, load_rules(conn), config.ai, limit=limit, save=not dry_run
+        conn, suggester, load_rules(conn), ai, limit=limit, save=not dry_run
     )
     if not result.verdicts and result.error is None:
         typer.echo("没有需要 AI 分类的新商户。")
