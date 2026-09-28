@@ -26,7 +26,7 @@ Self-hosted, rule-based summaries of Chinese credit-card statements. AutoBill re
 - **Read-only mailbox.** Messages are never deleted, moved or marked as read.
 - **Alerts.** An unrecognised e-mail, a statement that fails to parse, a new card or a mailbox login failure sends one alert, never repeated.
 - **Backups.** Each monthly e-mail carries a compressed copy of the database.
-- **Year in review.** `autobill year-review` puts a year's twelve statement months together in the same style: a column per month, categories, top merchants, the shops you go back to, the currencies you paid in and each card. The twelve months add up to the year. Preview only for now.
+- **Year in review.** Once a year, when January's statements have brought in December's spending, one e-mail sums up the calendar year in the same style: a column per month, categories, top merchants, the shops you go back to, the currencies you paid in and each card. `autobill year-review` previews it any time.
 
 ## How it works
 ```mermaid
