@@ -61,7 +61,7 @@ FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表�
 - **M7d 起**：`uncategorised [--cycle 2026-09] [--limit 20]` 列出还没分类的商户，生成可以复制进 `rules.yaml` 的 YAML。
 - **年度回顾（#38、#40）**：`year-review --year 2026 [-o 文件] [--send]` 把一年的年度回顾写成 HTML；不带 `-o` 就在终端打印纯文本；`--send` 立刻发一封（不算自动发的那封）。`run` / `serve` 在第二年 1 月那封月度邮件收齐发出后自动发，一年一次，见 [notify.md](notify.md#年度回顾)。
 - **`resend --cycle 2026-08`**（2026-09-20）：把某个账单月的邮件按现在的数据重算后再发一封，并进同一个对话；不改账单的已发送状态。用于 `reparse` 修正金额或 AI 补了分类之后要最新版（见 [notify.md](notify.md#账单月邮件)）。
-- **`classify [--limit 50] [--dry-run] [--retry]`**（2026-09-20）：让配置好的 AI 给规则分不出来的商户分类，结果存进数据库、直接生效；`run` / `serve` 在发报表前也会自动做（见 [notify.md](notify.md#ai-分类)）。
+- **`classify [--limit 50] [--dry-run] [--retry]`**（2026-09-20）：让配置好的 AI 给规则分不出来的商户分类，结果存进数据库、直接生效；`run` / `serve` 在发报表前也会自动做，新商户这一轮没问完时账单邮件等到问完那一轮再发（#42，见 [notify.md](notify.md#ai-分类)）。
 
 **M3 的处理流程**（`autobill/pipeline.py`）：
 1. 读出 `RawMessage`；Message-ID 已经在 `emails` 表里的，直接跳过（`SKIPPED`）。所以**同一个目录导入两次，数据库不变**。

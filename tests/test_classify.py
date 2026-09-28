@@ -5,7 +5,7 @@ from dataclasses import fields
 from pathlib import Path
 
 import pytest
-from fakes import FakeFrankfurter
+from fakes import FakeFrankfurter, FakeIMAP, FakeSMTP
 from typer.testing import CliRunner
 
 from autobill import fx as fx_module
@@ -260,3 +260,79 @@ def test_classify_command(cli_env):
 def test_classify_without_provider(isolated_data_dir):
     result = runner.invoke(app, ["classify"])
     assert result.exit_code == 1 and "还没有配置 AI" in result.output
+
+
+# --- the month's e-mails wait for the AI ------------------------------------------------
+
+
+@pytest.fixture
+def run_env(isolated_data_dir, monkeypatch):
+    """The sample statements imported and not reported yet, an empty mailbox, fake SMTP."""
+    monkeypatch.setattr(fx_module, "http_fetch", FakeFrankfurter(RATES))
+    monkeypatch.setattr("smtplib.SMTP", FakeSMTP)
+    monkeypatch.setattr("imaplib.IMAP4_SSL", FakeIMAP.factory({"AutoBill": (7, {})}))
+    monkeypatch.setenv("AUTOBILL_IMAP_PASSWORD", "app-password")
+    FakeSMTP.instances.clear()
+    conn = connect(isolated_data_dir / "autobill.db")
+    for mail in DirectorySource(FIXTURES).iter_new():
+        process(conn, isolated_data_dir, mail)
+    yield isolated_data_dir, conn
+    suggest._PROVIDERS.pop("fake", None)
+
+
+MAIL_CONFIG = """mail_fetcher:
+  enabled: true
+  imap_server: imap.example.invalid
+  username: me@icloud.com
+  folders: [AutoBill]
+notifier:
+  smtp_report:
+    enabled: true
+    smtp_server: smtp.example.invalid
+    smtp_port: 587
+    security: starttls
+    username: me@icloud.com
+    to_addr: me@icloud.com
+"""
+
+
+def write_config(data_dir, per_run: int) -> None:
+    ai = f"""ai:
+  provider: fake
+  per_run: {per_run}
+"""
+    (data_dir / "config.yaml").write_text(MAIL_CONFIG + ai, encoding="utf-8")
+
+
+def reports():
+    return [m for s in FakeSMTP.instances for m in s.sent if "信用卡账单" in str(m["Subject"])]
+
+
+def test_the_month_waits_until_the_ai_has_asked_every_new_merchant(run_env):
+    """A batch of history brings more new merchants than one run asks (ai.per_run): the
+    e-mails wait for the runs after, so they never go out full of 未分类."""
+    data_dir, conn = run_env
+    per_run = 10  # the samples bring 24 new merchants: three runs
+    pending = len(pending_merchants(conn, load_rules(conn)))
+    assert pending > per_run
+    write_config(data_dir, per_run)
+    suggest.register("fake", lambda c: FakeModel())  # sure of nothing: all end up 其他
+    runs = 0
+    while True:
+        runs += 1
+        result = runner.invoke(app, ["run"])
+        assert result.exit_code == 0, result.output
+        if "账单邮件等全部分完再发" not in result.output:
+            break
+        assert reports() == []  # held while merchants are waiting
+    assert runs == -(-pending // per_run)  # the run that asks the last ones sends
+    assert pending_merchants(conn, load_rules(conn)) == [] and reports()
+
+
+def test_an_ai_that_fails_never_holds_the_month_back(run_env):
+    data_dir, conn = run_env
+    write_config(data_dir, 5)
+    suggest.register("fake", lambda c: FakeModel(fail_on_search=True))
+    result = runner.invoke(app, ["run"])
+    assert "AI 分类没有完成" in result.output and "账单邮件等" not in result.output
+    assert reports()  # the month goes out; the AI error is alerted

@@ -263,9 +263,16 @@ def _run_once(send: bool = True, rescan: bool = False) -> int:
         if send:
             _send_alerts(conn)  # may fail too when both use the same password
         return 1
-    _auto_classify(conn, config)
+    waiting = _auto_classify(conn, config)
     if not send:
         typer.echo("按 --no-send 的要求，没有发送报表和提醒邮件。")
+        return 0
+    if waiting:  # the e-mails would show these merchants as 未分类: send them once all are asked
+        typer.echo(
+            f"AI 分类还有 {waiting} 个新商户排着队（每轮问 {config.ai.per_run} 个）："
+            "账单邮件等全部分完再发。"
+        )
+        _send_alerts(conn)
         return 0
     try:
         _send_reports(conn)
@@ -276,17 +283,22 @@ def _run_once(send: bool = True, rescan: bool = False) -> int:
     return 0
 
 
-def _auto_classify(conn, config) -> None:
+def _auto_classify(conn, config) -> int:
     """Let the AI classify new merchants before the reports are built (ai.auto_classify).
-    A failure is alerted once and never stops the run: those merchants stay 未分类."""
+    A failure is alerted once and never stops the run: those merchants stay 未分类.
+
+    Returns how many new merchants are still waiting for a later run (ai.per_run) when
+    this run asked some and went well; the reports wait for them, so a batch of history
+    never goes out full of 未分类 (docs/notify.md#ai-分类). 0 when the AI is off, failed
+    or asked nothing: the reports are never held by an AI that is not getting anywhere."""
     if not (config.ai.provider and config.ai.auto_classify):
-        return
+        return 0
     try:
         suggester = get_suggester(config.ai)
     except SuggesterUnavailable as exc:
         typer.echo(f"AI 分类没有完成：{exc}")
         alerts.record(conn, [alerts.ai(str(exc))])
-        return
+        return 0
     result = classify_merchants(conn, suggester, load_rules(conn), config.ai)
     if result.verdicts:
         line = f"AI 分类：问了 {len(result.verdicts)} 个新商户，分好 {len(result.used)} 个"
@@ -294,8 +306,9 @@ def _auto_classify(conn, config) -> None:
     if result.error is not None:
         typer.echo(f"AI 分类没有完成：{result.error}")
         alerts.record(conn, [alerts.ai(str(result.error))])
-    else:
-        alerts.clear(conn, "ai", "error")
+        return 0
+    alerts.clear(conn, "ai", "error")
+    return result.left if result.verdicts else 0
 
 
 def _send_alerts(conn) -> None:
