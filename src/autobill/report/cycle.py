@@ -35,6 +35,7 @@ from email.utils import formatdate, make_msgid
 from jinja2 import Environment, PackageLoader, select_autoescape
 from markupsafe import Markup, escape
 
+from autobill import build_label
 from autobill.categorize import OTHER, UNCATEGORISED, Rules, load_rules
 from autobill.config import PortfolioCard
 from autobill.fx import FxRates
@@ -159,6 +160,7 @@ class CycleReport:
     days: list[DayGroup]  # every card's transactions in one list, by date
     transaction_count: int
     generated_at: str
+    build: str  # "0.2.0 (15fe0d7)": which version made this e-mail, in its footer
     spend_change: str = ""  # "比 9 月 +12%"; empty when last month has no statements
     trend: list[MonthBar] = field(default_factory=list)  # oldest first, this month last
 
@@ -627,6 +629,7 @@ def build_cycle_report(
         days=days,
         transaction_count=count,
         generated_at=(now or datetime.now(CHINA)).strftime("%Y-%m-%d %H:%M"),
+        build=build_label(),
         spend_change=_change(spend, trend[-2].value, before),
         trend=trend,
     )
@@ -679,7 +682,11 @@ def plain_text(report: CycleReport) -> str:
             f"{s.name} {s.share} ¥{s.amount}" + (f"（{s.note}）" if s.note else "")
             for s in report.segments
         ]
-    out += ["", f"全部 {report.transaction_count} 笔流水见 HTML 版本。"]
+    out += [
+        "",
+        f"全部 {report.transaction_count} 笔流水见 HTML 版本。",
+        f"生成于 {report.generated_at} · 版本 {report.build}",
+    ]
     return "\n".join(out)
 
 

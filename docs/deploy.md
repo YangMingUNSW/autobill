@@ -59,7 +59,8 @@ docker compose up -d                               # 启动：立刻跑一次，
 | 看运行记录 | `docker compose logs --tail 50`（持续看：`-f`） |
 | 看在不在运行 | `docker compose ps` |
 | **更新到最新版** | `docker compose pull && docker compose up -d` |
-| 退回某个版本 | 把 `compose.yaml` 里的 `:latest` 改成版本号（如 `:0.2.0`），再 `docker compose up -d` |
+| 看跑的是哪个版本 | 看月度邮件最底下一行，或者 `docker compose run --rm autobill --version`，输出 `autobill 0.2.0 (15fe0d7)`。括号里是构建镜像的提交号，和 GitHub 上 main 最新的提交一样就是最新版 |
+| 退回某个版本 | 把 `compose.yaml` 里的 `:latest` 改成版本号（如 `:0.2.0`）或某次提交（如 `:sha-8271652`，main 上每次合并都有），再 `docker compose up -d` |
 | 马上跑一次 | `docker compose restart`（重启后会立刻运行一次） |
 | 程序修好后补处理失败的账单 | `docker compose run --rm autobill run --rescan` |
 | 程序修好后重新解析有警告的账单 | `docker compose pull && docker compose up -d`，再 `docker compose run --rm autobill reparse` |

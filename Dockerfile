@@ -31,5 +31,10 @@ ENV AUTOBILL_DATA_DIR=/data PATH="/opt/venv/bin:$PATH" PYTHONUNBUFFERED=1
 WORKDIR /data
 VOLUME ["/data"]
 
+# The commit the image is built from (GitHub Actions passes it), for `autobill --version`
+# and the e-mail's footer. Last, so a new commit changes nothing above it.
+ARG AUTOBILL_REVISION=""
+ENV AUTOBILL_REVISION=$AUTOBILL_REVISION
+
 ENTRYPOINT ["autobill"]
 CMD ["serve"]

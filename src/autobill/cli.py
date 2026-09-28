@@ -11,7 +11,7 @@ from typing import Annotated
 
 import typer
 
-from autobill import __version__
+from autobill import build_label
 from autobill.categorize import load_rules
 from autobill.classify import classify_merchants, forget_unsure
 from autobill.config import data_dir, load_config
@@ -47,7 +47,7 @@ app = typer.Typer(
 
 def _print_version(value: bool) -> None:
     if value:
-        typer.echo(f"autobill {__version__}")
+        typer.echo(f"autobill {build_label()}")
         raise typer.Exit()
 
 

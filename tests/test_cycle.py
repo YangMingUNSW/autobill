@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from fakes import FakeFrankfurter, FakeSMTP
 
+from autobill import __version__
 from autobill.categorize import load_rules
 from autobill.config import FxConfig, PortfolioCard, SmtpReportConfig
 from autobill.fetch.source import DirectorySource
@@ -230,6 +231,15 @@ def test_the_email_is_one_month_report(db):
     assert "本月合计应还" in html
     assert '<div class="sh">还款日</div>' not in html  # the card rows carry the due date
     assert "新账单" not in html  # every card is in the one report, new or not
+
+
+def test_the_footer_names_the_version_that_made_the_email(db, monkeypatch):
+    """So the e-mail itself tells whether the server runs the newest version."""
+    monkeypatch.setenv("AUTOBILL_REVISION", "15fe0d7e7a0b0e3a4139399458d0e06e74ef11c4")
+    conn, fx = db
+    msg = email(conn, fx)
+    for body in ("html", "plain"):
+        assert f"版本 {__version__} (15fe0d7)" in msg.get_body((body,)).get_content(), body
 
 
 # --- sending: one e-mail per month per run, one conversation per month ---------------
