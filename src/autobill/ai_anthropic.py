@@ -55,6 +55,10 @@ HINTS = {
     "健身": "gyms and fitness",
     "烟酒": "liquor stores and tobacconists",
     "手续费": "bank service fees",
+    "住房": "rent, rental bonds, real estate agents, strata",
+    "教育": "universities, schools, courses, exams",
+    "政府缴费": "government services, licences, registrations, fines, taxes",
+    "生活服务": "hairdressers, barbers, beauty and nail salons, laundry, post offices, couriers",
 }
 
 SYSTEM = """You classify credit-card purchases by merchant for a personal budget.
@@ -69,6 +73,8 @@ Rules:
 - In Australia "<name> HOTEL" is usually a pub (food and drink), not accommodation.
 - Payment prefixes (SQ *, KPAY*, ZLR*, SMP*, PAYPAL *, 财付通, 支付宝, 微信支付) are not
   the merchant; the name after them is.
+- "<name> PTY LTD" is the Australian company behind a shop. When a search finds only the
+  company register, look for the shop it trades as, near the location given.
 - confidence: "high" when you know the merchant or its name says what it is; "medium"
   when a web search found it or it is very likely; "low" otherwise.
 - reason: one short sentence in Simplified Chinese, e.g. "札幌的烤肉店（网上查到）".

@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 from autobill import fx as fx_module
 from autobill import suggest
 from autobill.categorize import UNCATEGORISED, load_rules
-from autobill.classify import classify_merchants, forget_unsure, pending_merchants
+from autobill.classify import classify_merchants, forget_unsure, paid_in, pending_merchants
 from autobill.cli import _auto_classify, app
 from autobill.config import AiConfig, Config, FxConfig
 from autobill.fetch.source import DirectorySource
@@ -86,6 +86,35 @@ def test_the_model_learns_only_name_location_and_currency(db):
         assert m.currency is None or (len(m.currency) == 3 and m.currency.isupper())
     categorised = {"SUKIYA", "Lotus Hotpot Buffet"}  # rules catch these: never sent
     assert not categorised & {m.name for m in pending}
+
+
+@pytest.mark.parametrize(
+    ("currencies", "location", "shown"),
+    [
+        (["AUD"], "AUS", "AUD"),
+        (["CNY", "AUD", "AUD"], "AUS", "AUD"),  # booked in yuan once, in dollars twice
+        (["CNY"], "AUS", None),  # a yuan card abroad (BOC): what the shop charged is unknown
+        (["CNY"], "SYDNEY AU", None),
+        (["CNY"], "CHN", "CNY"),
+        (["CNY"], None, "CNY"),  # no location printed: a shop at home
+        (["JPY"], None, "JPY"),
+    ],
+)
+def test_the_currency_is_what_the_shop_charged(currencies, location, shown):
+    assert paid_in(currencies, location) == shown
+
+
+def test_a_shop_abroad_booked_in_yuan_is_sent_without_a_currency(db):
+    """ "CNY" with "AUS" made the model turn down the Sydney shop it had found."""
+    abroad = next(
+        m for m in pending_merchants(db, load_rules(db)) if m.location and m.currency != "CNY"
+    )
+    db.execute(
+        "UPDATE transactions SET currency = 'CNY', orig_currency = NULL WHERE merchant = ?",
+        (abroad.name,),
+    )
+    again = {m.name: m for m in pending_merchants(db, load_rules(db))}[abroad.name]
+    assert (again.location, again.currency) == (abroad.location, None)
 
 
 def test_sure_answers_are_used_and_the_unsure_are_searched(db):
@@ -255,6 +284,16 @@ def test_classify_command(cli_env):
     assert "分好 1 个" in result.output and stored(conn)[first][0] == "餐饮"
     listed = runner.invoke(app, ["uncategorised", "--limit", "500"]).output
     assert first not in listed  # classified now
+
+
+def test_classify_can_search_more_this_time(cli_env):
+    """A retry by hand may look harder than the runs do (ai.max_searches, default 1)."""
+    searches = []
+    suggest.register("fake", lambda c: searches.append(c.max_searches) or FakeModel())
+    runner.invoke(app, ["classify", "--dry-run", "--limit", "1", "--searches", "3"])
+    runner.invoke(app, ["classify", "--dry-run", "--limit", "1"])
+    assert searches == [3, 1]
+    assert runner.invoke(app, ["classify", "--searches", "11"]).exit_code != 0  # at most 10
 
 
 def test_classify_without_provider(isolated_data_dir):
