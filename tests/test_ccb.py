@@ -316,3 +316,21 @@ def test_rebates_are_rebates_not_refunds():
         "Visa 26 Apr-Sep FX RewardCashback",
         "CCB CXMUSE 1pct Rebate",
     }
+
+
+@pytest.mark.parametrize(
+    ("description", "kind"),
+    [
+        # paid in from another bank's card: it settled the previous balance with a 还款 row
+        ("银联入账 张三 0009", TxnType.REPAYMENT),
+        ("手机银行 按卡转账还款 张三", TxnType.REPAYMENT),
+        ("CCB CXMUSE 1pct Rebate", TxnType.REBATE),
+        ("2025年龙卡安心用返现活动", TxnType.REBATE),
+        ("银联入账", TxnType.REFUND),  # no payer: a few yuan, not known what it is
+        ("某某商户", TxnType.REFUND),
+    ],
+)
+def test_money_in_types(description, kind):
+    from autobill.parse.ccb import _classify
+
+    assert _classify(description, Decimal("-12.34")) == kind

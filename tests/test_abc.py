@@ -250,6 +250,28 @@ def test_cash_and_interest_groups(group, text, kind):
     assert bool(statement.warnings) == (kind == TxnType.ADJUSTMENT)  # only unknowns warn
 
 
+@pytest.mark.parametrize(
+    ("text", "kind"),
+    [
+        # UnionPay's cashback is in the 还款 group too (the author's 2025-07 to 2026 statements)
+        ("银联入账 农行银联信用卡25年3季度境外笔笔返1%", TxnType.REBATE),
+        ("银联入账 银联境外25年4季度境外首笔8.8元返现", TxnType.REBATE),
+        ("银联入账 农行信用卡银联手机Pay笔笔1%返", TxnType.REBATE),
+        ("银联入账 张三/付款尾号:0009/", TxnType.REPAYMENT),
+        ("银联入账 张三/付款尾号:0009/财付通信用卡还款", TxnType.REPAYMENT),
+        ("卡卡转账 张三", TxnType.REPAYMENT),
+        ("财付通信用卡还款", TxnType.REPAYMENT),
+    ],
+)
+def test_repayment_group_holds_unionpay_cashback(text, kind):
+    from autobill.parse.abc import _Statement
+
+    statement = _Statement.__new__(_Statement)
+    statement.warnings = []
+    assert statement._classify("还款", text)[0] == kind
+    assert statement.warnings == []
+
+
 # --- the template until June 2025 (docs/banks/abc.md §11) -----------------------------
 
 

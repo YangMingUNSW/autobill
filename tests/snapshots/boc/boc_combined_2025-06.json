@@ -1173,7 +1173,7 @@
     "source_message_id": "<608406903.1750823068673.JavaMail.bcsp@P1BCSPPL01>",
     "source_sha256": "7f954efc47ae31ec25979e2c866d4a048e0108931029a6a2016c7bcee6297a46",
     "parser_name": "boc_pdf",
-    "parser_version": 1
+    "parser_version": 2
   },
   {
     "bank": "BOC",
@@ -3169,6 +3169,6 @@
     "source_message_id": "<608406903.1750823068673.JavaMail.bcsp@P1BCSPPL01>",
     "source_sha256": "7f954efc47ae31ec25979e2c866d4a048e0108931029a6a2016c7bcee6297a46",
     "parser_name": "boc_pdf",
-    "parser_version": 1
+    "parser_version": 2
   }
 ]

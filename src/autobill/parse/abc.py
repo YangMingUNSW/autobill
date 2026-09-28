@@ -104,7 +104,7 @@ class _Row:
 class AbcHtmlParser(BaseParser):
     bank = "ABC"
     name = "abc_html"
-    version = 2  # 2: the template until June 2025 as well
+    version = 3  # 2: the template until June 2025 as well; 3: UnionPay's cashback
 
     def matches(self, msg: RawMessage) -> bool:
         from_bank = msg.from_addr.endswith("@" + SENDER_DOMAIN) or SUBJECT in msg.subject
@@ -359,6 +359,10 @@ class _Statement:
             if "自动购汇" in text:
                 rate = FX_RATE_RE.search(text)
                 return TxnType.FX_TRANSFER, Decimal(rate.group(1)) if rate else None, None
+            if text.startswith("银联入账") and "返" in text:
+                # UnionPay's cashback is booked as a payment in: "银联入账 农行银联信用卡25年3季度
+                # 境外笔笔返1%" is a rebate, "银联入账 张三/付款尾号:0009/" a repayment (§6)
+                return TxnType.REBATE, None, None
             return TxnType.REPAYMENT, None, None
         if group == "消费":
             return TxnType.PURCHASE, None, None

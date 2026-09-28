@@ -184,5 +184,5 @@
   "source_message_id": "<6A97F3BE.001165.85910@HQxPVL-MAILDS-A12>",
   "source_sha256": "bbac3495b87fb6862739d0e8c85781415691a90983762aeba3eae86153f3161b",
   "parser_name": "abc_html",
-  "parser_version": 2
+  "parser_version": 3
 }

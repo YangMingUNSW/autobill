@@ -6,9 +6,9 @@
 
 | 代码 | 银行 | 发件人 | 主题 | 正文 / 附件特征 | 格式 | DKIM | 零欠款时是否仍发账单 | 解析器 |
 |---|---|---|---|---|---|---|---|---|
-| ABC | 中国农业银行 | `e-statement@creditcard.abchina.com.cn` | 中国农业银行金穗信用卡电子对账单 | "您的信用卡账户信息""账务说明""交易明细"；2025 年 6 月以前的旧模板是"您的信用卡账户信息""【账务明细】""【交易明细】"（[abc.md §11](abc.md#11-旧模板2025-年-6-月以前)） | 单一 `text/html`（UTF-8，base64） | ✅ `d=creditcard.abchina.com.cn`，`h=Date:From:To`，relaxed | 未知 | `abc_html` v2 |
-| CCB | 中国建设银行 | `service@vip.ccb.com` | 中国建设银行信用卡电子账单 | "龙卡信用卡对账单""【交易明细】" | `multipart/mixed` → `text/html`（UTF-8，base64） | ❌ **无签名**（`dkim=none`） | 未知 | `ccb_html` v1 |
-| BOC | 中国银行 | `boczhangdan@bankofchina.com` | 中国银行信用卡电子账单 | HTML 注释 `账单合并为pdf模板`；PDF 附件 `中国银行信用卡电子合并账单YYYY年MM月账单.PDF` | `multipart/mixed` → HTML 通知 + `application/octet-stream` PDF | ✅ `d=bankofchina.com`，**simple/simple**（对任何改动都敏感） | ✅ 会发（实测：零欠款，到期还款日为空） | `boc_pdf` v1 |
+| ABC | 中国农业银行 | `e-statement@creditcard.abchina.com.cn` | 中国农业银行金穗信用卡电子对账单 | "您的信用卡账户信息""账务说明""交易明细"；2025 年 6 月以前的旧模板是"您的信用卡账户信息""【账务明细】""【交易明细】"（[abc.md §11](abc.md#11-旧模板2025-年-6-月以前)） | 单一 `text/html`（UTF-8，base64） | ✅ `d=creditcard.abchina.com.cn`，`h=Date:From:To`，relaxed | 未知 | `abc_html` v3 |
+| CCB | 中国建设银行 | `service@vip.ccb.com` | 中国建设银行信用卡电子账单 | "龙卡信用卡对账单""【交易明细】" | `multipart/mixed` → `text/html`（UTF-8，base64） | ❌ **无签名**（`dkim=none`） | 未知 | `ccb_html` v2 |
+| BOC | 中国银行 | `boczhangdan@bankofchina.com` | 中国银行信用卡电子账单 | HTML 注释 `账单合并为pdf模板`；PDF 附件 `中国银行信用卡电子合并账单YYYY年MM月账单.PDF` | `multipart/mixed` → HTML 通知 + `application/octet-stream` PDF | ✅ `d=bankofchina.com`，**simple/simple**（对任何改动都敏感） | ✅ 会发（实测：零欠款，到期还款日为空） | `boc_pdf` v2 |
 
 说明：
 - 识别时发件人、主题、正文特征三者都要看。原因见 [fetcher.md](../fetcher.md#银行识别)：转发后发件人和主题都可能变。

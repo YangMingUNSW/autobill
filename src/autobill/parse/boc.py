@@ -74,8 +74,12 @@ COUNTRY_SUFFIXES = set(
     "VNM PHL ARE".split()
 )
 REPAYMENT_RE = re.compile(r"还款|BOCNET|转账|银联入账", re.IGNORECASE)
-# "VISA BOC ZJ1PCT REBATESGP", "…返消费金1%活动", "中行银联境外消费阶梯返活动"
-REBATE_RE = re.compile(r"返现|返消费金|阶梯返|REBA|CASHBACK", re.IGNORECASE)
+# "VISA BOC ZJ1PCT REBATESGP", "…返消费金1%活动", "中行银联境外消费阶梯返活动"; Visa's own
+# offers all come from Visa in Singapore, often without saying rebate: "Visa 26 Apr-Sep FX
+# RewardSGP", "Visa BOC 3PCT F2F MAYSGP", "Visa ApplePay GlocalSGP"
+REBATE_RE = re.compile(r"返现|返消费金|阶梯返|REBA|CASHBACK|REWARD|^VISA.*SGP$", re.IGNORECASE)
+# A shop's row ends with its country code ("ICC SYDNEYAUS"), also when it is a refund.
+SHOP_RE = re.compile(r"[A-Z]{3}$")
 
 
 # --- layer 1: PDF -> lines ------------------------------------------------------
@@ -152,7 +156,7 @@ class _Parsed:
 class BocPdfParser(BaseParser):
     bank = "BOC"
     name = "boc_pdf"
-    version = 1
+    version = 2  # 2: Visa's offers are rebates, money paid in without a shop a repayment
 
     def matches(self, msg: RawMessage) -> bool:
         from_bank = msg.from_addr == SENDER or SUBJECT in msg.subject
@@ -421,7 +425,11 @@ def _classify(description: str, amount: Decimal) -> TxnType:
             return TxnType.REBATE
         if REPAYMENT_RE.search(description):
             return TxnType.REPAYMENT
-        return TxnType.REFUND
+        if SHOP_RE.search(description) or "冲销" in description:  # a shop's refund, a reversal
+            return TxnType.REFUND
+        # Money paid in with no shop: the payer's name ("张三"), a payment app ("支付宝（中国）
+        # 网络技术有限公司"); on the author's statements each settled the previous balance.
+        return TxnType.REPAYMENT
     if "年费" in description or "手续费" in description:
         return TxnType.FEE
     if "利息" in description:

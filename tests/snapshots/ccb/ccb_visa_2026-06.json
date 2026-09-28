@@ -1412,5 +1412,5 @@
   "source_message_id": "<2002138693.1541991781124784795.JavaMail.ncismigbat@d518cidplap0001>",
   "source_sha256": "3130b3a1ca94dd2a2e43b42e2958ad1ad546207091bf57d985221e95652534d4",
   "parser_name": "ccb_html",
-  "parser_version": 1
+  "parser_version": 2
 }
