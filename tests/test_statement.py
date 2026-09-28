@@ -58,7 +58,7 @@ def render(conn, fx, account, statement_date=None):
 def test_every_sample_renders_with_every_transaction(db):
     conn, fx = db
     all_bills = bills(conn)
-    assert len(all_bills) == 8
+    assert len(all_bills) == 9
     for bill in all_bills:
         html = render_statement_html(bill, fx, load_rules(), NOW)
         lines = re.findall(r'data-line="(\d+)"', html)
@@ -246,7 +246,8 @@ def test_statement_all_writes_one_file_per_bill(cli_env, tmp_path):
     result = runner.invoke(app, ["statement", "--all", "--no-pdf", "-o", str(out)])
     assert result.exit_code == 0, result.output
     files = sorted(p.relative_to(out).as_posix() for p in out.rglob("*.html"))
-    assert len(files) == 8 and "ABC-0003/2026-09-16.html" in files
+    assert len(files) == 9 and "ABC-0003/2026-09-16.html" in files
+    assert "ABC-0001/2025-06-01.html" in files  # the template until June 2025
     assert "BOC-0006/2025-06-22.html" in files
 
 

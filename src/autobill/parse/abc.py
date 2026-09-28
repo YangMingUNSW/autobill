@@ -8,6 +8,12 @@ Sign conventions inside one ABC e-mail (all converted to ours, docs/data-model.m
   * account information: debt is negative   -> only used as a cross-check
   * summary block ("账务说明"): all positive  -> BillBalance as is, adjustments negated
   * transactions: spending is negative        -> amount = -value
+
+Statements until June 2025 use an older template (docs/banks/abc.md §11): bracketed
+section titles, a five-column summary "【账务明细】" whose two balances are signed (debt
+negative), no transaction groups, and the transaction's kind ("交易摘要") and place in two
+columns. It is recognised by "【账务明细】" and walked by its own methods (the _old ones);
+building the Bill, reconciling and the cross-check work the same way for both.
 """
 
 from __future__ import annotations
@@ -35,6 +41,19 @@ from autobill.reconcile import reconcile
 SENDER_DOMAIN = "creditcard.abchina.com.cn"
 SUBJECT = "中国农业银行金穗信用卡电子对账单"
 BODY_MARKERS = ("您的信用卡账户信息", "账务说明", "交易明细")
+# The template until June 2025 (docs/banks/abc.md §11).
+OLD_MARKERS = ("您的信用卡账户信息", "【账务明细】", "【交易明细】")
+OLD_SECTIONS = {
+    "安全用卡提示",
+    "您的信用卡账户信息",
+    "【账务明细】",
+    "【交易明细】",
+    "【温馨提示】",
+}
+# The old summary's column titles, each in a row of its own, in this order.
+OLD_SUMMARY_LABELS = ["币种", "上期余额", "本期新增应还款额", "本期已还款额", "本期账户全部余额"]
+OLD_DATE_RE = re.compile(r"^\d{8}$")
+COUNTRY_RE = re.compile(r"^(.*?)\s*([A-Z]{3})$")  # "HUANCHEN PTY LTD HAYMARKET AUS"
 
 SECTION_TITLES = {
     "安全用卡提示",
@@ -85,11 +104,14 @@ class _Row:
 class AbcHtmlParser(BaseParser):
     bank = "ABC"
     name = "abc_html"
-    version = 1
+    version = 2  # 2: the template until June 2025 as well
 
     def matches(self, msg: RawMessage) -> bool:
         from_bank = msg.from_addr.endswith("@" + SENDER_DOMAIN) or SUBJECT in msg.subject
-        return from_bank and all(marker in msg.html for marker in BODY_MARKERS)
+        html = msg.html
+        return from_bank and any(
+            all(marker in html for marker in markers) for markers in (BODY_MARKERS, OLD_MARKERS)
+        )
 
     def parse(self, msg: RawMessage) -> list[Bill]:
         if not msg.html:
@@ -113,15 +135,24 @@ class _Statement:
         self.txn_header_seen = False
         self.txn_rows: list[tuple[str | None, _Row]] = []  # (group, row)
         self.sections_seen: set[str] = set()
+        self.old = "【账务明细】" in msg.html  # the template until June 2025
+        self.summary_labels = ""  # the old template's summary titles, as they come
 
     # --- walking the document ---------------------------------------------
 
     def build(self) -> Bill:
-        self._walk()
-        self._require()
-        balances = self._balances()
-        self._cross_check(balances)
+        if self.old:
+            self._walk_old()
+            self._require_old()
+            balances = self._balances_old()
+        else:
+            self._walk()
+            self._require()
+            balances = self._balances()
+            self._cross_check(balances)
         transactions = self._transactions()
+        if self.old:  # it needs the statement day's cashback, from the transactions
+            self._cross_check_old(balances, transactions)
         email_date = self.msg.email_date
         if email_date is None:
             email_date = self.period[1]
@@ -278,7 +309,10 @@ class _Statement:
         transactions = []
         for line_no, (group, row) in enumerate(self.txn_rows, start=1):
             try:
-                transactions.append(self._transaction(line_no, group, row))
+                if self.old:
+                    transactions.append(self._transaction_old(line_no, row))
+                else:
+                    transactions.append(self._transaction(line_no, group, row))
             except FormatError as exc:
                 self.warnings.append(f"明细行解析失败（{exc}）：{' | '.join(row.filled)}")
         return transactions
@@ -348,6 +382,202 @@ class _Statement:
             return TxnType.INTEREST, None, None
         self.warnings.append(f"未知的交易类型（分组 {group}）：{text}，暂记为调整")
         return TxnType.ADJUSTMENT, None, installment
+
+    # --- the template until June 2025 (docs/banks/abc.md §11) ------------------
+
+    def _walk_old(self) -> None:
+        section: str | None = None
+        for row in _rows(self.msg.html):
+            filled = row.filled
+            if not filled:
+                continue
+            if filled[0] in OLD_SECTIONS and len(filled) <= 2:
+                section = filled[0]
+                self.sections_seen.add(section)
+                continue
+            if section == "您的信用卡账户信息":
+                self._info_row_old(filled)
+            elif section == "【账务明细】":
+                if len(filled) == 5 and _currency_code(filled[0]):
+                    self.summary_rows.append(filled)
+                else:  # one column title per row, Chinese then English
+                    self.summary_labels += " " + " ".join(filled)
+            elif section == "【交易明细】":
+                if OLD_DATE_RE.match(filled[0]):
+                    self.txn_rows.append((None, row))
+                elif filled[0] == "交易摘要":
+                    self.txn_header_seen = True
+                elif len(filled) > 2:  # the column titles take a row each
+                    self.warnings.append(f"无法识别的明细行：{' | '.join(filled)}")
+
+    def _info_row_old(self, filled: list[str]) -> None:
+        """One row "卡号 | … | 账单周期 | 20250517-20250616 | 到期还款日 | 20250705", then
+        a table "币种 | 本期应还款额(欠款为-) | 最低还款额(欠款为-) | 信用额度"."""
+        if filled[0] == "卡号":
+            fields = dict(zip(filled[0::2], filled[1::2], strict=False))
+            m = re.search(r"(\d{4})$", fields.get("卡号", ""))
+            if not m:
+                raise TemplateChanged("ABC (2025): card number not found")
+            self.card_last4 = m.group(1)
+            start, sep, end = fields.get("账单周期", "").partition("-")
+            if not sep:
+                raise TemplateChanged("ABC (2025): statement cycle not found")
+            self.period = (parse_date(start), parse_date(end))
+            due = fields.get("到期还款日")
+            self.due_date = parse_date(due) if due else None
+        elif len(filled) >= 3 and (currency := _currency_code(filled[0])):
+            self.info_balance[currency] = parse_amount(filled[1])
+            self.min_payment[currency] = abs(parse_amount(filled[2]))
+
+    def _require_old(self) -> None:
+        missing = [t for t in OLD_MARKERS if t not in self.sections_seen]
+        if missing:
+            raise TemplateChanged(f"ABC (2025): section(s) not found: {missing}")
+        if self.card_last4 is None or self.period is None:
+            raise TemplateChanged("ABC (2025): card number or statement cycle not found")
+        pos = 0
+        for label in OLD_SUMMARY_LABELS:
+            pos = self.summary_labels.find(label, pos)
+            if pos < 0:
+                raise TemplateChanged(f"ABC (2025): summary lacks the column {label!r}")
+        if not self.summary_rows:
+            raise TemplateChanged("ABC (2025): summary block (账务明细) is empty")
+        if not self.txn_header_seen:
+            raise TemplateChanged("ABC (2025): transaction table header (交易摘要) not found")
+
+    def _balances_old(self) -> list[BillBalance]:
+        """[币种, 上期余额, 本期新增应还款额, 本期已还款额、刷卡金转入, 本期账户全部余额]: the
+        two balances signed, debt negative (positive is an overpayment, 溢缴款); the two
+        flows positive. There is no adjustment column."""
+        zero = Decimal("0")
+        balances = []
+        for cells in self.summary_rows:
+            currency = parse_currency(cells[0])
+            previous, charges, credits, balance = (parse_amount(c) for c in cells[1:])
+            balances.append(
+                BillBalance(
+                    currency=currency,
+                    previous_balance=max(-previous, zero),
+                    previous_deposit=max(previous, zero),
+                    new_charges=charges,
+                    payments_credits=credits,
+                    amount_due=max(-balance, zero),
+                    deposit=max(balance, zero),
+                    min_payment=self.min_payment.get(currency),
+                )
+            )
+        return balances
+
+    def _cross_check_old(
+        self, balances: list[BillBalance], transactions: list[Transaction]
+    ) -> None:
+        """The account-info 本期应还款额 (debt negative) is the summary's account balance as
+        it stood at some moment of the statement day: cashback posted later that day is not
+        in it yet. In the author's statements a 刷卡金 earned at 00:29 was in it and one
+        earned at 23:59 was not, and the statement-day Mastercard cashback never was. So the
+        number shown must lie between the balance with none and with all of that cashback."""
+        for b in balances:
+            shown = self.info_balance.get(b.currency)
+            if shown is None:
+                continue
+            statement_day_cashback = sum(
+                (
+                    t.amount  # negative: a credit
+                    for t in transactions
+                    if t.currency == b.currency
+                    and t.txn_type == TxnType.REBATE
+                    and t.post_date == self.period[1]
+                ),
+                Decimal("0"),
+            )
+            balance = b.deposit - b.amount_due
+            if not balance + statement_day_cashback <= shown <= balance:
+                self.warnings.append(
+                    f"{b.currency} 账户信息区本期应还款额 {shown} "
+                    f"与账务明细不一致（应为 {balance}）"
+                )
+
+    def _transaction_old(self, line_no: int, row: _Row) -> Transaction:
+        """交易日 | 入账日期 | 卡号后四位 | 交易摘要 | 交易地点 | 交易金额/币种 | 入账金额/币种;
+        a row without a place (fees, transfers) has no cell for it."""
+        cells = row.norm
+        while cells and not cells[0]:
+            cells = cells[1:]
+        if len(cells) == 7:
+            tdate, pdate, last4, kind, place, orig_cell, sett_cell = cells
+        elif len(cells) == 6:
+            tdate, pdate, last4, kind, orig_cell, sett_cell = cells
+            place = ""
+        else:
+            raise FormatError(f"{len(cells)} cells")
+        description = normalize_ws(f"{kind} {place}")
+        orig_amount, orig_currency = parse_amount_currency(orig_cell)
+        value, currency = parse_amount_currency(sett_cell)
+        amount = -value  # ABC: spending is negative
+        txn_type, fx_rate, installment = self._classify_old(kind, place)
+        merchant, location = (None, None)
+        if txn_type == TxnType.PURCHASE and place:
+            m = COUNTRY_RE.match(place)  # "UBER *EATSSydneyAUS": the country code, if any
+            merchant, location = (m.group(1) or place, m.group(2)) if m else (place, None)
+        trans_date = parse_date(tdate)
+        foreign = orig_currency != currency
+        card = re.match(r"\d{4}", last4)  # a supplementary card reads "1234附"
+        return Transaction(
+            line_no=line_no,
+            txn_id=make_txn_id(
+                "ABC", f"ABC:{self.card_last4}", trans_date, amount, description, line_no
+            ),
+            trans_date=trans_date,
+            post_date=parse_date(pdate) if pdate else None,
+            txn_type=txn_type,
+            amount=amount,
+            currency=currency,
+            orig_amount=orig_amount if foreign else None,
+            orig_currency=orig_currency if foreign else None,
+            fx_rate=fx_rate,
+            description_raw=description,
+            group_raw=kind,  # no groups in this template: the bank's own word for the row
+            merchant=merchant,
+            merchant_location=location,
+            card_last4=card.group(0) if card else None,
+            installment=installment,
+        )
+
+    def _classify_old(self, kind: str, place: str) -> tuple[TxnType, Decimal | None, str | None]:
+        """The type from 交易摘要 (docs/banks/abc.md §11); 银联入账 is a repayment unless its
+        place says it is cashback ("…境外笔笔返")."""
+        text = f"{kind} {place}"
+        m = INSTALLMENT_RE.search(text)
+        installment = m.group(1) if m else None
+        if "退货" in kind:
+            return TxnType.REFUND, None, None
+        if any(word in kind for word in ("手续费", "服务费", "年费")):
+            return TxnType.FEE, None, None
+        if "取现" in kind:
+            return TxnType.CASH, None, None
+        if "利息" in text and ("利息" in kind or "分期利息" in text):
+            return TxnType.INTEREST, None, installment
+        if "分期本金" in text or "办理分期" in text:
+            return TxnType.INSTALLMENT, None, installment
+        if "自动购汇" in kind:
+            rate = FX_RATE_RE.search(text)
+            return TxnType.FX_TRANSFER, Decimal(rate.group(1)) if rate else None, None
+        if "返现" in kind or kind.startswith("刷卡金") or (kind == "银联入账" and "返" in place):
+            return TxnType.REBATE, None, None
+        if kind in ("卡卡转账", "银联入账") or "还款" in kind:
+            return TxnType.REPAYMENT, None, None
+        if "消费" in kind or kind.startswith("跨行"):
+            return TxnType.PURCHASE, None, None
+        self.warnings.append(f"未知的交易类型：{text}，暂记为调整")
+        return TxnType.ADJUSTMENT, None, installment
+
+
+def _currency_code(label: str) -> str | None:
+    """ "人民币(CNY)" -> "CNY"; None for anything that is not a currency label."""
+    try:
+        return parse_currency(label)
+    except FormatError:
+        return None
 
 
 def _rows(html: str) -> Iterator[_Row]:

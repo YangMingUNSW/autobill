@@ -1,6 +1,8 @@
-"""ABC parser against the three anonymised real statements (docs/banks/abc.md)."""
+"""ABC parser against the anonymised real statements (docs/banks/abc.md): three of the
+current template, one of the template until June 2025 (abc_2025/, §11)."""
 
 import dataclasses
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -14,6 +16,7 @@ from autobill.reconcile import SYNTHETIC_DESCRIPTION
 
 FIXTURES = Path(__file__).parent / "fixtures"
 ABC = sorted((FIXTURES / "abc").glob("*.eml"))
+OLD = sorted((FIXTURES / "abc_2025").glob("*.eml"))  # the template until June 2025
 D = Decimal
 parser = AbcHtmlParser()
 
@@ -32,14 +35,17 @@ def with_html(msg: RawMessage, old: str, new: str) -> RawMessage:
     return dataclasses.replace(msg, html_parts=[msg.html.replace(old, new)])
 
 
-@pytest.mark.parametrize("path", ABC, ids=lambda p: p.stem)
+@pytest.mark.parametrize("path", ABC + OLD, ids=lambda p: p.stem)
 def test_snapshot(path, snapshot):
     bill = parse_one(RawMessage.from_bytes(path.read_bytes()))
     snapshot(f"abc/{path.stem}", bill.model_dump(mode="json"))
 
 
-@pytest.mark.parametrize("path", ABC, ids=lambda p: p.stem)
+@pytest.mark.parametrize("path", ABC + OLD, ids=lambda p: p.stem)
 def test_reconciles_ok(path):
+    """The old sample also checks the statement-day cashback rule of the cross-check: its
+    USD Mastercard cashback of 0.14 posted on the statement day is not in the account-info
+    balance, and must not raise a warning (docs/banks/abc.md §11)."""
     bill = parse_one(RawMessage.from_bytes(path.read_bytes()))
     assert bill.status == "OK", bill.warnings
     assert bill.warnings == []
@@ -48,7 +54,8 @@ def test_reconciles_ok(path):
 def test_matches_only_abc():
     for path in sorted(FIXTURES.rglob("*.eml")):
         msg = RawMessage.from_bytes(path.read_bytes())
-        assert parser.matches(msg) == (path.parent.name == "abc"), path.name
+        is_abc = path.relative_to(FIXTURES).parts[0].startswith("abc")
+        assert parser.matches(msg) == is_abc, path.name
 
 
 @pytest.mark.parametrize(
@@ -241,3 +248,118 @@ def test_cash_and_interest_groups(group, text, kind):
     statement.warnings = []
     assert statement._classify(group, text)[0] == kind
     assert bool(statement.warnings) == (kind == TxnType.ADJUSTMENT)  # only unknowns warn
+
+
+# --- the template until June 2025 (docs/banks/abc.md §11) -----------------------------
+
+
+def load_old(name: str = "abc_mc_2025-06") -> RawMessage:
+    return RawMessage.from_bytes((FIXTURES / "abc_2025" / f"{name}.eml").read_bytes())
+
+
+def test_old_template_statement_fields():
+    bill = parse_one(load_old())
+    assert (bill.account_id, bill.cards) == ("ABC:0001", ["0001"])
+    assert (bill.period_start, bill.period_end, bill.statement_date) == (
+        date(2025, 5, 2), date(2025, 6, 1), date(2025, 6, 1),
+    )  # fmt: skip
+    assert bill.due_date == date(2025, 6, 20)
+
+
+@pytest.mark.parametrize(
+    ("currency", "prev", "charges", "credits", "due"),
+    [("CNY", "0.00", "402.91", "402.91", "0.00"), ("USD", "55.28", "217.75", "55.98", "217.05")],
+)
+def test_old_template_summary(currency, prev, charges, credits, due):
+    """[币种, 上期余额, 本期新增应还款额, 本期已还款额, 本期账户全部余额]: the two balances
+    signed with debt negative, the two flows positive, no adjustment column."""
+    (b,) = [b for b in parse_one(load_old()).balances if b.currency == currency]
+    assert (b.previous_balance, b.new_charges, b.payments_credits, b.amount_due) == (
+        D(prev), D(charges), D(credits), D(due),
+    )  # fmt: skip
+    assert b.previous_deposit == b.deposit == b.adjustments == 0
+
+
+def test_old_template_rows_are_kind_and_place():
+    """No groups: the type comes from 交易摘要, the place is a column of its own."""
+    bill = parse_one(load_old())
+    kinds = {t.group_raw for t in bill.transactions}
+    assert {"境外消费", "MASTER返现", "境外取现", "境外取现手续费", "利息"} <= kinds
+    purchase = next(t for t in bill.transactions if t.group_raw == "境外消费")
+    assert purchase.txn_type == TxnType.PURCHASE and purchase.amount > 0
+    assert purchase.description_raw.startswith("境外消费 ") and purchase.merchant
+    assert all(len(t.card_last4 or "0000") == 4 for t in bill.transactions)
+
+
+@pytest.mark.parametrize(
+    ("kind", "place", "expected"),
+    [  # every 交易摘要 on the author's 13 statements of this template (2024-12 to 2025-06)
+        ("网上消费", "财付通，深圳市腾讯计算机系统有限公司", TxnType.PURCHASE),
+        ("境外消费", "UBER *EATSSydneyAUS", TxnType.PURCHASE),
+        ("跨行消费", "HUANCHEN PTY LTD HAYMARKET AUS", TxnType.PURCHASE),
+        ("跨行预授权完成", "NetEase UU Game Booster Hongkong H", TxnType.PURCHASE),
+        ("跨行无卡消费", "(特约)龙腾出行", TxnType.PURCHASE),
+        ("跨行有卡消费", "上海公共交通卡股份有限公司", TxnType.PURCHASE),
+        ("跨行二维码支付", "财付通(银联云闪付)", TxnType.PURCHASE),
+        ("MASTER返现", "ABCMC Merchant RebateRebateCHN", TxnType.REBATE),
+        ("刷卡金转入", "蓝色宝箱刷卡金奖励,消费时间10/18,20:", TxnType.REBATE),
+        ("刷卡金撤销", "天天返现,交易时间01/15,23:21", TxnType.REBATE),  # a rebate taken back
+        ("银联入账", "农行银联信用卡25年1季度境外笔笔返", TxnType.REBATE),
+        ("银联入账", "张三/付款尾号0009/", TxnType.REPAYMENT),
+        ("卡卡转账", "", TxnType.REPAYMENT),
+        ("卡卡转账", "10元还款金-3月", TxnType.REPAYMENT),
+        ("人民币账户自动购汇转入还款", "汇率:7.1380900", TxnType.FX_TRANSFER),
+        ("自动购汇转入外币账户还款", "", TxnType.FX_TRANSFER),
+        ("网上消费退货", "程支付退款", TxnType.REFUND),
+        ("跨行消费退货", "(特约)龙腾出行", TxnType.REFUND),
+        ("短信服务费", "", TxnType.FEE),
+        ("境外取现手续费", "", TxnType.FEE),
+        ("已免除年费580.00元", "", TxnType.FEE),
+        ("境外取现", "SEVEN BANKYAMANASHIJPN", TxnType.CASH),
+        ("利息", "本期已优惠的利息金额:0.00元", TxnType.INTEREST),
+        ("某种新摘要", "", TxnType.ADJUSTMENT),  # unknown: an adjustment, and a warning
+    ],
+)
+def test_old_template_kinds(kind, place, expected):
+    from autobill.parse.abc import _Statement
+
+    statement = _Statement.__new__(_Statement)
+    statement.warnings = []
+    txn_type, fx_rate, _ = statement._classify_old(kind, place)
+    assert txn_type == expected
+    assert bool(statement.warnings) == (expected == TxnType.ADJUSTMENT)  # only unknowns warn
+    if kind.startswith("人民币账户自动购汇"):
+        assert fx_rate == D("7.1380900")
+
+
+def test_old_template_supplementary_card():
+    """A supplementary card reads "1234附" in the card column."""
+    from autobill.parse.abc import _Row, _Statement
+
+    statement = _Statement(load_old())
+    statement.card_last4 = "0001"
+    row = _Row(
+        ["", "20250518", "20250518", "0009附", "网上消费", "某商户", "10.00/CNY", "-10.00/CNY"]
+    )
+    txn = statement._transaction_old(1, row)
+    assert (txn.card_last4, txn.amount, txn.txn_type) == ("0009", D("10.00"), TxnType.PURCHASE)
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ("【交易明细】", "【交易】"),  # a section gone
+        ("本期新增应还款额", "本期新增"),  # a summary column renamed
+        ("交易摘要", "摘要"),  # the transaction header changed
+    ],
+)
+def test_old_template_changes_raise(old, new):
+    """Never a silent empty result: anything the old template must have, it must have."""
+    with pytest.raises(TemplateChanged):
+        parser.parse(with_html(load_old(), old, new))
+
+
+def test_old_template_cross_check_catches_a_real_difference():
+    """The statement-day cashback allowance does not swallow real differences."""
+    bill = parse_one(with_html(load_old(), "-217.19", "-218.19"))
+    assert bill.status == "WARN" and any("账户信息区" in w for w in bill.warnings)

@@ -2424,5 +2424,5 @@
   "source_message_id": "<6A99A97A.01274B.14803@HQxPVL-MAILDS-A12>",
   "source_sha256": "b5abcbe54bd7e1490d9dc7353d76d785bcf147b93cfdbe8e6da3c9b02ccfca6a",
   "parser_name": "abc_html",
-  "parser_version": 1
+  "parser_version": 2
 }

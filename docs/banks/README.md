@@ -6,7 +6,7 @@
 
 | 代码 | 银行 | 发件人 | 主题 | 正文 / 附件特征 | 格式 | DKIM | 零欠款时是否仍发账单 | 解析器 |
 |---|---|---|---|---|---|---|---|---|
-| ABC | 中国农业银行 | `e-statement@creditcard.abchina.com.cn` | 中国农业银行金穗信用卡电子对账单 | "您的信用卡账户信息""账务说明""交易明细" | 单一 `text/html`（UTF-8，base64） | ✅ `d=creditcard.abchina.com.cn`，`h=Date:From:To`，relaxed | 未知 | `abc_html` v1 |
+| ABC | 中国农业银行 | `e-statement@creditcard.abchina.com.cn` | 中国农业银行金穗信用卡电子对账单 | "您的信用卡账户信息""账务说明""交易明细"；2025 年 6 月以前的旧模板是"您的信用卡账户信息""【账务明细】""【交易明细】"（[abc.md §11](abc.md#11-旧模板2025-年-6-月以前)） | 单一 `text/html`（UTF-8，base64） | ✅ `d=creditcard.abchina.com.cn`，`h=Date:From:To`，relaxed | 未知 | `abc_html` v2 |
 | CCB | 中国建设银行 | `service@vip.ccb.com` | 中国建设银行信用卡电子账单 | "龙卡信用卡对账单""【交易明细】" | `multipart/mixed` → `text/html`（UTF-8，base64） | ❌ **无签名**（`dkim=none`） | 未知 | `ccb_html` v1 |
 | BOC | 中国银行 | `boczhangdan@bankofchina.com` | 中国银行信用卡电子账单 | HTML 注释 `账单合并为pdf模板`；PDF 附件 `中国银行信用卡电子合并账单YYYY年MM月账单.PDF` | `multipart/mixed` → HTML 通知 + `application/octet-stream` PDF | ✅ `d=bankofchina.com`，**simple/simple**（对任何改动都敏感） | ✅ 会发（实测：零欠款，到期还款日为空） | `boc_pdf` v1 |
 
@@ -21,7 +21,7 @@
 |---|---|---|---|
 | 载体 | HTML，37 张小表按顺序排列 | HTML，容器表里嵌套子表 | PDF（1 页 A4，未加密） |
 | 一封邮件包含 | 1 张卡 | 1 个账户 | 合并账单（可能多卡） |
-| 日期格式 | 明细 `YYMMDD`；周期和还款日 `YYYY/MM/DD` | 明细 `YYYY-MM-DD`；账单日 `YYYY-MM-DD`；周期和还款日 `YYYY/MM/DD` | `YYYY-MM-DD` |
+| 日期格式 | 明细 `YYMMDD`；周期和还款日 `YYYY/MM/DD`（旧模板都是 `YYYYMMDD`） | 明细 `YYYY-MM-DD`；账单日 `YYYY-MM-DD`；周期和还款日 `YYYY/MM/DD` | `YYYY-MM-DD` |
 | 明细金额的符号 | **支出为负**（和我们相反） | 还款为负（**和我们一致**） | 没有负号，用"存款/欠款"标签表示方向 |
 | 汇总块 | 7 列，含溢缴款和调整 | 4 列 | 按账户类型一行，带方向标签 |
 | 账单日 | 没有单独写出，等于账单周期的结束日 | 单独写出 | 单独写出 |
@@ -40,7 +40,8 @@
 | 自动购汇还款 | ✅ | ❌ | ❌ |
 | 返现 | ✅（52 笔） | ✅（41 笔） | ✅（70 笔） |
 | 分期本金和利息 | ✅（总账分期 3/36） | ❌ | ❌ |
-| 年费、手续费、取现 | ❌ | ❌ | ❌ |
+| 年费、手续费、取现 | ✅（旧模板：境外取现和取现手续费） | ❌ | ❌ |
+| 2025 年 6 月以前的旧模板 | ✅（1 封 MC 双币卡；另用作者 13 封实测） | — | — |
 | 溢缴款 | ✅ | ❌ | ✅（存款余额 0.07） |
 | 未列明细的调整 | ✅（0.62） | ❌ | ❌ |
 | 零消费月 | ❌ | ✅（只有一笔还款） | ✅ |

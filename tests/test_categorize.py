@@ -147,7 +147,8 @@ def test_empty_word_keyword_is_ignored():
 
 
 def test_new_rules_cover_most_sample_purchases(isolated_data_dir):
-    """The trade words must keep most real purchases out of 未分类 (86 of 181 before)."""
+    """The trade words must keep most real purchases out of 未分类 (86 of 181 before;
+    186 since the sample of the ABC template until June 2025)."""
     from autobill.fetch.source import DirectorySource
     from autobill.pipeline import process
     from autobill.store.db import connect
@@ -160,4 +161,4 @@ def test_new_rules_cover_most_sample_purchases(isolated_data_dir):
         "SELECT description_raw, merchant FROM transactions WHERE txn_type = 'purchase'"
     ).fetchall()
     left = [r for r in rows if rules.categorize(r[0], TxnType.PURCHASE, r[1]) == UNCATEGORISED]
-    assert len(rows) == 181 and len(left) <= 30  # 37 before the 2026-09-20 rules
+    assert len(rows) == 186 and len(left) <= 30  # 37 before the 2026-09-20 rules
