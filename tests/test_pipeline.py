@@ -34,6 +34,7 @@ def test_import_all_fixtures(env):
     conn, data_dir = env
     outcomes = {Path(o.source).name: o for o in import_dir(conn, data_dir, FIXTURES)}
     assert {n: o.status for n, o in outcomes.items()} == {
+        "abc_mc_2025-06.eml": "OK",  # the template until June 2025
         "abc_mc_2026-09.eml": "OK",
         "abc_unionpay_2026-09.eml": "OK",
         "abc_visa_2026-09.eml": "OK",
@@ -42,9 +43,9 @@ def test_import_all_fixtures(env):
         "ccb_visa_2026-06.eml": "OK",
         "ccb_visa_2026-07.eml": "OK",
     }
-    assert conn.execute("SELECT COUNT(*) FROM bills").fetchone()[0] == 8
-    assert conn.execute("SELECT COUNT(*) FROM emails").fetchone()[0] == 7
-    assert len(list((data_dir / "raw").glob("*.eml"))) == 7  # originals kept for reparse
+    assert conn.execute("SELECT COUNT(*) FROM bills").fetchone()[0] == 9
+    assert conn.execute("SELECT COUNT(*) FROM emails").fetchone()[0] == 8
+    assert len(list((data_dir / "raw").glob("*.eml"))) == 8  # originals kept for reparse
 
 
 def test_importing_twice_changes_nothing(env):

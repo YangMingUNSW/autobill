@@ -99,8 +99,9 @@ def test_expected_cards_without_portfolio_come_from_recent_statements(db):
 
 def test_portfolio_leaves_out_cards_that_did_not_exist_yet(db):
     conn, _ = db
-    # In June 2025 only the two BOC cards had statements; the others start in 2026.
-    assert set(expected_cards(conn, "2025-06", PORTFOLIO)) == {"BOC:0005", "BOC:0006"}
+    # In June 2025 only the two BOC cards and ABC:0001 (the sample of the template until
+    # June 2025, abc_2025/) had statements; the others start in 2026.
+    assert set(expected_cards(conn, "2025-06", PORTFOLIO)) == {"ABC:0001", "BOC:0005", "BOC:0006"}
 
 
 def test_progress_while_cards_are_still_to_come(db):
@@ -153,8 +154,10 @@ def test_a_foreign_card_shows_what_the_bank_itself_asks_for(db):
     """The CNY figure is a conversion; the author repays the bank in its own currency."""
     conn, fx = db
     r = report(conn, fx, cycle="2025-06", today=date(2025, 7, 30))
-    boc = next(c for c in r.cards if c.amount_orig)
+    boc = next(c for c in r.cards if c.bank == "中国银行" and c.amount_orig)
     assert boc.amount.startswith("¥") and boc.amount_orig.startswith("A$")
+    abc = next(c for c in r.cards if c.bank == "农业银行")  # the USD account of ABC:0001
+    assert abc.amount.startswith("¥") and abc.amount_orig.startswith("US$")
     assert all(not c.amount_orig for c in r.cards if c.amount == "无需还款")
 
 
@@ -336,7 +339,8 @@ def test_failed_send_keeps_bills_pending_and_records_nothing(db):
     assert "SMTPServerDisconnected" in result.failed[1]
     assert len(FakeSMTP.instances) == 1  # stopped after the first failure
     pending = conn.execute("SELECT COUNT(*) FROM bills WHERE reported_at IS NULL").fetchone()[0]
-    assert pending == 8 and conn.execute("SELECT COUNT(*) FROM cycle_threads").fetchone()[0] == 0
+    assert pending == 9  # every sample statement still waits, none was reported
+    assert conn.execute("SELECT COUNT(*) FROM cycle_threads").fetchone()[0] == 0
 
 
 def test_thread_row_keeps_every_message_id(isolated_data_dir):
