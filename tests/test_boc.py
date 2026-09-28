@@ -300,3 +300,36 @@ def test_missing_overview_raises_template_changed():
     lines = [ln for ln in statement() if "账单日" not in ln.text]
     with pytest.raises(TemplateChanged):
         parse(lines)
+
+
+@pytest.mark.parametrize(
+    ("description", "kind"),
+    [
+        # Visa's offers, from Visa in Singapore (the author's 2025-2026 statements)
+        ("Visa 26 Apr-Sep FX RewardSGP", TxnType.REBATE),
+        ("Visa 2026 Q1 FX RewardsSGP", TxnType.REBATE),
+        ("Visa BOC ZJ 1PCT APRSGP", TxnType.REBATE),
+        ("Visa BOC 3PCT F2F MAYSGP", TxnType.REBATE),
+        ("Visa ApplePay GlocalSGP", TxnType.REBATE),
+        ("Visa26 ApplePay TransitSGP", TxnType.REBATE),
+        ("VISA BOC ZJ1PCT REBATESGP", TxnType.REBATE),
+        ("中行银联境外消费阶梯返活动", TxnType.REBATE),
+        # money paid in: each settled the previous balance on the author's statements
+        ("BOCNET", TxnType.REPAYMENT),
+        ("张三", TxnType.REPAYMENT),
+        ("支付宝（中国）网络技术有限公司", TxnType.REPAYMENT),
+        # a shop's refund names the shop and its country; a fee put right says so
+        ("ICC SYDNEYAUS", TxnType.REFUND),
+        ("支付宝CHN", TxnType.REFUND),
+        ("上海华程西南国际旅-CHN", TxnType.REFUND),
+        ("SOME SHOPTUR", TxnType.REFUND),
+        ("境外 VISA ATM 取现手续费冲销", TxnType.REFUND),
+        ("年费减免", TxnType.REFUND),  # four characters, but not a name
+        ("利息冲正", TxnType.REFUND),
+        ("某某网络科技有限公司", TxnType.REFUND),  # not known to be a payer: as before
+    ],
+)
+def test_money_in_types(description, kind):
+    from autobill.parse.boc import _classify
+
+    assert _classify(description, Decimal("-12.34")) == kind

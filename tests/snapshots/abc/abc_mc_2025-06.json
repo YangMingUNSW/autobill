@@ -404,5 +404,5 @@
   "source_message_id": "<683DE7EF.00D480.87255@HQxPVL-MAILDS-A11>",
   "source_sha256": "f97718c2553f875f476e197af1b168d816d4c6c452b54b2d21734c7b241af8b1",
   "parser_name": "abc_html",
-  "parser_version": 2
+  "parser_version": 3
 }

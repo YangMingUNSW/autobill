@@ -52,5 +52,5 @@
   "source_message_id": "<348396588.1555121783716921593.JavaMail.ncismigbat@d618cidrtap0055>",
   "source_sha256": "e4fd5995d382f1e948f09fa0886ff472619e796b678310f1aecca930193b4c22",
   "parser_name": "ccb_html",
-  "parser_version": 1
+  "parser_version": 2
 }

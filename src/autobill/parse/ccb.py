@@ -41,12 +41,14 @@ CARD_CELL_RE = re.compile(r"(\d{4})(?:/\d{4})?")  # "0004" or "0004/0007" (Apple
 UNKNOWN_ACCOUNT = "CCB:unknown"
 # "Visa 26 Apr-Sep FX RewardCashback", "CCB CXMUSE 1pct Rebate", 返现
 REBATE_RE = re.compile(r"返现|cashback|rebate", re.IGNORECASE)
+# Paid in from another bank's card, with the payer's name and card: "银联入账 张三 0009"
+PAID_IN_RE = re.compile(r"^银联入账\s+\S")
 
 
 class CcbHtmlParser(BaseParser):
     bank = "CCB"
     name = "ccb_html"
-    version = 1
+    version = 2  # 2: 银联入账 from a payer is a repayment
 
     def matches(self, msg: RawMessage) -> bool:
         from_bank = msg.from_addr == SENDER or SUBJECT in msg.subject
@@ -277,6 +279,8 @@ def _classify(description: str, amount: Decimal) -> TxnType:
             return TxnType.REPAYMENT
         if REBATE_RE.search(description):
             return TxnType.REBATE
+        if PAID_IN_RE.search(description):
+            return TxnType.REPAYMENT
         return TxnType.REFUND
     if "年费" in description or "手续费" in description:
         return TxnType.FEE

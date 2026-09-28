@@ -32,6 +32,6 @@
     "source_message_id": "<26967116.1787549729535.JavaMail.appuser@PE18BCSPCCSTSJCL018>",
     "source_sha256": "ea338de0dc016df44a14610e9e82e117d02338bc3823d895ba0f2bd1b286dfcd",
     "parser_name": "boc_pdf",
-    "parser_version": 1
+    "parser_version": 2
   }
 ]
