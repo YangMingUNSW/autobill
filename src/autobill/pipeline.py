@@ -288,3 +288,33 @@ def send_pending_reports(
         result.sent += bill_ids
         result.emails += 1
     return result
+
+
+def send_year_review(
+    conn: sqlite3.Connection, mailer, fx, rules=None, *, today=None
+) -> tuple[int | None, str | None]:
+    """Last year's review, once, in the run whose January e-mail went out complete
+    (docs/notify.md#年度回顾, report.year.due_year). Recorded only after the mail server
+    accepted it, so a failed send is tried again next run and a sent one is never repeated.
+
+    Returns (year, None) when it went out, (year, error) when sending failed, and
+    (None, None) when no review is due.
+    """
+    from autobill.report.cycle import today_in_china
+    from autobill.report.year import build_year_email, due_year
+
+    year = due_year(conn, today or today_in_china())
+    if year is None:
+        return None, None
+    try:
+        message, _ = build_year_email(
+            conn, year, fx, mailer.config.username, mailer.config.to_addr, rules=rules
+        )
+        mailer.send(message)
+    except Exception as exc:  # noqa: BLE001 - reported to the caller; the next run tries again
+        return year, f"{type(exc).__name__}: {exc}"
+    conn.execute(
+        "INSERT INTO year_reviews (year, message_id, sent_at) VALUES (?, ?, ?)",
+        (year, message["Message-ID"], now()),
+    )
+    return year, None

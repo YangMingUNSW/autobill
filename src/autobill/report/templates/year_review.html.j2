@@ -1,6 +1,6 @@
 {#- The year in review (docs/notify.md#年度回顾), for Apple Mail on iPhone: the same look as
-    the month's e-mail (_email.css). Every number of the month's e-mail is counted the same
-    way here, so the twelve months add up to the year. -#}
+    the month's e-mail (_email.css). A calendar year by transaction date, counted the way
+    the month's e-mail counts, so the twelve months add up to the year. -#}
 {%- macro row(g, small=False, tile=True) -%}
 <div class="row">
   {% if tile %}<span class="tile{% if small %} sm{% endif %} {{ g.tone }}">{{ g.emoji }}</span>{% endif %}
@@ -175,6 +175,7 @@
   </section>
 
   <footer>
+    按交易日期归到每个月（月度邮件按账单月，数字会不一样）<br>
     外币按每份账单邮件当天的汇率折合人民币<br>
     AutoBill 自动生成 · 金额以银行原账单为准<br>
     生成于 {{ r.generated_at }} · 版本 {{ r.build }}

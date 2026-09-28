@@ -22,7 +22,7 @@ from autobill.fetch.source import DirectorySource, RawMail
 from autobill.fx import FxRates
 from autobill.notify import alerts
 from autobill.notify.mail import PASSWORD_ENV, Mailer, smtp_password
-from autobill.pipeline import process, reparse, send_pending_reports
+from autobill.pipeline import process, reparse, send_pending_reports, send_year_review
 from autobill.report.cycle import (
     CHINA,
     build_cycle_email,
@@ -33,7 +33,12 @@ from autobill.report.monthly import month_bounds, monthly_summary, render_text
 from autobill.report.pdf import PdfError, find_browser, html_to_pdf
 from autobill.report.statement import render_statement_html
 from autobill.report.uncategorised import rules_snippet, uncategorised_merchants
-from autobill.report.year import build_year_report, render_year_html, year_plain_text
+from autobill.report.year import (
+    build_year_email,
+    build_year_report,
+    render_year_html,
+    year_plain_text,
+)
 from autobill.store.db import connect, load_bill
 from autobill.suggest import SuggesterUnavailable, get_suggester
 
@@ -326,16 +331,18 @@ def _mailer(config) -> Mailer | None:
 
 
 def _send_reports(conn) -> None:
-    """E-mail every statement month that is complete and not reported yet."""
+    """E-mail every statement month that is complete and not reported yet, then last
+    year's review once its January has gone out complete."""
     config = load_config()
     mailer = _mailer(config)
     if mailer is None:
         return
+    fx, rules = FxRates(conn, config.fx), load_rules(conn)
     result = send_pending_reports(
         conn,
         mailer,
-        FxRates(conn, config.fx),
-        load_rules(conn),
+        fx,
+        rules,
         portfolio=config.cards.portfolio,
         backup=config.backup,
     )
@@ -347,6 +354,12 @@ def _send_reports(conn) -> None:
         cycle, error = result.failed
         typer.echo(f"发送失败（{cycle} 账单月）：{error}。没发出去的下次运行会再发。")
         raise typer.Exit(1)
+    year, error = send_year_review(conn, mailer, fx, rules)
+    if error is not None:
+        typer.echo(f"{year} 年度回顾发送失败：{error}。下次运行会再发。")
+        raise typer.Exit(1)
+    if year is not None:
+        typer.echo(f"已发送 {year} 年度回顾，收件人 {mailer.config.to_addr}。")
 
 
 @app.command()
@@ -429,21 +442,46 @@ def year_review(
     output: Annotated[
         Path | None, typer.Option("--output", "-o", help="HTML file to write.")
     ] = None,
+    send: Annotated[
+        bool, typer.Option("--send", help="E-mail it now; January's automatic one still goes out.")
+    ] = False,
 ) -> None:
-    """The year-in-review e-mail: an HTML file with -o, else as text here (sends nothing)."""
+    """The year-in-review e-mail: an HTML file with -o, sent with --send, else as text here.
+
+    It goes out by itself once a year (docs/notify.md#年度回顾); --send is for looking at
+    the year so far on the phone, or for sending it again after a fix, and is not recorded.
+    """
     conn = _db()
-    has_bills = conn.execute(
-        "SELECT 1 FROM bills WHERE substr(statement_date, 1, 4) = ?", (str(year),)
+    has_spending = conn.execute(
+        "SELECT 1 FROM transactions WHERE substr(trans_date, 1, 4) = ?", (str(year),)
     ).fetchone()
-    if not has_bills:
-        raise typer.BadParameter(f"{year} 年没有出账的账单。")
-    report = build_year_report(conn, year, FxRates(conn, load_config().fx), load_rules(conn))
-    if output is None:
+    if not has_spending:
+        raise typer.BadParameter(f"{year} 年没有消费记录。")
+    config = load_config()
+    fx, rules = FxRates(conn, config.fx), load_rules(conn)
+    mailer = None
+    if send:
+        mailer = _mailer(config)
+        if mailer is None:
+            raise typer.Exit(1)
+        message, report = build_year_email(
+            conn, year, fx, mailer.config.username, mailer.config.to_addr, rules=rules
+        )
+    else:
+        report = build_year_report(conn, year, fx, rules)
+    if output is not None:
+        output.write_text(render_year_html(report), encoding="utf-8")
+        typer.echo(f"已生成 {year} 年度回顾的预览：{output}")
+        typer.echo("用浏览器打开，按 F12 切到手机尺寸，就能看到手机上的排版。")
+    if mailer is not None:
+        mailer.send(message)
+        typer.echo(f"已发送 {year} 年度回顾，收件人 {mailer.config.to_addr}。")
+        if conn.execute("SELECT 1 FROM year_reviews WHERE year = ?", (year,)).fetchone():
+            typer.echo("按现在的数据重算后重发；自动发送的记录没有改动。")
+        else:
+            typer.echo("这是手动发的，不算年度回顾已经发过：第二年 1 月账单收齐后照样自动发一封。")
+    if output is None and mailer is None:
         typer.echo(year_plain_text(report))
-        return
-    output.write_text(render_year_html(report), encoding="utf-8")
-    typer.echo(f"已生成 {year} 年度回顾的预览：{output}")
-    typer.echo("用浏览器打开，按 F12 切到手机尺寸，就能看到手机上的排版。")
 
 
 @app.command()
