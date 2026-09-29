@@ -277,10 +277,12 @@ class MonthBar:
 def trend_svg(bars: list[MonthBar], name: str = "") -> Markup:
     """One column per statement month, Apple Card's monthly activity: this month in the
     accent, the months before in grey (emphasis, not categories). Marks follow the dataviz
-    spec: 4px rounded top, square base, one hairline baseline, only this month's value
-    written on its column; every month's value is in the aria-label and the plain-text
-    part. A month without statements is a dash, so the months stay evenly spaced.
-    `name` is what the aria-label calls the chart (default "近 6 个月消费")."""
+    spec: 4px rounded top, square base, one hairline baseline. Every month's value is
+    written over its column (2026-09-29, the author: the difference should read in
+    numbers too), this month's in the label colour and bold, the others in grey; they are
+    also in the aria-label and the plain-text part. A month without statements is a dash,
+    so the months stay evenly spaced. `name` is what the aria-label calls the chart
+    (default "近 6 个月消费")."""
     if not bars:
         return Markup("")
     # viewBox units: text is sized ~20 so it is ~11px when a phone scales 600 to ~330.
@@ -321,11 +323,10 @@ def trend_svg(bars: list[MonthBar], name: str = "") -> Markup:
                 f"Q{x:.1f},{top:.1f} {x + r:.1f},{top:.1f} H{x + bar_w - r:.1f} "
                 f'Q{x + bar_w:.1f},{top:.1f} {x + bar_w:.1f},{top + r:.1f} V{base} Z" />'
             )
-        if bar.current:
-            parts.append(
-                f'<text class="value" x="{cx:.1f}" y="{top - 8:.1f}" text-anchor="middle">'
-                f"¥{bar.value:,.0f}</text>"
-            )
+        parts.append(
+            f'<text class="value{now}" x="{cx:.1f}" y="{top - 8:.1f}" text-anchor="middle">'
+            f"¥{bar.value:,.0f}</text>"
+        )
     parts.append("</svg>")
     return Markup("".join(parts))
 

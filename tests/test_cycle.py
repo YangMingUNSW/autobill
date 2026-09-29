@@ -419,7 +419,7 @@ def test_the_trend_is_six_statement_months_ending_with_this_one(db):
     assert f"{r.trend[-1].value:,.2f}" == r.spend_total
 
 
-def test_the_trend_chart_highlights_this_month_only(db):
+def test_the_trend_chart_highlights_this_month_and_writes_every_value(db):
     conn, fx = db
     r = report(conn, fx)
     chart = str(r.trend_chart)
@@ -427,10 +427,13 @@ def test_the_trend_chart_highlights_this_month_only(db):
     assert [b.value > 0 for b in r.trend[2:5]] == [True, False, False]
     assert chart.count('class="bar"') == 1 and chart.count('class="bar now"') == 1
     assert chart.count('class="gap"') == 2  # April and May have no statements: a dash
-    assert chart.count('class="value"') == 1  # only this month's value is written
-    assert f">¥{r.trend[-1].value:,.0f}<" in chart
-    for bar in r.trend:  # every month's value is still there for a screen reader
-        assert bar.label in re.search(r'aria-label="([^"]*)"', chart)[1]
+    # every month with statements has its value over it (2026-09-29), this month's stands out
+    assert chart.count('class="value now"') == 1
+    assert chart.count('class="value"') == sum(1 for b in r.trend[:-1] if b.value is not None)
+    for bar in r.trend:
+        if bar.value is not None:
+            assert f">¥{bar.value:,.0f}<" in chart, bar.label
+        assert bar.label in re.search(r'aria-label="([^"]*)"', chart)[1]  # and for a screen reader
 
 
 def test_the_trend_caption_compares_this_month_with_the_average(db):
