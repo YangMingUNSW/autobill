@@ -14,7 +14,7 @@ from pathlib import Path
 
 from autobill.model import Bill, BillBalance, Transaction
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS emails (
@@ -153,6 +153,13 @@ CREATE TABLE IF NOT EXISTS year_reviews (
     year       INTEGER PRIMARY KEY,       -- the year reviewed: 2026
     message_id TEXT NOT NULL,             -- the review e-mail that went out; each year once
     sent_at    TEXT NOT NULL
+);
+""",
+    7: """
+CREATE TABLE IF NOT EXISTS parser_versions (
+    name    TEXT PRIMARY KEY,             -- a parser in parse/registry.py: abc_html
+    version INTEGER NOT NULL,             -- the version the stored e-mails were last read with
+    seen_at TEXT NOT NULL
 );
 """,
 }

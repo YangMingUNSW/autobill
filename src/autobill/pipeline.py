@@ -16,7 +16,7 @@ from autobill.fetch.message import RawMessage
 from autobill.fetch.source import RawMail
 from autobill.model import Bill
 from autobill.parse.base import TemplateChanged
-from autobill.parse.registry import find_parser
+from autobill.parse.registry import PARSERS, find_parser
 from autobill.store.db import now, save_bill
 
 
@@ -186,6 +186,58 @@ def reparse(
 
 
 RETRY_STATUSES = {"FAILED", "UNRECOGNIZED"}  # met again: processed again, not skipped
+NOT_READ_OK = ("WARN", "UNVERIFIED", "FAILED", "UNRECOGNIZED")
+
+
+@dataclass
+class Outdated:
+    email_ids: list[int]  # stored e-mails the current parsers would read differently
+    changed: list[str]  # "abc_html 2→3": parsers changed since the e-mails were last read
+
+
+def outdated_emails(conn: sqlite3.Connection) -> Outdated:
+    """What an update of the parsers leaves to be read again (docs/pipeline.md#运行层):
+    bills an older version of their parser read, and, when a parser changed since the
+    stored e-mails were last read, the e-mails not read OK: a fixed parser may read them."""
+    current = {p.name: p.version for p in PARSERS}
+    stored = dict(conn.execute("SELECT name, version FROM parser_versions").fetchall())
+    ids: set[int] = set()
+    for name, version in current.items():
+        ids |= {
+            r[0]
+            for r in conn.execute(
+                "SELECT DISTINCT email_id FROM bills"
+                " WHERE parser_name = ? AND parser_version < ? AND email_id IS NOT NULL",
+                (name, version),
+            )
+        }
+    changed = [
+        f"{name} {stored[name]}→{version}" if name in stored else f"{name} v{version}"
+        for name, version in current.items()
+        if stored.get(name) != version
+    ]
+    if changed:
+        marks = ",".join("?" * len(NOT_READ_OK))
+        query = f"SELECT id FROM emails WHERE status IN ({marks})"
+        ids |= {r[0] for r in conn.execute(query, NOT_READ_OK)}
+    return Outdated(sorted(ids), changed)
+
+
+def record_parsers(conn: sqlite3.Connection) -> None:
+    """The stored e-mails have been read with the current parsers."""
+    conn.execute("BEGIN")
+    try:
+        conn.execute("DELETE FROM parser_versions")
+        conn.executemany(
+            "INSERT INTO parser_versions (name, version, seen_at) VALUES (?, ?, ?)",
+            [(p.name, p.version, now()) for p in PARSERS],
+        )
+        conn.execute("COMMIT")
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
+
+
 _SEVERITY = ["OK", "UNVERIFIED", "WARN"]
 
 

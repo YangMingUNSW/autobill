@@ -145,7 +145,7 @@ class Bill(BaseModel):  # 一封邮件可以产出多份 Bill（中行合并账�
 ## SQLite 表
 开启 WAL、`busy_timeout` 和外键约束。实现在 `autobill/store/db.py`，表结构版本记在 `PRAGMA user_version`。
 
-- **M3 已建**：`emails`、`bills`、`bill_balances`、`transactions`、`fx_rates`。**M7c 加了** `cycle_threads`（表结构版本 2），**M8a 加了** `folder_cursors`（版本 3），**M8b 加了** `alerts`（版本 4），AI 分类加了 `ai_categories`（版本 5），年度回顾加了 `year_reviews`（版本 6）；旧数据库打开时自动升级。其余几张表（`folder_cursors`、`accounts`/`cards`、`runs`）到 M8 再建。
+- **M3 已建**：`emails`、`bills`、`bill_balances`、`transactions`、`fx_rates`。**M7c 加了** `cycle_threads`（表结构版本 2），**M8a 加了** `folder_cursors`（版本 3），**M8b 加了** `alerts`（版本 4），AI 分类加了 `ai_categories`（版本 5），年度回顾加了 `year_reviews`（版本 6），自动重读加了 `parser_versions`（版本 7）；旧数据库打开时自动升级。其余几张表（`folder_cursors`、`accounts`/`cards`、`runs`）到 M8 再建。
 - **金额存成文本**（如 `"28.25"`），读出来变回 `Decimal`。**不要在 SQL 里对金额 `SUM()`**：SQLite 会先转成浮点数。求和一律在 Python 里做。
 - `save_bill()` 更新已有账单时，`reported_at` 保留原值，汇总块和流水整体替换。
 
@@ -165,6 +165,7 @@ class Bill(BaseModel):  # 一封邮件可以产出多份 Bill（中行合并账�
 | `alerts` | 提醒邮件（M8b） | `(kind, key)` 唯一 → `title`、`body`、`sent_at`：同一个问题只发一次 |
 | `ai_categories` | AI 分类的结果（2026-09-20） | `merchant` 唯一 → `category`（采用的分类；没把握时为空）、`guess`、`confidence`、`reason`、`searched`、问的时候给了什么（`location`、`currency`）、`model`、`asked_at` |
 | `cycle_threads` | 账单月邮件的对话（M7c） | `cycle` 唯一（如 `2026-09`）→ `message_ids`（已发邮件的 Message-ID，JSON 列表）、`completed_at`（最近一封是否已齐） |
+| `parser_versions` | 已入库的邮件最近一次是用哪一版解析器读的（表结构版本 7，2026-09-29） | `name` 唯一（如 `abc_html`）→ `version`、`seen_at`：和程序里的版本不同，下次运行就自动重读（见 [pipeline.md](pipeline.md#运行层)） |
 | `year_reviews` | 年度回顾发过哪一年（表结构版本 6，2026-09-29） | `year` 唯一 → `message_id`、`sent_at`：每年只自动发一次；`year-review --send` 手动发的不记（见 [notify.md](notify.md#年度回顾)） |
 
 ## 以后导出 Beancount 时怎么映射

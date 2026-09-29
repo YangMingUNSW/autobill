@@ -243,6 +243,36 @@ def test_reparse_without_the_raw_file_is_skipped(env):
     assert out.status == "SKIPPED" and conn.execute("SELECT COUNT(*) FROM bills").fetchone()[0] == 1
 
 
+def test_bills_an_older_parser_read_are_outdated(env):
+    from autobill.pipeline import Outdated, outdated_emails, record_parsers
+
+    conn, data_dir = env
+    _import_one(conn, data_dir)
+    assert outdated_emails(conn).email_ids == []  # all read by the current parsers
+    record_parsers(conn)
+    assert outdated_emails(conn) == Outdated([], [])  # nothing changed since: nothing to do
+    conn.execute("UPDATE bills SET parser_version = parser_version - 1")
+    email_id = conn.execute("SELECT id FROM emails").fetchone()[0]
+    assert outdated_emails(conn).email_ids == [email_id]
+
+
+def test_emails_not_read_are_tried_again_only_when_a_parser_changed(env):
+    from autobill.parse.abc import AbcHtmlParser
+    from autobill.pipeline import outdated_emails, record_parsers
+
+    conn, data_dir = env
+    _import_one(conn, data_dir)
+    record_parsers(conn)
+    conn.execute("DELETE FROM bills")
+    conn.execute("UPDATE emails SET status = 'UNRECOGNIZED'")
+    assert outdated_emails(conn).email_ids == []  # the same parsers would miss it again
+    conn.execute("UPDATE parser_versions SET version = version - 1 WHERE name = 'abc_html'")
+    outdated = outdated_emails(conn)
+    version = AbcHtmlParser.version
+    assert outdated.changed == [f"abc_html {version - 1}→{version}"]
+    assert outdated.email_ids == [conn.execute("SELECT id FROM emails").fetchone()[0]]
+
+
 def test_reparse_command_only_touches_warn_and_failed_by_default(isolated_data_dir):
     from typer.testing import CliRunner
 
@@ -257,3 +287,7 @@ def test_reparse_command_only_touches_warn_and_failed_by_default(isolated_data_d
     assert result.exit_code == 0 and "重新解析了 1 封：OK 1" in result.output
     result = runner.invoke(app, ["reparse", "--all"])
     assert "重新解析了 3 封：OK 3" in result.output
+    stored = dict(conn.execute("SELECT name, version FROM parser_versions").fetchall())
+    from autobill.parse.abc import AbcHtmlParser
+
+    assert stored["abc_html"] == AbcHtmlParser.version  # read with these now: runs need not
