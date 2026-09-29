@@ -71,6 +71,7 @@ docker compose up -d                               # 启动：立刻跑一次，
 | 手动让 AI 分类、看它的理由 | `docker compose run --rm autobill classify --dry-run`（只看不存），去掉 `--dry-run` 就保存 |
 | 其他命令 | `docker compose run --rm autobill <命令>`，比如 `uncategorised`、`report --month 2026-09` |
 
+- **什么时候更新**：`compose.yaml` 用 `:latest`，但服务器只在你运行 `docker compose pull && docker compose up -d` 时才换版本，合并到 main 不会自动上线。作者的做法（2026-09-29，issue #45 讨论后决定）：不另外固定版本号，每次更新前先备份数据库、更新后看一眼第一次运行的记录；新版有问题就按上表退回到 `:sha-短哈希`。
 - **数据都在 `data/` 里**：换镜像、更新版本都不会丢。**备份不用手动做**：每月那封账单邮件自带一份压缩的数据库，服务器上也留在 `data/backups/`（见 [notify.md](notify.md#每月备份)）。想立刻手动取一份，就先 `docker compose stop` 再复制整个 `data/`（数据库是 WAL 模式，最近的改动还在 `autobill.db-wal` 里，只复制 `autobill.db` 会丢），复制完 `docker compose up -d`。
 - 容器以普通用户运行，不是 root：默认 uid 1000，`.env` 里的 `AUTOBILL_UID` / `AUTOBILL_GID` 可以改成你自己的。
 - 出问题时会发**提醒邮件**到你的邮箱（见 [notify.md](notify.md#提醒邮件)），不用盯着日志。只有"收信和发信用同一个密码，而这个密码失效了"时发不出提醒，这时看日志，或者注意到进度邮件不来了。
