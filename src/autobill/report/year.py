@@ -11,13 +11,19 @@ outside, no links, no script.
 Over a year one shop shows up under several names, because the bank glues its payment
 markers to the name ("Woolworths OnlineAUSVISA Apple Pay", "跨行消费 ..."); the year's
 lists put them together under the name without the markers (suggest.shown_name).
+
+The first three cards filter the year by month and category, two groups of radio buttons
+and one CSS rule per value, no script ("punched card coding"): every choice is written into
+the e-mail beforehand and the chosen one shows. The bars are one set of twelve that carry
+their height for every category and grow or shrink on a spring; a month chosen lists its
+lines. The author tried it as a prototype on iOS 27 Apple Mail (2026-09-29).
 """
 
 from __future__ import annotations
 
 import sqlite3
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 from email.message import EmailMessage
@@ -29,6 +35,7 @@ from autobill import build_label
 from autobill.categorize import TYPE_CATEGORIES, UNCATEGORISED, Rules, load_rules
 from autobill.fx import FxRates, RateUnavailable
 from autobill.model import ZERO, Bill, Transaction, TxnType
+from autobill.report import drill
 from autobill.report.cycle import (
     CHINA,
     NAMED,
@@ -39,7 +46,6 @@ from autobill.report.cycle import (
     category_segments,
     donut_svg,
     latest_bills,
-    trend_svg,
 )
 from autobill.report.monthly import REDUCING_TYPES, SPENDING_TYPES, cents
 from autobill.report.statement import StatementView, build_view
@@ -50,6 +56,9 @@ from autobill.suggest import shown_name
 TOP_MERCHANTS = 10
 TOP_VISITS = 5
 SHOWN_CATEGORIES = 8  # the rest fold away behind one row, as the month's transactions do
+TOP_SHOPS = 5  # the shops listed for a month or a category chosen
+BAR_PX = 92  # the tallest bar; every bar's height is a share of it
+STRIP_PX = 28  # the tallest column of a shop's twelve months
 REVIEW_UNTIL = (3, 31)  # a year's review goes out in the next year's first quarter, or never
 CHARGES = (TYPE_CATEGORIES[TxnType.INTEREST], TYPE_CATEGORIES[TxnType.FEE])  # 利息, 手续费
 COUNTED = set(SPENDING_TYPES) | set(REDUCING_TYPES)  # what spending is made of, as everywhere
@@ -81,6 +90,78 @@ class CardYear:
 
 
 @dataclass
+class Pick:
+    """The headline for one choice: a month (0: the year) and a category (0: every one)."""
+
+    label: str  # "5月 · 旅行"
+    amount: str  # "12,340.00"
+    note: str  # "6 笔 · 占5月的 21%"; "没有消费"
+
+
+@dataclass
+class Bar:
+    """One of the twelve bars: its height (0 to 1) and label for every category, as CSS
+    variables --h<j> and --t<j>; the chosen category's pair is the one shown."""
+
+    month: int
+    style: str
+
+
+@dataclass
+class Choice:
+    """A category row that chooses its category (the radio button c<j>)."""
+
+    j: int
+    segment: Segment
+
+
+@dataclass
+class MonthList:
+    """What a month (0: the year) was spent on: rows that choose, the long tail folded."""
+
+    month: int
+    shown: list[Choice]
+    folded: list[Choice]
+    folded_amount: str
+    folded_share: str
+    donut: Markup
+
+
+@dataclass
+class StripBar:
+    month: int
+    count: int
+    px: int
+
+
+@dataclass
+class Shop:
+    """A shop in a list: it opens to its lines, and over the whole year also to its twelve
+    months (visits over the columns, their height the money)."""
+
+    name: str
+    count: int
+    amount: str
+    emoji: str
+    tone: str
+    lines: drill.Lines
+    strip: list[StripBar] = field(default_factory=list)
+
+
+@dataclass
+class Explorer:
+    categories: list[str]  # the radio button c<j> is categories[j - 1]; c0 is every one
+    heads: dict[tuple[int, int], Pick]  # (month, category): 0 for the year, every category
+    bars: list[Bar]
+    captions: list[str]  # by category
+    lists: list[MonthList]  # by month, 0 the year
+    shops: dict[tuple[int, int], list[Shop]]  # the year, a month, a category (not both)
+    visits: list[Shop]  # the shops gone back to most often
+    lines: list[tuple[int, int, drill.Line]]  # every line with its month and category j
+    css: Markup  # the rules that make the choices work (explorer_css)
+
+
+@dataclass
 class YearReport:
     year: int
     bars: list[MonthBar]  # January to December by transaction date; None: nothing that month
@@ -99,6 +180,7 @@ class YearReport:
     complete: bool  # the January statements after the year are in: December is all there
     generated_at: str
     build: str
+    explorer: Explorer | None = None  # the e-mail's filter by month and category
 
     @property
     def title(self) -> str:
@@ -145,12 +227,13 @@ class YearReport:
         return f"比 {self.year - 1} 年 {'+' if ratio >= 0 else '-'}{abs(ratio):.0%}"
 
     @property
-    def trend_shown(self) -> bool:
-        return self.months >= 2
-
-    @property
-    def trend_chart(self) -> Markup:
-        return trend_svg(self.bars, f"{self.year} 年每个月的消费")
+    def trend_label(self) -> str:
+        """What a screen reader says for the bars, as trend_svg says it."""
+        said = "，".join(
+            f"{b.label} " + (f"¥{b.value:,.0f}" if b.value is not None else "无账单")
+            for b in self.bars
+        )
+        return f"{self.year} 年每个月的消费（人民币）：{said}"
 
     @property
     def trend_caption(self) -> str:
@@ -161,39 +244,6 @@ class YearReport:
         high = max(have, key=lambda b: b.value)
         low = min(have, key=lambda b: b.value)
         return f"最多：{high.label} ¥{high.value:,.0f} · 最少：{low.label} ¥{low.value:,.0f}"
-
-    @property
-    def shown_categories(self) -> list[Segment]:
-        """The largest categories; folding away a single row would save nothing."""
-        if len(self.categories) <= SHOWN_CATEGORIES + 1:
-            return self.categories
-        return self.categories[:SHOWN_CATEGORIES]
-
-    @property
-    def folded_categories(self) -> list[Segment]:
-        return self.categories[len(self.shown_categories) :]
-
-    @property
-    def folded_amount(self) -> str:
-        return money(cents(sum((s.weight for s in self.folded_categories), ZERO)))
-
-    @property
-    def folded_share(self) -> str:
-        total = sum((s.weight for s in self.categories), ZERO)
-        part = sum((s.weight for s in self.folded_categories), ZERO)
-        return share(part, total) if total > 0 else ""
-
-    @property
-    def category_donut(self) -> Markup:
-        return donut_svg(self.segments, f"¥{self.spend:,.0f}", "全年消费")
-
-    @property
-    def merchant_donut(self) -> Markup:
-        """The top merchants as a share of everything spent, as in the month's e-mail."""
-        top = sum((m.weight for m in self.merchants), ZERO)
-        total = sum((s.weight for s in self.segments), ZERO)
-        center = share(top, total) if total > 0 else ""
-        return donut_svg(self.merchants, center, f"前 {len(self.merchants)} 名占比")
 
     @property
     def rebates_text(self) -> str:
@@ -265,6 +315,8 @@ def build_year_report(
     visits: dict[str, list] = {}  # shop -> [purchases, CNY]
     paid_in: dict[str, list[Decimal]] = {}  # currency paid in -> [CNY, amount in it]
     cards: dict[str, Decimal] = {}
+    spent: list[tuple[int, drill.Spent]] = []  # (month, line): what the filter lists
+    bought: dict[int, int] = {}  # purchases by month
     for bill, month, txns, view in _pieces(conn, year, fx, rules):
         spend_by_month[month] = spend_by_month.get(month, ZERO) + view.spend_cny_value
         cards[bill.account_id] = cards.get(bill.account_id, ZERO) + view.spend_cny_value
@@ -274,6 +326,7 @@ def build_year_report(
             shop = shown_name(name)
             merchants[shop] = merchants.get(shop, ZERO) + value
         rates = _rates(bill, fx)
+        spent += [(month, s) for s in drill.spent(bill, fx, rules, txns)]
         for t in txns:
             through = max(through, t.trans_date) if through else t.trans_date
             if t.currency not in rates:
@@ -288,6 +341,7 @@ def build_year_report(
                 )
             if t.txn_type == TxnType.PURCHASE:
                 purchases += 1
+                bought[month] = bought.get(month, 0) + 1
                 visit = visits.setdefault(shop, [0, ZERO])
                 visit[0] += 1
                 visit[1] += value
@@ -305,6 +359,7 @@ def build_year_report(
         max(have, key=lambda b: b.value).current = True
     segments = category_segments(categories)
     tones = {s.name: s.tone for s in segments}
+    explorer = _explorer(spent, spend_by_month, bought, tones)
     return YearReport(
         year=year,
         bars=bars,
@@ -323,6 +378,7 @@ def build_year_report(
         complete=bool(latest_bills(conn, f"{year + 1}-01")),
         generated_at=(now or datetime.now(CHINA)).strftime("%Y-%m-%d %H:%M"),
         build=build_label(),
+        explorer=explorer,
     )
 
 
@@ -405,8 +461,243 @@ def _cards(cards: dict[str, Decimal]) -> list[CardYear]:
     return rows
 
 
+# --- the filter by month and category -----------------------------------------------------
+
+
+def _month_name(month: int) -> str:
+    return "全年" if month == 0 else f"{month}月"
+
+
+def _compact(value: Decimal) -> str:
+    """A bar's label: "4.5万" or "7,696"; the headline has the exact figure."""
+    return f"{value / 10000:.1f}万" if value >= 10000 else f"{value:,.0f}"
+
+
+def _total(items: list[tuple[int, drill.Spent]]) -> Decimal:
+    return sum((s.value for _, s in items), ZERO)
+
+
+def _strip(items: list[tuple[int, drill.Spent]]) -> list[StripBar]:
+    """A shop's twelve months: its visits over each column, the column's height its money."""
+    by_month: dict[int, list[drill.Spent]] = {}
+    for month, s in items:
+        by_month.setdefault(month, []).append(s)
+    top = max((sum((s.value for s in v), ZERO) for v in by_month.values()), default=ZERO)
+    out = []
+    for month in range(1, 13):
+        v = sum((s.value for s in by_month.get(month, [])), ZERO)
+        px = int(v / top * STRIP_PX) if top > 0 and v > 0 else 0
+        out.append(StripBar(month, len(by_month.get(month, [])), max(px, 2) if v > 0 else 0))
+    return out
+
+
+def _shops(
+    items: list[tuple[int, drill.Spent]],
+    count: int,
+    tones: dict[str, str],
+    whole_year: dict[str, list[tuple[int, drill.Spent]]] | None = None,
+) -> list[Shop]:
+    """The shops that came to most, each with the emoji and colour of its main category;
+    over the whole year each also carries its twelve months."""
+    by_shop: dict[str, list[tuple[int, drill.Spent]]] = {}
+    for month, s in items:
+        by_shop.setdefault(shown_name(s.shop), []).append((month, s))
+    ranked = sorted(by_shop.items(), key=lambda kv: -_total(kv[1]))[:count]
+    out = []
+    for name, rows in ranked:
+        cats: dict[str, Decimal] = {}
+        for _, s in rows:
+            cats[s.category] = cats.get(s.category, ZERO) + s.value
+        main = max(cats, key=lambda c: cats[c])
+        shop = Shop(
+            name,
+            len(rows),
+            money(cents(_total(rows))),
+            emoji_for(main),
+            tones.get(main, "other"),
+            drill.lines([s for _, s in rows], by_shop=True),
+        )
+        if whole_year is not None:
+            shop.strip = _strip(whole_year[name])
+        out.append(shop)
+    return out
+
+
+def _month_list(
+    month: int, values: list[tuple[int, str, Decimal]], tones: dict[str, str], spent: Decimal
+) -> MonthList:
+    """A month's categories (0: the year's), largest first, each choosing its category;
+    beyond SHOWN_CATEGORIES folded under one row, unless that would fold just one. The
+    donut keeps each category's colour of the year; its middle is the spending the
+    headline has, refunds and cashback taken off."""
+    items = sorted(((j, name, v) for j, name, v in values if v > 0), key=lambda x: -x[2])
+    whole = sum((v for _, _, v in items), ZERO)
+    rows = [
+        Choice(j, _segment(name, v, whole, tones.get(name, "other"), emoji_for(name)))
+        for j, name, v in items
+    ]
+    if len(rows) > SHOWN_CATEGORIES + 1:
+        shown, folded = rows[:SHOWN_CATEGORIES], rows[SHOWN_CATEGORIES:]
+    else:
+        shown, folded = rows, []
+    folded_total = sum((c.segment.weight for c in folded), ZERO)
+    parts: list[Segment] = []
+    rest = ZERO
+    for _, name, v in items:
+        tone = tones.get(name, "other")
+        if tone in ("s1", "s2", "s3", "s4", "none"):
+            parts.append(_segment(name, v, whole, tone))
+        else:
+            rest += v
+    if rest > 0:
+        parts.append(_segment("其余", rest, whole, "other"))
+    caption = f"{_month_name(month)}消费"
+    donut = donut_svg(parts, f"¥{spent:,.0f}", caption) if whole > 0 else Markup("")
+    folded_share = share(folded_total, whole) if whole > 0 else ""
+    return MonthList(month, shown, folded, money(cents(folded_total)), folded_share, donut)
+
+
+def _explorer(
+    spent: list[tuple[int, drill.Spent]],
+    net: dict[int, Decimal],
+    bought: dict[int, int],
+    tones: dict[str, str],
+) -> Explorer:
+    """Every choice of month and category, worked out beforehand (docs/notify.md#年度回顾).
+    Category amounts are what the categories add up (refunds and cashback not taken off);
+    a whole month's, as the headline and the bars show it, has them taken off."""
+    year_by_category: dict[str, Decimal] = {}
+    for _, s in spent:
+        year_by_category[s.category] = year_by_category.get(s.category, ZERO) + s.value
+    ranked = sorted(year_by_category.items(), key=lambda kv: -kv[1])
+    categories = [name for name, v in ranked if v > 0]
+    index = {name: j for j, name in enumerate(categories, start=1)}
+    k = len(categories)
+    sub: dict[tuple[int, int], list[tuple[int, drill.Spent]]] = {}
+    for month, s in spent:
+        j = index.get(s.category)
+        if j is None:  # a category that came to nothing over the year
+            continue
+        for key in ((month, j), (0, j), (month, 0), (0, 0)):
+            sub.setdefault(key, []).append((month, s))
+
+    def label(i: int, j: int) -> str:
+        return _month_name(i) if j == 0 else f"{_month_name(i)} · {categories[j - 1]}"
+
+    def month_spent(i: int) -> Decimal:
+        return sum(net.values(), ZERO) if i == 0 else net.get(i, ZERO)
+
+    heads = {}
+    for i in range(13):
+        for j in range(k + 1):
+            if j == 0:
+                value = month_spent(i)
+                count = sum(bought.values()) if i == 0 else bought.get(i, 0)
+                note = f"{count} 笔消费 · 已扣返现和退款"
+            else:
+                rows = sub.get((i, j), [])
+                value, count = _total(rows), len(rows)
+                whole = _total(sub.get((i, 0), []))
+                part = f" · 占{_month_name(i)}的 {share(value, whole)}" if whole > 0 else ""
+                note = f"{count} 笔{part}"
+            heads[(i, j)] = Pick(
+                label(i, j), money(cents(value)), note if value > 0 else "没有消费"
+            )
+
+    captions, heights = [], []
+    for j in range(k + 1):
+        values = [net.get(i, ZERO) if j == 0 else _total(sub.get((i, j), [])) for i in range(1, 13)]
+        top = max(values)
+        heights.append([(v / top if top > 0 and v > 0 else ZERO, v) for v in values])
+        have = [(i, v) for i, v in enumerate(values, start=1) if v > 0]
+        if len(have) >= 2:
+            (hi, hv), (lo, lv) = max(have, key=lambda x: x[1]), min(have, key=lambda x: x[1])
+            captions.append(f"最多：{hi}月 ¥{hv:,.0f} · 最少：{lo}月 ¥{lv:,.0f}")
+        elif have:
+            captions.append(f"只有 {have[0][0]} 月有这类消费")
+        else:
+            captions.append("")
+    bars = []
+    for i in range(12):
+        parts = []
+        for j in range(k + 1):
+            h, v = heights[j][i]
+            parts.append(f"--h{j}:{max(float(h), 0.02):.3f}")
+            text = _compact(v) if v > 0 else "—"
+            parts.append(f'--t{j}:"{text}"')
+        bars.append(Bar(i + 1, ";".join(parts)))
+
+    lists = []
+    for i in range(13):
+        values = [(j, name, _total(sub.get((i, j), []))) for j, name in enumerate(categories, 1)]
+        lists.append(_month_list(i, values, tones, month_spent(i)))
+
+    whole_year: dict[str, list[tuple[int, drill.Spent]]] = {}
+    for month, s in spent:
+        whole_year.setdefault(shown_name(s.shop), []).append((month, s))
+    shops = {(0, 0): _shops(sub.get((0, 0), []), TOP_MERCHANTS, tones, whole_year)}
+    for i in range(1, 13):  # a month's shops do not open: its lines are listed below them
+        shops[(i, 0)] = _shops(sub.get((i, 0), []), TOP_SHOPS, tones)
+    for j in range(1, k + 1):
+        shops[(0, j)] = _shops(sub.get((0, j), []), TOP_SHOPS, tones)
+
+    bought_at: dict[str, list[tuple[int, drill.Spent]]] = {}
+    for month, s in spent:
+        if s.purchase:
+            bought_at.setdefault(shown_name(s.shop), []).append((month, s))
+    often = sorted(bought_at.items(), key=lambda kv: (-len(kv[1]), -_total(kv[1])))
+    visits = []
+    for name, rows in [(n, r) for n, r in often if len(r) >= 2][:TOP_VISITS]:
+        visits += _shops(rows, 1, tones, {name: rows})
+
+    kept = [(month, s) for month, s in spent if s.category in index]
+    kept.sort(key=lambda x: (x[1].day, x[1].card))
+    lines = [(month, index[s.category], drill.line(s)) for month, s in kept]
+    css = explorer_css(k)
+    return Explorer(categories, heads, bars, captions, lists, shops, visits, lines, css)
+
+
+def explorer_css(k: int) -> Markup:
+    """The radio buttons m0-m12 (month; 0 the year) and c0-c<k> (category; 0 every one),
+    placed before .x, choose what shows: blocks for one month (.xm), one category (.xc),
+    or both (an .xm inside an .xc); the heights of the one set of bars; the lines of the
+    chosen month and category. One rule per value, never per combination. What comes
+    into view fades in; the bars grow and shrink on the spring (a registered --h)."""
+    out = [".x .xm, .x .xc { display: none; }"]
+    out += [
+        f"#m{i}:checked ~ .x .xm.m{i} {{ display: block; animation: fadein .3s ease both; }}"
+        for i in range(13)
+    ]
+    out += [
+        f"#c{j}:checked ~ .x .xc.c{j} {{ display: block; animation: fadein .3s ease both; }}"
+        for j in range(k + 1)
+    ]
+    for j in range(k + 1):
+        out.append(f"#c{j}:checked ~ .x .bars .f {{ --h: var(--h{j}); }}")
+        out.append(f"#c{j}:checked ~ .x .bars .v::after {{ content: var(--t{j}); }}")
+    out.append("#m0:checked ~ .x .bars .f { background: var(--accent); }")
+    for i in range(1, 13):
+        chosen = f"#m{i}:checked ~ .x .bars label.m{i}"
+        out.append(f"{chosen} .f {{ background: var(--accent); }}")
+        out.append(f"{chosen} .v {{ opacity: 1; }}")
+        out.append(f"{chosen} .k {{ color: var(--label); font-weight: 700; }}")
+    for j in range(1, k + 1):
+        out.append(
+            f"#c{j}:checked ~ .x .crow.c{j} .name {{ color: var(--accent); font-weight: 600; }}"
+        )
+        out.append(f"#c{j}:checked ~ .x .crow.c{j} .ck {{ display: inline; }}")
+    out.append("#m0:checked ~ .x .clr-m, #c0:checked ~ .x .clr-c { display: none; }")
+    out.append("#m0:not(:checked) ~ .x .txsec { display: block; animation: fadein .3s ease both; }")
+    out += [f"#m{i}:checked ~ .x .t:not(.m{i}) {{ display: none; }}" for i in range(1, 13)]
+    out += [f"#c{j}:checked ~ .x .t:not(.c{j}) {{ display: none; }}" for j in range(1, k + 1)]
+    return Markup((chr(10) + "  ").join(out))
+
+
 def render_year_html(report: YearReport) -> str:
-    return _env.get_template("year_review.html.j2").render(r=report)
+    """The e-mail, its lines stripped of the template's indentation: every choice of the
+    filter is written in beforehand, so the saving adds up (about a tenth)."""
+    html = _env.get_template("year_review.html.j2").render(r=report)
+    return chr(10).join(line.strip() for line in html.splitlines() if line.strip())
 
 
 def year_plain_text(report: YearReport) -> str:

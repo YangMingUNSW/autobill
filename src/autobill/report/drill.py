@@ -14,7 +14,7 @@ from decimal import Decimal
 
 from autobill.categorize import Rules
 from autobill.fx import FxRates, RateUnavailable
-from autobill.model import ZERO, Bill
+from autobill.model import ZERO, Bill, TxnType
 from autobill.report.monthly import SPENDING_TYPES, cents
 from autobill.report.statement import _line
 from autobill.report.style import BANK_NAMES, money
@@ -32,6 +32,7 @@ class Spent:
     title: str  # the shop as a list shows it
     local: str  # "A$24.00": what the shop charged
     cny: str  # "≈¥112.53" when that was not yuan
+    purchase: bool = True  # a purchase, not a fee, interest or cash: a visit to the shop
 
 
 @dataclass
@@ -85,23 +86,29 @@ def spent(bill: Bill, fx: FxRates, rules: Rules, transactions=None) -> list[Spen
         category = rules.categorize(t.description_raw, t.txn_type, t.merchant)
         value = t.amount * have[t.currency]
         by_ai = rules.by_ai(t.description_raw, t.txn_type, t.merchant)
-        line = _line(t, category, False, False, by_ai, card, value)
+        shown = _line(t, category, False, False, by_ai, card, value)
         shop = t.merchant or t.description_raw
         out.append(
-            Spent(t.trans_date, category, shop, value, card, line.title, line.local, line.cny)
-        )
+            Spent(
+                t.trans_date, category, shop, value, card, shown.title, shown.local, shown.cny,
+                t.txn_type == TxnType.PURCHASE,
+            )
+        )  # fmt: skip
     return out
 
 
-def _lines(items: list[Spent], by_shop: bool) -> Lines:
+def line(s: Spent, by_shop: bool = False) -> Line:
     """By category the shop is a line's title; by shop the date is."""
+    if by_shop:
+        return Line(day_text(s.day), f"{s.card} · {s.category}", s.local, s.cny)
+    return Line(s.title, f"{day_text(s.day)} · {s.card}", s.local, s.cny)
+
+
+def lines(items: list[Spent], by_shop: bool = False) -> Lines:
+    """The items as a row's lines, oldest first, and their total."""
     out = Lines()
     for s in sorted(items, key=lambda s: (s.day, s.card)):
-        if by_shop:
-            title, sub = day_text(s.day), f"{s.card} · {s.category}"
-        else:
-            title, sub = s.title, f"{day_text(s.day)} · {s.card}"
-        out.lines.append(Line(title, sub, s.local, s.cny))
+        out.lines.append(line(s, by_shop))
         out.total += s.value
     return out
 
@@ -110,11 +117,11 @@ def by_category(items: list[Spent]) -> dict[str, Lines]:
     groups: dict[str, list[Spent]] = {}
     for s in items:
         groups.setdefault(s.category, []).append(s)
-    return {k: _lines(v, by_shop=False) for k, v in groups.items()}
+    return {k: lines(v) for k, v in groups.items()}
 
 
 def by_shop(items: list[Spent]) -> dict[str, Lines]:
     groups: dict[str, list[Spent]] = {}
     for s in items:
         groups.setdefault(s.shop, []).append(s)
-    return {k: _lines(v, by_shop=True) for k, v in groups.items()}
+    return {k: lines(v, by_shop=True) for k, v in groups.items()}

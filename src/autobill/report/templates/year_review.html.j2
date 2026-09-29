@@ -1,16 +1,52 @@
 {#- The year in review (docs/notify.md#年度回顾), for Apple Mail on iPhone: the same look as
     the month's e-mail (_email.css). A calendar year by transaction date, counted the way
-    the month's e-mail counts, so the twelve months add up to the year. -#}
-{%- macro row(g, small=False, tile=True) -%}
-<div class="row">
-  {% if tile %}<span class="tile{% if small %} sm{% endif %} {{ g.tone }}">{{ g.emoji }}</span>{% endif %}
-  <div class="rbody">
-    <span class="name"><i class="key {{ g.tone }}"></i>{{ g.name }}{% if g.note %}<span class="note">{{ g.note }}</span>{% endif %}</span>
-    <span class="pct">{{ g.share }}</span>
-    <span class="amt num">{{ g.amount }}</span>
-  </div>
+    the month's e-mail counts, so the twelve months add up to the year. The first three
+    cards filter it by month and category: two groups of radio buttons ahead of .x, one
+    CSS rule per value (year.explorer_css); no script. -#}
+{%- macro lines(b) -%}
+<div class="lines">
+<div class="lhead">{{ b.count }} 笔 · {{ b.total_text }}</div>
+{% for x in b.lines %}<p class="ln"><span><b>{{ x.title }}</b><i>{{ x.sub }}</i></span><em><b>{{ x.local }}</b>{% if x.cny %}<i>{{ x.cny }}</i>{% endif %}</em></p>{% endfor %}
 </div>
 {%- endmacro -%}
+{%- macro strip(s) -%}
+<div class="strip" aria-hidden="true">{% for b in s %}<span class="sc"><span class="sv">{{ b.count or "" }}</span><span class="sf" style="height: {{ b.px }}px"></span><span class="sk">{{ b.month }}</span></span>{% endfor %}</div>
+{%- endmacro -%}
+{%- macro shop(s, id, open=True) -%}
+{% if open %}
+<input type="checkbox" id="{{ id }}" class="acc">
+<label for="{{ id }}" class="row">
+{% else %}
+<div class="row">
+{% endif %}
+  <span class="tile sm {{ s.tone }}">{{ s.emoji }}</span>
+  <div class="rbody">
+    <span class="name">{{ s.name }}</span>
+    <span class="pct">{{ s.count }} 笔</span>
+    <span class="amt num">{{ s.amount }}</span>
+    {% if open %}<span class="chev">›</span>{% endif %}
+  </div>
+{% if open %}
+</label>
+<div class="pan"><div class="in">{% if s.strip %}{{ strip(s.strip) }}{% endif %}{{ lines(s.lines) }}</div></div>
+{% else %}
+</div>
+{% endif %}
+{%- endmacro -%}
+{%- macro choice(c) -%}
+{% set g = c.segment %}
+<label for="c{{ c.j }}" class="row crow c{{ c.j }}">
+  <span class="tile {{ g.tone }}">{{ g.emoji }}</span>
+  <div class="rbody">
+    <span class="name"><i class="key {{ g.tone }}"></i>{{ g.name }}</span>
+    <span class="pct">{{ g.share }}</span>
+    <span class="amt num">{{ g.amount }}</span>
+    <span class="ck">✓</span>
+  </div>
+</label>
+{%- endmacro -%}
+{%- set x = r.explorer -%}
+{%- set K = x.categories|length -%}
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -34,10 +70,36 @@
   /* long shop names: two lines at most, then an ellipsis */
   .rows.clip .name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
                      overflow: hidden; overflow-wrap: anywhere; line-height: 1.3; }
-  .rows label.row { cursor: pointer; -webkit-tap-highlight-color: transparent; }
-  .rows .panel .row .rbody { border-top: .5px solid var(--sep); }
-  .rows .chev { font-size: 20px; margin-left: -2px; }
   .change { margin-top: 8px; }
+  /* the filter: one set of bars whose height (--h, registered so it can move on the
+     spring) is the chosen category's; the chips and rows that choose; a shop's months */
+  @property --h { syntax: "<number>"; inherits: false; initial-value: 0; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .rd { display: none; }
+  .bars { display: flex; align-items: stretch; gap: 3px; height: 132px; margin: 16px 0 6px; }
+  .bars label { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column;
+                justify-content: flex-end; align-items: center; cursor: pointer; }
+  .bars .v { font-size: 10px; font-weight: 600; white-space: nowrap; opacity: 0; margin-bottom: 3px;
+             transition: opacity .25s ease; }
+  .bars .f { width: 74%; max-width: 20px; height: calc(var(--h) * 92px); border-radius: 4px 4px 2px 2px;
+             background: var(--other); transition: --h .5s var(--spring), background-color .25s ease; }
+  .bars .k { font-size: 11px; color: var(--label2); margin-top: 5px; font-variant-numeric: tabular-nums; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 0; }
+  .chip { font-size: 14px; line-height: 18px; padding: 6px 14px; border-radius: 16px; background: var(--fill);
+          color: var(--accent); cursor: pointer; }
+  label.chip:active { background: var(--fill2); }
+  .rows .ck { display: none; color: var(--accent); font-weight: 700; font-size: 15px; width: 12px; }
+  .x .txsec { display: none; }
+  .lines.tx { margin: 0; background: none; padding: 0; }
+  .lines.tx .ln:first-child { border-top: 0; }
+  .strip { display: flex; align-items: flex-end; gap: 3px; height: 72px; margin: 2px 0 8px 44px;
+           padding: 8px 12px 6px; background: var(--fill); border-radius: 10px; }
+  .strip .sc { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center;
+               justify-content: flex-end; height: 100%; }
+  .strip .sv { font-size: 10px; color: var(--label2); line-height: 12px; }
+  .strip .sf { flex-shrink: 0; width: 9px; background: var(--other); border-radius: 2px 2px 1px 1px; }
+  .strip .sk { font-size: 9px; color: var(--label3); line-height: 11px; margin-top: 2px; }
+  {{ x.css }}
 </style>
 </head>
 <body>
@@ -55,72 +117,86 @@
     {% if r.change %}<div class="change">{{ r.change }}</div>{% endif %}
   </section>
 
-  {% if r.trend_shown %}
-  <div class="sh">每个月</div>
-  <section class="card">
-    {{ r.trend_chart }}
-    <div class="caption">{{ r.trend_caption }}</div>
-  </section>
-  {% endif %}
+  <div class="explorer">
+    {% for i in range(13) %}<input type="radio" name="xm" id="m{{ i }}" class="rd"{% if i == 0 %} checked{% endif %}>{% endfor %}
+    {% for j in range(K + 1) %}<input type="radio" name="xc" id="c{{ j }}" class="rd"{% if j == 0 %} checked{% endif %}>{% endfor %}
+    <div class="x">
 
-  {% if r.categories %}
-  <div class="sh">花在哪些地方</div>
-  <section class="card">
-    <div class="donut-wrap">{{ r.category_donut }}</div>
-    <div class="rows">
-      {% for g in r.shown_categories %}
-      {{ row(g) }}
-      {% endfor %}
-      {% if r.folded_categories %}
-      <input type="checkbox" id="more-categories" class="acc">
-      <label for="more-categories" class="row">
-        <span class="tile">⋯</span>
-        <div class="rbody">
-          <span class="name"><i class="key other"></i>其余 {{ r.folded_categories|length }} 类<span class="note"><span class="when-closed">轻点展开</span><span class="when-open">轻点收起</span></span></span>
-          <span class="pct">{{ r.folded_share }}</span>
-          <span class="amt num">{{ r.folded_amount }}</span>
-          <span class="chev">›</span>
+      <div class="sh">每个月</div>
+      <section class="card">
+        {% for j in range(K + 1) %}<div class="xc c{{ j }}">{% for i in range(13) %}{% set h = x.heads[(i, j)] %}<div class="xm m{{ i }}"><div class="caption">{{ h.label }}</div><div class="hero md">{{ h.amount | yuan }}</div><div class="caption">{{ h.note }}</div></div>{% endfor %}</div>{% endfor %}
+        <div class="bars" role="group" aria-label="{{ r.trend_label }}">{% for b in x.bars %}<label for="m{{ b.month }}" class="m{{ b.month }}" style="{{ b.style }}"><span class="v"></span><span class="f"></span><span class="k">{{ b.month }}</span></label>{% endfor %}</div>
+        {% for caption in x.captions %}<div class="xc c{{ loop.index0 }}"><div class="caption">{{ caption }}</div></div>{% endfor %}
+        <div class="chips"><label for="m0" class="chip clr-m">‹ 看全年</label><label for="c0" class="chip clr-c">× 全部分类</label></div>
+      </section>
+      <div class="sf">点柱子选月份，最下面就列出那个月的每一笔；再点下面的分类，只剩那一类。</div>
+
+      <div class="sh">花在哪些地方</div>
+      <section class="card">
+        {% for L in x.lists %}
+        <div class="xm m{{ L.month }}">
+          {% if L.shown %}
+          <div class="donut-wrap">{{ L.donut }}</div>
+          <div class="rows">
+            {% for c in L.shown %}{{ choice(c) }}{% endfor %}
+            {% if L.folded %}
+            <input type="checkbox" id="more-categories-{{ L.month }}" class="acc">
+            <label for="more-categories-{{ L.month }}" class="row">
+              <span class="tile">⋯</span>
+              <div class="rbody">
+                <span class="name"><i class="key other"></i>其余 {{ L.folded|length }} 类<span class="note"><span class="when-closed">轻点展开</span><span class="when-open">轻点收起</span></span></span>
+                <span class="pct">{{ L.folded_share }}</span>
+                <span class="amt num">{{ L.folded_amount }}</span>
+                <span class="chev">›</span>
+              </div>
+            </label>
+            <div class="pan"><div class="in"><div class="rows">{% for c in L.folded %}{{ choice(c) }}{% endfor %}</div></div></div>
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="caption">这个月没有消费</div>
+          {% endif %}
         </div>
-      </label>
-      <div class="panel">
-        {% for g in r.folded_categories %}
-        {{ row(g) }}
         {% endfor %}
+      </section>
+      <div class="sf">点分类筛选：上面的柱子变成这一类每个月的花费。分类金额没有扣退款和返现。</div>
+
+      <div class="sh">花得最多的商户</div>
+      <section class="card">
+        {% for j in range(K + 1) %}<div class="xc c{{ j }}">{% for i in range(13) %}<div class="xm m{{ i }}">
+          {% set rows = x.shops.get((i, j), []) %}
+          {% if rows %}
+          <div class="rows visits clip">{% for s in rows %}{{ shop(s, "shop-%d-%d-%d"|format(i, j, loop.index), open=(i == 0)) }}{% endfor %}</div>
+          {% elif i and j %}
+          <div class="caption">{{ x.heads[(i, j)].note }} · 每一笔都在下面</div>
+          {% else %}
+          <div class="caption">没有消费</div>
+          {% endif %}
+        </div>{% endfor %}</div>{% endfor %}
+      </section>
+      <div class="sf">全年、或者只选了分类时，轻点商户看每个月去了几次和每一笔。</div>
+
+      <div class="txsec">
+        <div class="sh">每一笔</div>
+        <section class="card">
+          <div class="lines tx">
+            {% for month, j, t in x.lines %}<p class="ln t m{{ month }} c{{ j }}"><span><b>{{ t.title }}</b><i>{{ t.sub }}</i></span><em><b>{{ t.local }}</b>{% if t.cny %}<i>{{ t.cny }}</i>{% endif %}</em></p>{% endfor %}
+          </div>
+        </section>
+        <div class="sf">上面选的月份和分类的每一笔，按日期。</div>
       </div>
-      {% endif %}
-    </div>
-    <div class="caption">全部卡合计 · 外币折人民币</div>
-  </section>
-  {% endif %}
 
-  {% if r.merchants %}
-  <div class="sh">花得最多的商户</div>
-  <section class="card">
-    <div class="donut-wrap">{{ r.merchant_donut }}</div>
-    <div class="rows clip">
-      {% for m in r.merchants %}
-      {{ row(m, small=True) }}
-      {% endfor %}
     </div>
-  </section>
-  {% endif %}
+  </div>
 
-  {% if r.visits %}
+  {% if x.visits %}
   <div class="sh">去得最多的店</div>
   <section class="card">
     <div class="rows visits clip">
-      {% for v in r.visits %}
-      <div class="row">
-        <span class="tile sm {{ v.tone }}">{{ v.emoji }}</span>
-        <div class="rbody">
-          <span class="name">{{ v.name }}</span>
-          <span class="pct">{{ v.count }} 次</span>
-          <span class="amt num">{{ v.amount }}</span>
-        </div>
-      </div>
-      {% endfor %}
+      {% for v in x.visits %}{{ shop(v, "visit-%d"|format(loop.index)) }}{% endfor %}
     </div>
   </section>
+  <div class="sf">轻点看每个月去了几次和每一笔。</div>
   {% endif %}
 
   {% if r.currencies %}
@@ -131,7 +207,13 @@
     </div>
     <div class="rows">
       {% for c in r.currencies %}
-      {{ row(c, tile=False) }}
+      <div class="row">
+        <div class="rbody">
+          <span class="name"><i class="key {{ c.tone }}"></i>{{ c.name }}{% if c.note %}<span class="note">{{ c.note }}</span>{% endif %}</span>
+          <span class="pct">{{ c.share }}</span>
+          <span class="amt num">{{ c.amount }}</span>
+        </div>
+      </div>
       {% endfor %}
     </div>
     <div class="caption">按付款时的币种，折合人民币 · 只算消费</div>
