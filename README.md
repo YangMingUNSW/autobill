@@ -45,11 +45,11 @@ flowchart LR
   <tr>
     <td width="50%" valign="top">
       <img src="docs/images/email-spending.png" alt="Spending by category as a donut chart, with notes under categories that are clearly off their usual">
-      <p><b>Spending</b> by category with month-over-month change. A category clearly off its usual level (the median of the previous three months) gets a quiet note, whether up or down.</p>
+      <p><b>Spending</b> by category with month-over-month change. A category clearly off its usual level (the median of the previous three months) gets a quiet note, whether up or down. Tap a category, or one of the top merchants, to see every purchase behind it.</p>
     </td>
     <td width="50%" valign="top">
       <img src="docs/images/email-trend.png" alt="Last six months: one column per month, the current month highlighted">
-      <p><b>Last six months</b>: one column per statement month, the current month highlighted, with the average.</p>
+      <p><b>Last six months</b>: one column per statement month with its amount, the current month highlighted, and the average.</p>
       <img src="docs/images/email-transactions.png" alt="All transactions grouped by day, each showing its card and category">
       <p><b>All transactions</b> from every card in one list by day, collapsed until tapped. Foreign purchases show the local currency first, with the CNY equivalent.</p>
     </td>
@@ -57,6 +57,10 @@ flowchart LR
 </table>
 
 The e-mail also lists each card's statement date, due date and amount due (foreign-currency cards in both currencies) and the top merchants. Due dates are shown; payment reminders are deliberately out of scope.
+
+<p align="center"><img src="docs/images/year-review.png" width="300" alt="The year in review, first screen: the year's spending and one column per month"></p>
+
+The **year in review** opens with the year's spending and a column per month. Tap a month to list its purchases, then a category to narrow them down.
 
 ## Supported banks
 | Bank | Statement format | Status |
