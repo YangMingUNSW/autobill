@@ -1,4 +1,5 @@
-"""Screenshots of the month's e-mail for the README, made from invented data.
+"""Screenshots of the e-mails (the month's, the year in review) for the README, made from
+invented data.
 
 Nothing here comes from a statement: every card, merchant and amount below is made up,
 so the pictures can be public. The data goes through the real code (save_bill, the
@@ -25,8 +26,11 @@ from decimal import Decimal
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-CYCLES = ["2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]
+# All of 2026 and the January after it (whose statements hold December's spending), so the
+# year in review has a whole year to show.
+CYCLES = [f"2026-{m:02d}" for m in range(1, 13)] + ["2027-01"]
 SHOWN = "2026-09"  # the month the screenshots show
+YEAR = 2026  # the year in review shown
 AUD_TO_CNY = Decimal("4.7050")
 
 
@@ -87,8 +91,10 @@ SEPTEMBER_EXTRA = {
 SEPTEMBER_FEWER = {"滴滴出行": 2, "UBER *TRIP": 1}
 # A phone bought in twelve instalments: part of what is owed, never counted as spending.
 INSTALLMENT = {"CCB:0004": (Decimal("583.25"), "手机")}
-MONTH_SCALE = {"2026-04": 0.92, "2026-05": 1.05, "2026-06": 0.97, "2026-07": 1.12,
-               "2026-08": 0.88, "2026-09": 1.0}  # fmt: skip
+MONTH_SCALE = {"2026-01": 1.18, "2026-02": 1.25, "2026-03": 0.9, "2026-04": 0.92,
+               "2026-05": 1.05, "2026-06": 0.97, "2026-07": 1.12, "2026-08": 0.88,
+               "2026-09": 1.0, "2026-10": 0.95, "2026-11": 1.08, "2026-12": 1.3,
+               "2027-01": 1.1}  # fmt: skip
 
 
 def money(value: float) -> Decimal:
@@ -129,8 +135,8 @@ def build_bills(rng: random.Random):
             entries = [(start + timedelta(days=15), -prev, TxnType.REPAYMENT, "还款 谢谢",
                         None, None, None)]  # fmt: skip
             entries += [(w, a, TxnType.PURCHASE, d, d, loc, None) for w, a, d, loc in rows]
-            if account in INSTALLMENT:  # owed this month, but not spending: 合计应还 > 消费
-                n = CYCLES.index(cycle) + 3
+            n = CYCLES.index(cycle) + 1  # the phone's instalment this month, 1..12
+            if account in INSTALLMENT and n <= 12:  # owed, not spending: 合计应还 > 消费
                 principal, what = INSTALLMENT[account]
                 entries.append((statement, principal, TxnType.INSTALLMENT,
                                 f"{what} 分期本金 第{n}/12期", None, None, f"{n}/12"))  # fmt: skip
@@ -215,12 +221,13 @@ def offline(url: str) -> str:
 
 
 def render(conn):
-    """(the month's e-mail, one standard statement) as HTML."""
+    """(the month's e-mail, the year in review, one standard statement) as HTML."""
     from autobill.categorize import load_rules
     from autobill.config import FxConfig
     from autobill.fx import FxRates
     from autobill.report.cycle import build_cycle_report, latest_bills, render_cycle_html
     from autobill.report.statement import render_statement_html
+    from autobill.report.year import build_year_report, render_year_html
     from autobill.store.db import load_bill
 
     fx = FxRates(conn, FxConfig(), offline)
@@ -228,8 +235,13 @@ def render(conn):
     report = build_cycle_report(
         conn, SHOWN, fx, rules, today=date(2026, 10, 1), now=datetime(2026, 10, 1, 9, 30)
     )
+    year = build_year_report(conn, YEAR, fx, rules, now=datetime(YEAR + 1, 1, 20, 9, 30))
     bill = load_bill(conn, latest_bills(conn, SHOWN)["ABC:0001"])
-    return render_cycle_html(report), render_statement_html(bill, fx, rules)
+    return (
+        render_cycle_html(report),
+        render_year_html(year),
+        render_statement_html(bill, fx, rules),
+    )
 
 
 def section(page, heading: str, *, max_height: int | None = None) -> dict:
@@ -244,22 +256,26 @@ def section(page, heading: str, *, max_height: int | None = None) -> dict:
         }""",
         heading,
     )
-    height = box["bottom"] - box["y"] + 28
+    height = box["bottom"] - box["y"] + 20  # stop just under the card, above any hint below it
     if max_height:
         height = min(height, max_height)
     return {"x": 0, "y": box["y"] - 14, "width": page.viewport_size["width"], "height": height}
 
 
-def shoot(email_html: str, statement_html: str, out: Path, browser: str | None) -> list[Path]:
+def shoot(
+    email_html: str, year_html: str, statement_html: str, out: Path, browser: str | None
+) -> list[Path]:
     from playwright.sync_api import sync_playwright
 
     out.mkdir(parents=True, exist_ok=True)
     written = []
     with sync_playwright() as p:
         chromium = p.chromium.launch(executable_path=browser) if browser else p.chromium.launch()
+        phone = {"width": 390, "height": 844}
         for scheme in ("light", "dark"):
+            # Reduced motion: a row that opens is shot open, not halfway through its spring.
             page = chromium.new_page(
-                viewport={"width": 390, "height": 844}, device_scale_factor=2, color_scheme=scheme
+                viewport=phone, device_scale_factor=2, color_scheme=scheme, reduced_motion="reduce"
             )
             page.set_content(email_html)
             written.append(out / f"email-{scheme}.png")
@@ -269,11 +285,18 @@ def shoot(email_html: str, statement_html: str, out: Path, browser: str | None) 
                     written.append(out / f"email-{name}.png")
                     page.screenshot(path=written[-1], clip=section(page, heading), full_page=True)
                 page.click("label[for=tx]")  # unfold the transactions
+                page.wait_for_timeout(1500)  # let the list finish opening before measuring it
                 written.append(out / "email-transactions.png")
                 page.screenshot(
                     path=written[-1], clip=section(page, "全部流水", max_height=620), full_page=True
                 )
             page.close()
+        # The year in review's first screen: the year's total and a column per month.
+        page = chromium.new_page(viewport=phone, device_scale_factor=2, reduced_motion="reduce")
+        page.set_content(year_html)
+        written.append(out / "year-review.png")
+        page.screenshot(path=written[-1])
+        page.close()
         # The statement's first cards: header, payment information, account summary.
         page = chromium.new_page(viewport={"width": 430, "height": 700}, device_scale_factor=2)
         page.set_content(statement_html)
@@ -293,9 +316,9 @@ def main() -> None:
         os.environ.pop("AUTOBILL_RULES", None)
         sys.path.insert(0, str(ROOT / "src"))
         conn = build_database(Path(tmp))
-        email_html, statement_html = render(conn)
+        email_html, year_html, statement_html = render(conn)
         conn.close()
-    for path in shoot(email_html, statement_html, args.out, args.browser):
+    for path in shoot(email_html, year_html, statement_html, args.out, args.browser):
         print(f"{path.relative_to(ROOT) if path.is_relative_to(ROOT) else path}"
               f"  {path.stat().st_size // 1024} KB")  # fmt: skip
 

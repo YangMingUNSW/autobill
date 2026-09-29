@@ -7,7 +7,7 @@
 
 English | [简体中文](README.zh-CN.md)
 
-Self-hosted, rule-based summaries of Chinese credit-card statements. AutoBill reads the e-statements your banks send to a dedicated mailbox, reconciles every statement against the bank's own totals, and sends you one clean e-mail per month, designed for Apple Mail on iPhone. Your data never leaves your own server and mailbox.
+Self-hosted, rule-based summaries of Chinese credit-card statements. AutoBill reads the e-statements your banks send to a dedicated mailbox, reconciles every statement against the bank's own totals, and sends you one clean e-mail per month, plus a year in review each January, designed for Apple Mail on iPhone. Your data never leaves your own server and mailbox.
 
 <p align="center">
   <img src="docs/images/email-light.png" width="300" alt="The monthly e-mail, first screen (light mode): total due, each card's statement and due dates, spending">
@@ -19,8 +19,9 @@ Self-hosted, rule-based summaries of Chinese credit-card statements. AutoBill re
 > **Status:** `v0.2.0` runs every 30 minutes in Docker on the author's own server: parsing and reconciliation for three banks, one e-mail per statement month, alert e-mails, and optional AI categorisation of merchants the rules miss. See the [roadmap](project.md#6-分期路线) (Chinese).
 
 ## Features
-- **Deterministic parsing.** Every statement is parsed with fixed rules, never AI, and checked item by item against the totals the bank prints on it. Any mismatch is reported, never silently ignored.
+- **Deterministic parsing.** Every statement is parsed with fixed rules, never AI, and checked item by item against the totals the bank prints on it. Any mismatch is reported, never silently ignored. After an update that changes a parser, the statements already stored are read again automatically.
 - **One e-mail per statement month.** Sent once every expected card has issued its statement, so you get one complete picture instead of one e-mail per card.
+- **Tap for details.** Categories, top merchants and the transaction list open in place, and the year in review filters by month and category. It is all CSS, with no scripts and nothing loaded from the web, so it works in Apple Mail, and offline once the e-mail has downloaded.
 - **Multi-currency.** Original currencies are kept and converted to CNY at the exchange rate of the statement e-mail's date ([Frankfurter](https://frankfurter.dev)).
 - **Categories.** Keyword rules first; merchants the rules miss can optionally be categorised by an AI endpoint you configure, which only ever sees merchant name, location and currency.
 - **Read-only mailbox.** Messages are never deleted, moved or marked as read.
@@ -45,11 +46,11 @@ flowchart LR
   <tr>
     <td width="50%" valign="top">
       <img src="docs/images/email-spending.png" alt="Spending by category as a donut chart, with notes under categories that are clearly off their usual">
-      <p><b>Spending</b> by category with month-over-month change. A category clearly off its usual level (the median of the previous three months) gets a quiet note, whether up or down.</p>
+      <p><b>Spending</b> by category with month-over-month change. A category clearly off its usual level (the median of the previous three months) gets a quiet note, whether up or down. Tap a category, or one of the top merchants, to see every purchase behind it.</p>
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/email-trend.png" alt="Last six months: one column per month, the current month highlighted">
-      <p><b>Last six months</b>: one column per statement month, the current month highlighted, with the average.</p>
+      <img src="docs/images/email-trend.png" alt="Last six months: one column per month with its amount, the current month highlighted">
+      <p><b>Last six months</b>: one column per statement month with its amount, the current month highlighted, and the average.</p>
       <img src="docs/images/email-transactions.png" alt="All transactions grouped by day, each showing its card and category">
       <p><b>All transactions</b> from every card in one list by day, collapsed until tapped. Foreign purchases show the local currency first, with the CNY equivalent.</p>
     </td>
@@ -57,6 +58,10 @@ flowchart LR
 </table>
 
 The e-mail also lists each card's statement date, due date and amount due (foreign-currency cards in both currencies) and the top merchants. Due dates are shown; payment reminders are deliberately out of scope.
+
+<p align="center"><img src="docs/images/year-review.png" width="300" alt="The year in review, first screen: the year's spending and one column per month"></p>
+
+The **year in review** opens with the year's spending and a column per month. Tap a month to list its purchases, then a category to narrow them down.
 
 ## Supported banks
 | Bank | Statement format | Status |
