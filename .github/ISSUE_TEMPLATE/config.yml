@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem privately
+    url: https://github.com/YangMingUNSW/autobill/security/advisories/new
+    about: Please do not open a public issue for a security problem.
+  - name: Documentation (Simplified Chinese)
+    url: https://github.com/YangMingUNSW/autobill/blob/main/docs/README.md
+    about: Setup, deployment and design documents.

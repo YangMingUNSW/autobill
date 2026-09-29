@@ -224,15 +224,21 @@ uv run autobill --help        # 运行程序本身
 
 **新增样本**：只做上面的第 2 步，再加上快照测试和覆盖矩阵的更新。
 
-**更新 README 的截图**（`docs/images/`，2026-09-24 加）：月度邮件或年度回顾的样式改了之后，重新生成一遍，和样式改动放在同一个 PR 里（2026-09-28 到 09-29 的几次改版漏了这一步，2026-09-30 补上）。
+**更新 README 的图片**（`docs/images/`，2026-09-24 加截图，2026-09-30 加动画和插图）：月度邮件或年度回顾的样式改了之后，重新生成截图和动画，和样式改动放在同一个 PR 里（2026-09-28 到 09-29 的几次改版漏了这一步，2026-09-30 补上；PR 模板里有这一条）。
 ```powershell
 uv run --with playwright playwright install chromium   # 第一次用时装一次
-uv run --with playwright python scripts/demo_screenshots.py
+uv run --with playwright --with pillow python scripts/demo_screenshots.py   # 截图 + 动画
+uv run --with playwright python scripts/readme_art.py                        # 横幅、流程图、logo、分享图
 ```
-- 数据**全部是编的**（脚本里写死的卡、商户、金额），不读任何真实账单和数据库，所以截图可以公开；它不是"脱敏脚本"。
+- 数据**全部是编的**（脚本里写死的卡、商户、金额），不读任何真实账单和数据库，所以图片可以公开；它不是"脱敏脚本"。
 - 编的数据照样走真实代码（`save_bill`、月度报表、年度回顾、模板），截图就是程序实际渲染的样子；全程离线，汇率直接写进临时数据库。编了 2026 全年加 2027 年 1 月的账单，年度回顾才有完整的一年。
-- 生成 7 张图：月度邮件首屏（浅色、深色）、本月消费、近 6 个月、展开的流水、年度回顾首屏、标准账单；每张控制在 300 KB 以内。截图时模拟"减弱动态效果"，并等展开的列表停稳再拍，不会拍到动画的半截。
-- Playwright 只是这个脚本用，不是项目依赖；已经有 Chrome/Chromium 时可以用 `--browser <路径>` 跳过安装。
+- `demo_screenshots.py` 生成 7 张截图（月度邮件首屏的浅色和深色、本月消费、近 6 个月、展开的流水、年度回顾首屏、标准账单，每张 300 KB 以内）和 4 段动画（`demo-month-*.webp`：滑到分类、轻点展开；`demo-year-*.webp`：点分类柱子跟着变、再点月份；各有浅色、深色两份，README 用 `<picture>` 跟着 GitHub 的主题换）。
+  - 截图时模拟"减弱动态效果"，并等展开的列表停稳再拍。
+  - 动画是把页面上的动画全部暂停，每次往前拨 1/30 秒拍一帧，所以动作和邮件里一模一样、不会掉帧；有一个表示手指的圆点，最后淡回第一帧循环播放。每段约 6 秒、1.3–2.4 MB。`--no-animation` 只拍截图。
+- `readme_art.py` 画 README 顶部的横幅和"工作原理"流程图（浅色、深色，英文、中文，一共 8 个 SVG），以及 `logo.svg` 和 `social-preview.png`。
+  - 颜色取自邮件的 `_email.css`，横幅上的数字取自演示数据。动画是 SVG 里的 CSS（GitHub 把 SVG 当图片显示，不跑脚本），打开页面时播一次（流程图的小点一直流动），系统设置了"减弱动态效果"就不播。
+  - `social-preview.png`（1280 × 640）是别人分享仓库链接时显示的大图，GitHub 没有接口可以上传，要在仓库 Settings → General → Social preview 里手动上传。
+- Playwright 和 Pillow 只是这两个脚本用，不是项目依赖；已经有 Chrome/Chromium 时可以用 `--browser <路径>` 跳过安装。
 
 ## 10. 用 AI（Claude）开发的注意事项
 - **一个对话只做一个里程碑步骤**。开头告诉它"做 M2，先读 CLAUDE.md 和 docs/banks/abc.md"。

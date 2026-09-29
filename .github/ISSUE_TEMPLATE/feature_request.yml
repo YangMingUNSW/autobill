@@ -1,0 +1,26 @@
+name: Feature request
+description: An idea for AutoBill, or support for another bank.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        AutoBill is a small personal project with a deliberate scope ([project.md](https://github.com/YangMingUNSW/autobill/blob/main/project.md), in Chinese), so not every idea will fit, but every one is read.
+
+        For another bank, describe its statement (HTML e-mail or PDF, what it contains) and do **not** attach a real one.
+  - type: textarea
+    id: need
+    attributes:
+      label: What would you like to do?
+      description: The problem or the need, rather than a solution.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How could AutoBill help?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What have you tried or considered instead?
