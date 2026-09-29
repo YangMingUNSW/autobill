@@ -21,7 +21,13 @@ from autobill.notify.mail import Mailer
 from autobill.pipeline import process, send_year_review
 from autobill.report.cycle import MonthBar, Segment, record_sent, trend_svg
 from autobill.report.monthly import monthly_summary
-from autobill.report.year import build_year_report, due_year, render_year_html, year_plain_text
+from autobill.report.year import (
+    _month_list,
+    build_year_report,
+    due_year,
+    render_year_html,
+    year_plain_text,
+)
 from autobill.store.db import connect, save_bill
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -241,16 +247,90 @@ def segments(n):
 
 
 def test_the_long_tail_of_categories_folds_away(samples):
+    """A month's list (0: the year) shows the SHOWN_CATEGORIES largest and folds the rest
+    under 其余 N 类, unless that would fold away a single row."""
+    values = [(j, f"类{j}", D(13 - j)) for j in range(1, 13)]  # twelve categories, 12 to 1
+    nine = _month_list(0, values[:9], {}, D(100))
+    assert len(nine.shown) == 9 and nine.folded == []
+    twelve = _month_list(0, values, {}, D(100))
+    assert len(twelve.shown) == 8
+    assert [c.segment.name for c in twelve.folded] == ["类9", "类10", "类11", "类12"]
+    assert (twelve.folded_amount, twelve.folded_share) == ("10.00", "13%")  # 4+3+2+1 of 78
     report = year_of(samples)
-    report.categories = segments(9)  # folding one row away would save nothing
-    assert report.shown_categories == report.categories and report.folded_categories == []
-    assert 'id="more-categories"' not in render_year_html(report)
-    report.categories = segments(12)
-    assert len(report.shown_categories) == 8 and len(report.folded_categories) == 4
-    assert (report.folded_amount, report.folded_share) == ("10.00", "13%")  # 4+3+2+1 of 78
+    report.explorer.lists[0] = twelve
     html = render_year_html(report)
-    assert 'id="more-categories"' in html and "其余 4 类" in html
-    assert re.search(r'<input type="checkbox" id="more-categories" class="acc">\s*<label', html)
+    assert "其余 4 类" in html
+    assert re.search(r'<input type="checkbox" id="more-categories-0" class="acc">\s*<label', html)
+
+
+# --- the filter by month and category ------------------------------------------------
+
+
+def test_every_choice_adds_up(samples):
+    """The headline of each choice: a whole month (spending, refunds taken off) is its bar;
+    a category's twelve months add up to its year; a month's categories to its list."""
+    report = year_of(samples)
+    x = report.explorer
+    money_of = lambda text: D(text.replace(",", ""))  # noqa: E731
+    assert x.heads[(0, 0)].amount == report.spend_total
+    for bar in report.bars:
+        month = int(bar.label.rstrip("月"))
+        want = bar.value if bar.value is not None else D(0)
+        assert abs(money_of(x.heads[(month, 0)].amount) - want) < D("0.01"), bar.label
+    for j in range(1, len(x.categories) + 1):
+        year = money_of(x.heads[(0, j)].amount)
+        months = sum((money_of(x.heads[(i, j)].amount) for i in range(1, 13)), D(0))
+        assert abs(year - months) < D("0.05"), x.categories[j - 1]
+    for i in range(13):
+        rows = x.lists[i].shown + x.lists[i].folded
+        listed = sum((c.segment.weight for c in rows), D(0))
+        chosen = sum(
+            (money_of(x.heads[(i, j)].amount) for j in range(1, len(x.categories) + 1)), D(0)
+        )
+        assert abs(listed - chosen) < D("0.05"), i
+    assert len(x.lines) == sum(
+        int(x.heads[(0, j)].note.split(" ")[0]) for j in range(1, len(x.categories) + 1)
+    )
+
+
+def test_the_filter_is_one_rule_per_value(samples):
+    """Never a rule per combination: with K categories there are 13 + K + 1 blocks to show,
+    one height per category, and one filter of the lines per month and per category."""
+    x = year_of(samples).explorer
+    k = len(x.categories)
+    css = str(x.css)
+    assert css.count(".x .xm.m") == 13 and css.count(".x .xc.c") == k + 1
+    assert css.count(".x .bars .f { --h: var(--h") == k + 1
+    assert css.count(".x .t:not(.m") == 12 and css.count(".x .t:not(.c") == k
+    for bar in x.bars:  # every bar knows its height and label for every category
+        assert bar.style.count("--h") == k + 1 and bar.style.count("--t") == k + 1
+
+
+def test_the_email_has_the_filter_and_no_script(samples):
+    report = year_of(samples)
+    html = render_year_html(report)
+    k = len(report.explorer.categories)
+    radios = re.findall(
+        r'<input type="radio" name="(x[mc])" id="([mc]\d+)" class="rd"( checked)?>', html
+    )
+    assert [r[1] for r in radios] == [f"m{i}" for i in range(13)] + [f"c{j}" for j in range(k + 1)]
+    assert [r[1] for r in radios if r[2]] == ["m0", "c0"]  # the whole year, every category
+    boxes = re.findall(r'<input type="checkbox" id="([^"]+)"', html)
+    assert len(boxes) == len(set(boxes))
+    assert "<script" not in html and "onclick" not in html
+    assert "@property --h" in html and "touch-action: manipulation" in html
+
+
+def test_the_shops_open_to_lines_that_add_up(samples):
+    x = year_of(samples).explorer
+    top = x.shops[(0, 0)]
+    assert top
+    for shop in top + x.visits:
+        assert abs(shop.lines.total - D(shop.amount.replace(",", ""))) < D("0.01"), shop.name
+        assert shop.lines.count == shop.count
+        assert [b.month for b in shop.strip] == list(range(1, 13))
+        assert sum(b.count for b in shop.strip) == shop.count
+    assert all(v.count >= 2 for v in x.visits)  # once is not going back
 
 
 # --- the e-mail --------------------------------------------------------------------
