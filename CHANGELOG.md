@@ -5,6 +5,8 @@
 ## [Unreleased]
 
 ### Added
+- README 首页重做，参照成熟开源项目的写法：顶部是会动的横幅（logo、一句话简介、圆环图一笔画出、柱子升起），接着是两段真实交互的动画（月报轻点展开、年度回顾点分类柱子跟着变，浅色、深色跟着 GitHub 主题换）；新增目录、流动的"工作原理"图、隐私一节、可以折叠的常见问题和致谢，截图收进"更多截图"。图片全部放在仓库里、由脚本生成（`scripts/readme_art.py`，`scripts/demo_screenshots.py` 新增动画），不依赖外部服务；数据全部是编的。
+- 社区规范文件：`CONTRIBUTING.md`、`CODE_OF_CONDUCT.md`（Contributor Covenant 2.1，私下举报走 Security 页）、issue 表单（Bug 报告带版本号和"已去掉身份信息"的确认，功能建议；关掉空白 issue，安全问题引到私下报告）、PR 模板（检查清单含"改了邮件外观要重新生成 README 图片"），以及 `docs/README.md` 文档目录。
 - 年度回顾可以按月份和分类筛选：点柱子选月份，点分类选分类，大数字、圆盘、分类、商户跟着换；选了分类，一套 12 根柱子按弹簧平滑变成这一类每个月的花费；选了月份，下面按日期列出那个月（和那一类）的每一笔。全年的前 10 家商户、只选分类时的前 5 家、"去得最多的店"轻点展开，看 12 个月去了几次和每一笔。所有选择都提前写进邮件，每个值一条 CSS 规则，没有脚本（作者 2025 年全年约 470 KB）。
 - 月度邮件可以点开：每个分类、每家商户轻点展开，看本月的每一笔（商户或日期、卡、当地币种金额和折合人民币），加起来就是那一行；灰色的"其他"改叫"其余 N 类"，轻点列出是哪几类、每类还能再点开；"全部流水"也一样。手感是作者在 iOS 27 苹果邮件里从 5 种写法中选的：点下去立刻响应、按下变灰、按苹果默认弹簧平滑展开、每一行依次浮现、中英文自动留空，打开"减少动态效果"时不动。只用 CSS，没有脚本。
 - 解析器更新后自动重读：每次运行开头，旧版解析器读的账单、以及解析器有变化时之前没读成功的邮件，自动从 `raw/` 重新解析，不用再手动 `reparse`（改了卡号别名除外）。账单保留已发送状态、不重发；以前没认出来的账单第一次读到时当新账单发。读的时候用的解析器版本记在新表 `parser_versions`（表结构升到 7）。
@@ -100,3 +102,7 @@
 - M2 农行解析器 `parse/abc.py`、三步分项对账 `reconcile.py`、邮件读取 `fetch/message.py`（`RawMessage`）、解析器接口 `parse/base.py`；3 份农行样本的快照。
 - M3 第一条完整链路：SQLite 存储 `store/db.py`、`DirectorySource`、银行注册表、`pipeline.py`、汇率 `fx.py`（Frankfurter + 缓存 + 配置兜底）、配置 `config.py`；命令 `autobill import-dir` 和 `autobill report --month`。
 - M4 建行解析器 `parse/ccb.py`（锚点定位、全 0 外币行跳过、取不到卡号时记为 `CCB:unknown`），加入注册表；建行样本快照。
+
+[Unreleased]: https://github.com/YangMingUNSW/autobill/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/YangMingUNSW/autobill/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/YangMingUNSW/autobill/releases/tag/v0.1.0

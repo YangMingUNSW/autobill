@@ -1,21 +1,24 @@
-"""Screenshots of the e-mails (the month's, the year in review) for the README, made from
-invented data.
+"""Screenshots and animations of the e-mails (the month's, the year in review) for the
+README, made from invented data.
 
 Nothing here comes from a statement: every card, merchant and amount below is made up,
 so the pictures can be public. The data goes through the real code (save_bill, the
-month's report, the templates), so the screenshots show the e-mail exactly as AutoBill
+month's report, the templates), so the pictures show the e-mail exactly as AutoBill
 renders it. Run it again after the e-mail's design changes; see docs/development.md.
 
-    uv run --with playwright python scripts/demo_screenshots.py
+    uv run --with playwright --with pillow python scripts/demo_screenshots.py
 
 It needs a Chromium for Playwright (`uv run --with playwright playwright install
 chromium` once), or an existing one via --browser. Offline: exchange rates are written
-into the throw-away database, nothing is fetched.
+into the throw-away database, nothing is fetched. The animations (animated WebP, light
+and dark) are the e-mail's own CSS motion, stepped frame by frame; --no-animation skips
+them.
 """
 
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import random
 import sys
@@ -306,10 +309,166 @@ def shoot(
     return written
 
 
+FPS = 30
+PHONE = {"width": 390, "height": 760}  # the part of an iPhone screen the animations show
+DEMO_WIDTH = 540  # pixels wide, about one and a half times the size the README shows
+
+# A fingertip, as iOS screen recordings show touches, and the press a tapped row shows.
+TAP_JS = """() => {
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const d = document.createElement('div');
+  d.id = 'demo-tap';
+  d.style.cssText = 'position:fixed;left:0;top:0;width:46px;height:46px;margin:-23px 0 0 -23px;'
+    + 'border-radius:50%;pointer-events:none;z-index:9;opacity:0;' + (dark
+      ? 'background:rgba(255,255,255,.26);box-shadow:0 0 0 1.5px rgba(255,255,255,.4)'
+      : 'background:rgba(60,60,67,.2);box-shadow:0 0 0 1.5px rgba(60,60,67,.3)');
+  document.body.appendChild(d);
+  const s = document.createElement('style');
+  s.textContent = '.demo-press { background: var(--fill) !important; }';
+  document.head.appendChild(s);
+}"""
+MARK_JS = """p => { const d = document.getElementById('demo-tap');
+  d.style.left = p.x + 'px'; d.style.top = p.y + 'px';
+  d.style.opacity = p.o; d.style.transform = 'scale(' + p.s + ')'; }"""
+# Every running animation and transition, paused at its start, then moved on by hand.
+PAUSE_JS = "() => document.getAnimations().forEach(a => { a.pause(); a.currentTime = 0; })"
+STEP_JS = "t => document.getAnimations().forEach(a => { a.currentTime = t; })"
+FINISH_JS = "() => document.getAnimations().forEach(a => a.finish())"
+
+
+class Recorder:
+    """The frames of an animated picture of a page. The page's own animations are paused
+    and stepped 1/FPS at a time, so the motion is exactly the e-mail's, with no frame
+    dropped however slow the screenshots are."""
+
+    def __init__(self, page):
+        self.page = page
+        self.frames: list[tuple[bytes, int]] = []  # (PNG, milliseconds it is shown)
+        page.evaluate(TAP_JS)
+
+    def shot(self, ms: int = 1000 // FPS) -> None:
+        self.frames.append((self.page.screenshot(), ms))
+
+    def scroll_to(self, y: float, ms: int) -> None:
+        start = self.page.evaluate("() => scrollY")
+        n = max(1, round(ms * FPS / 1000))
+        for k in range(1, n + 1):
+            eased = (1 - math.cos(math.pi * k / n)) / 2
+            self.page.evaluate("y => scrollTo(0, y)", start + (y - start) * eased)
+            self.shot()
+
+    def tap(self, target, ms: int) -> None:
+        """A fingertip lands on `target` (a locator), the row shows its press, then the
+        click's animations play out for `ms` while the fingertip lifts."""
+        self.page.evaluate(FINISH_JS)  # nothing left over from the last tap
+        box = target.bounding_box()
+        x, y = box["x"] + box["width"] * 0.42, box["y"] + box["height"] / 2
+        for k in range(1, 5):
+            self.page.evaluate(MARK_JS, {"x": x, "y": y, "o": k / 4, "s": 0.6 + 0.4 * k / 4})
+            if k == 2:  # only rows and cells show a press in the e-mail (label.row:active)
+                target.evaluate("el => el.matches('label.row, label.cell') "
+                                "&& el.classList.add('demo-press')")  # fmt: skip
+            self.shot()
+        target.evaluate("el => { el.classList.remove('demo-press'); el.click(); }")
+        self.page.evaluate(PAUSE_JS)
+        n = round(ms * FPS / 1000)
+        for k in range(1, n + 1):
+            self.page.evaluate(STEP_JS, k * 1000 / FPS)
+            lift = min(k / 6, 1)
+            self.page.evaluate(MARK_JS, {"x": x, "y": y, "o": 1 - lift, "s": 1 + 0.25 * lift})
+            self.shot()
+        self.page.evaluate(FINISH_JS)
+
+
+def doc_y(locator) -> float:
+    """Where an element starts, from the top of the page."""
+    return locator.evaluate("el => el.getBoundingClientRect().top + scrollY")
+
+
+def record_month(page) -> Recorder:
+    """The month's e-mail: down to the categories, tap one, its purchases unfold."""
+    rec = Recorder(page)
+    rec.shot(900)
+    row = page.locator("label.row", has_text="餐饮").first
+    top = doc_y(row) - PHONE["height"] * 0.3
+    rec.scroll_to(top, 900)
+    rec.shot(250)
+    rec.tap(row, 750)
+    rec.shot(1100)
+    rec.scroll_to(top + 240, 700)
+    rec.shot(1000)
+    return rec
+
+
+def record_year(page) -> Recorder:
+    """The year in review: tap a category and the twelve months follow; tap a month."""
+    rec = Recorder(page)
+    rec.shot(900)
+    heading = page.locator(".sh", has_text="每个月").first
+    rec.scroll_to(doc_y(heading) - 10, 900)
+    rec.shot(300)
+    rec.tap(page.locator("label.crow", has_text="餐饮").first, 850)
+    rec.shot(1000)
+    rec.tap(page.locator(".bars label.m9").first, 650)
+    rec.shot(1400)
+    return rec
+
+
+def save_animation(frames: list[tuple[bytes, int]], path: Path, fade: int = 12) -> Path:
+    """An animated WebP with rounded corners, like a phone screen, that loops: the last
+    frames fade back into the first."""
+    import io
+
+    from PIL import Image, ImageDraw
+
+    images = []
+    for png, ms in frames:
+        im = Image.open(io.BytesIO(png)).convert("RGB")
+        images.append((im.resize((DEMO_WIDTH, round(im.height * DEMO_WIDTH / im.width)),
+                                 Image.LANCZOS), ms))  # fmt: skip
+    first, last = images[0][0], images[-1][0]
+    images += [(Image.blend(last, first, k / (fade + 1)), 1000 // FPS) for k in range(1, fade + 1)]
+    mask = Image.new("L", first.size, 0)
+    radius = round(36 * DEMO_WIDTH / PHONE["width"])
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, *first.size), radius=radius, fill=255)
+    out = []
+    for im, _ in images:
+        rgba = im.convert("RGBA")
+        rgba.putalpha(mask)
+        out.append(rgba)
+    out[0].save(
+        path, save_all=True, append_images=out[1:], duration=[ms for _, ms in images],
+        loop=0, quality=82, method=6, allow_mixed=True, minimize_size=True,
+    )  # fmt: skip
+    return path
+
+
+def animate(email_html: str, year_html: str, out: Path, browser: str | None) -> list[Path]:
+    """The README's two animations, each in the e-mail's light and dark look."""
+    from playwright.sync_api import sync_playwright
+
+    written = []
+    with sync_playwright() as p:
+        chromium = p.chromium.launch(executable_path=browser) if browser else p.chromium.launch()
+        for name, html, record in (("month", email_html, record_month),
+                                   ("year", year_html, record_year)):  # fmt: skip
+            for scheme in ("light", "dark"):
+                page = chromium.new_page(viewport=PHONE, device_scale_factor=2, color_scheme=scheme)
+                page.set_content(html)
+                page.evaluate(FINISH_JS)
+                written.append(
+                    save_animation(record(page).frames, out / f"demo-{name}-{scheme}.webp")
+                )
+                page.close()
+        chromium.close()
+    return written
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--out", type=Path, default=ROOT / "docs" / "images")
     parser.add_argument("--browser", help="a Chromium/Chrome executable to use")
+    parser.add_argument("--no-animation", action="store_true", help="screenshots only")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory() as tmp:
         os.environ["AUTOBILL_DATA_DIR"] = tmp  # never the real data directory or rules
@@ -318,7 +477,10 @@ def main() -> None:
         conn = build_database(Path(tmp))
         email_html, year_html, statement_html = render(conn)
         conn.close()
-    for path in shoot(email_html, year_html, statement_html, args.out, args.browser):
+    written = shoot(email_html, year_html, statement_html, args.out, args.browser)
+    if not args.no_animation:
+        written += animate(email_html, year_html, args.out, args.browser)
+    for path in written:
         print(f"{path.relative_to(ROOT) if path.is_relative_to(ROOT) else path}"
               f"  {path.stat().st_size // 1024} KB")  # fmt: skip
 
