@@ -62,8 +62,9 @@ docker compose up -d                               # 启动：立刻跑一次，
 | 看跑的是哪个版本 | 看月度邮件最底下一行，或者 `docker compose run --rm autobill --version`，输出 `autobill 0.2.0 (15fe0d7)`。括号里是构建镜像的提交号，和 GitHub 上 main 最新的提交一样就是最新版 |
 | 退回某个版本 | 把 `compose.yaml` 里的 `:latest` 改成版本号（如 `:0.2.0`）或某次提交（如 `:sha-8271652`，main 上每次合并都有），再 `docker compose up -d` |
 | 马上跑一次 | `docker compose restart`（重启后会立刻运行一次） |
-| 程序修好后补处理失败的账单 | `docker compose run --rm autobill run --rescan` |
-| 程序修好后重新解析有警告的账单 | `docker compose pull && docker compose up -d`，再 `docker compose run --rm autobill reparse` |
+| 程序修好后重新解析已入库的账单（失败的、不认识的、旧版解析器读的） | **不用做**：更新后第一次运行会自动重读（见 [pipeline.md](pipeline.md#运行层)），日志里有一行"解析器更新了……重新解析了 N 封" |
+| 改了 `card_aliases` 之后重新归账户 | `docker compose run --rm autobill reparse --all` |
+| 邮箱里有没收进来的邮件（比如文件夹换过） | `docker compose run --rm autobill run --rescan` |
 | 停止 / 启动 | `docker compose down` / `docker compose up -d` |
 | 换了 App 专用密码 | 改 `autobill.env`，然后 `docker compose up -d` |
 | 打开 AI 分类 | `autobill.env` 加一行 `AUTOBILL_AI_API_KEY=`（DeepSeek 的密钥），`data/config.yaml` 的 `ai.provider` 写 `deepseek`，然后 `docker compose up -d`（见 [notify.md](notify.md#ai-分类)） |

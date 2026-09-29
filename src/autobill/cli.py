@@ -22,7 +22,14 @@ from autobill.fetch.source import DirectorySource, RawMail
 from autobill.fx import FxRates
 from autobill.notify import alerts
 from autobill.notify.mail import PASSWORD_ENV, Mailer, smtp_password
-from autobill.pipeline import process, reparse, send_pending_reports, send_year_review
+from autobill.pipeline import (
+    outdated_emails,
+    process,
+    record_parsers,
+    reparse,
+    send_pending_reports,
+    send_year_review,
+)
 from autobill.report.cycle import (
     CHINA,
     build_cycle_email,
@@ -244,6 +251,7 @@ def _run_once(send: bool = True, rescan: bool = False) -> int:
         conn.execute("DELETE FROM folder_cursors")
         typer.echo("从头重读文件夹：处理过的邮件会跳过，之前失败或不认识的会重新处理。")
     known = {r[0] for r in conn.execute("SELECT DISTINCT account_id FROM bills")}
+    _reparse_outdated(conn, config, known)
     try:
         with _mailbox(config) as box:
             alerts.clear(conn, "mailbox", "login")  # logged in: an old login alert is over
@@ -281,6 +289,26 @@ def _run_once(send: bool = True, rescan: bool = False) -> int:
         return exc.exit_code
     _send_alerts(conn)
     return 0
+
+
+def _reparse_outdated(conn, config, known: set[str]) -> None:
+    """After an update that changed a parser, read again the stored e-mails it would read
+    differently, so no `reparse` by hand (docs/pipeline.md#运行层). Bills keep reported_at,
+    so nothing is sent twice; a statement read for the first time is reported as new."""
+    outdated = outdated_emails(conn)
+    if outdated.email_ids:
+        aliases = config.cards.card_aliases
+        outcomes = [reparse(conn, data_dir(), i, aliases) for i in outdated.email_ids]
+        counts: dict[str, int] = {}
+        for o in outcomes:
+            counts[o.status] = counts.get(o.status, 0) + 1
+        why = "、".join(outdated.changed)
+        why = f"解析器更新了（{why}）" if why else "有账单是旧版解析器读的"
+        summary = "，".join(f"{status} {n}" for status, n in sorted(counts.items()))
+        typer.echo(f"{why}：重新解析了 {len(outcomes)} 封：{summary}。")
+        alerts.record(conn, _alerts_for(outcomes, known))
+    if outdated.changed:
+        record_parsers(conn)
 
 
 def _auto_classify(conn, config) -> int:
@@ -534,6 +562,7 @@ def reparse_command(
         accounts = ", ".join(f"{b.account_id} {b.statement_date}" for b in outcome.bills)
         name = outcome.source.rsplit("/", 1)[-1]
         typer.echo(f"{outcome.status:<12} {name}  {accounts or outcome.error or ''}")
+    record_parsers(conn)
     summary = "，".join(f"{status} {n}" for status, n in sorted(counts.items()))
     typer.echo("")
     typer.echo(f"重新解析了 {len(ids)} 封：{summary}。已经发过报表的账单不会再发。")

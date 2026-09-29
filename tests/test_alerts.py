@@ -13,6 +13,7 @@ from autobill import fx as fx_module
 from autobill.cli import app
 from autobill.fetch.mime import is_own_report
 from autobill.notify import alerts
+from autobill.parse.abc import AbcHtmlParser
 from autobill.store.db import connect
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -154,3 +155,42 @@ def test_alert_email_is_clean(isolated_data_dir):
     assert "format-detection" in html and "prefers-color-scheme: dark" in html
     assert "<script" not in html and "http" not in html
     assert chr(0xFE0F) not in str(msg["Subject"])  # no invisible variation selector
+
+
+# --- after an update that changed a parser (docs/pipeline.md#运行层) -------------------------
+
+
+def older_abc_parser_read_everything(conn):
+    conn.execute("UPDATE bills SET parser_version = parser_version - 1")
+    conn.execute("UPDATE parser_versions SET version = version - 1 WHERE name = 'abc_html'")
+
+
+def test_a_run_after_a_parser_update_reads_stored_statements_again(env, monkeypatch):
+    mailbox_with(monkeypatch, {1: to_alias(ABC[0].read_bytes())})
+    runner.invoke(app, ["run"])
+    reports = len(sent("信用卡账单"))
+    assert reports == 1
+    conn = connect(env / "autobill.db")
+    older_abc_parser_read_everything(conn)
+    result = runner.invoke(app, ["run"])
+    assert "解析器更新了（abc_html" in result.output, result.output
+    assert "重新解析了 1 封：OK 1" in result.output
+    versions = {r[0] for r in conn.execute("SELECT parser_version FROM bills")}
+    assert versions == {AbcHtmlParser.version}
+    assert len(sent("信用卡账单")) == reports  # reported_at kept: nothing sent twice
+    assert "重新解析" not in runner.invoke(app, ["run"]).output  # once only
+
+
+def test_a_statement_missed_before_is_read_and_reported_after_a_parser_update(env, monkeypatch):
+    mailbox_with(monkeypatch, {1: to_alias(ABC[0].read_bytes())})
+    with monkeypatch.context() as m:  # the parser of the time did not know this template
+        m.setattr(AbcHtmlParser, "matches", lambda self, msg: False)
+        runner.invoke(app, ["run"])
+    (alert,) = sent()
+    assert "不认识" in str(alert["Subject"]) and sent("信用卡账单") == []
+    conn = connect(env / "autobill.db")
+    older_abc_parser_read_everything(conn)
+    result = runner.invoke(app, ["run"])
+    assert "重新解析了 1 封：OK 1" in result.output, result.output
+    assert len(sent("信用卡账单")) == 1  # read for the first time: reported as new
+    assert len(sent()) == 1  # and no second alert
