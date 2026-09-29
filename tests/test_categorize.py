@@ -71,6 +71,8 @@ def test_built_in_rules_equal_the_example_file():
         ("NIPPON RENT-A-CAR HOKKAIDO", UNCATEGORISED),  # RENT is not a keyword: car hire
         ("THE LOFT SYDNEY", UNCATEGORISED),  # a bar, not Loft
         ("UNSW ROUNDHOUSE BAR", "餐饮"),  # the bar on campus, not 教育
+        ("境外消费 RAKUTENPAY GUNDA TOKYO JP", UNCATEGORISED),  # Rakuten Pay is not Tenpay (财付通)
+        ("TENPAY*某某小店", "微信/支付宝（未细分）"),  # Tenpay as a word still counts
     ],
 )
 def test_default_rules(description, category):

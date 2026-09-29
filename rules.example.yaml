@@ -117,4 +117,4 @@
           LAUNDR, DRY CLEAN, AUSPOST, AUSTRALIA POST, POST OFFICE, "word:LPO", "word:DHL", FEDEX,
           理发, 美发, 美容, 美甲, 洗衣, 干洗, 邮政, 快递, 顺丰]
 
-微信/支付宝（未细分）: [财付通, 支付宝, 微信, TENPAY, WECHAT, ALIPAY]
+微信/支付宝（未细分）: [财付通, 支付宝, 微信, "word:TENPAY", WECHAT, ALIPAY]
