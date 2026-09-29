@@ -65,7 +65,8 @@
   svg.trend .bar.now { fill: var(--accent); }
   svg.trend .axis { stroke: var(--sep); stroke-width: 1.5; }
   svg.trend text { fill: var(--label2); font-size: 20px; font-family: -apple-system, sans-serif; }
-  svg.trend .tick.now, svg.trend .value { fill: var(--label); font-weight: 600; }
+  svg.trend .value { fill: var(--label2); font-weight: 500; }
+  svg.trend .tick.now, svg.trend .value.now { fill: var(--label); font-weight: 600; }
   svg.trend .gap { fill: var(--label3); }
   .change { display: inline-block; font-size: 13px; color: var(--label2); background: var(--fill); border-radius: 12px; padding: 3px 10px; }
 
