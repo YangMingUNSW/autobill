@@ -1,7 +1,8 @@
 {#- Statement-month progress e-mail (docs/notify.md#账单月进度邮件), for Apple Mail on iPhone.
     Apple's own design language: large title, inset grouped lists with inset hairlines,
     Wallet-style card thumbnails; Copilot Money-style emoji category tiles and donut
-    charts. Long lists fold away with the CSS checkbox hack (no script). -#}
+    charts. Long lists fold away with the CSS checkbox hack (no script); a category or a
+    shop opens to its lines the same way (report/drill.py). -#}
 {%- macro icon(state) -%}
 {%- if state == "arrived" -%}
 <svg class="ico" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.3l2.3 2.3 4.7-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -10,6 +11,24 @@
 {%- else -%}
 <svg class="ico" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M6 3.4v3.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="6" cy="8.6" r=".85" fill="currentColor"/></svg>
 {%- endif -%}
+{%- endmacro -%}
+{%- macro lines(b) -%}
+<div class="lines">
+<div class="lhead">{{ b.count }} 笔 · {{ b.total_text }}</div>
+{% for x in b.lines %}<p class="ln"><span><b>{{ x.title }}</b><i>{{ x.sub }}</i></span><em><b>{{ x.local }}</b>{% if x.cny %}<i>{{ x.cny }}</i>{% endif %}</em></p>{% endfor %}
+</div>
+{%- endmacro -%}
+{%- macro openrow(id, g, emoji, small=False) -%}
+<input type="checkbox" id="{{ id }}" class="acc">
+<label for="{{ id }}" class="row">
+  <span class="tile{% if small %} sm{% endif %} {{ g.tone }}">{{ emoji }}</span>
+  <div class="rbody">
+    <span class="name"><i class="key {{ g.tone }}"></i>{{ g.label }}{% if g.note %}<span class="note">{{ g.note }}</span>{% endif %}</span>
+    <span class="pct">{{ g.share }}</span>
+    <span class="amt num">{{ g.amount }}</span>
+    <span class="chev">›</span>
+  </div>
+</label>
 {%- endmacro -%}
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -69,18 +88,24 @@
     </div>
     <div class="rows">
       {% for g in r.segments %}
-      <div class="row">
-        <span class="tile {{ g.tone }}">{{ g.emoji }}</span>
-        <div class="rbody">
-          <span class="name"><i class="key {{ g.tone }}"></i>{{ g.name }}{% if g.note %}<span class="note">{{ g.note }}</span>{% endif %}</span>
-          <span class="pct">{{ g.share }}</span>
-          <span class="amt num">{{ g.amount }}</span>
-        </div>
-      </div>
+      {% set outer = loop.index %}
+      {% if g.folded %}
+      {{ openrow("cat%d"|format(outer), g, "⋯") }}
+      <div class="pan"><div class="in"><div class="rows">
+        {% for f in g.folded %}
+        {{ openrow("cat%d-%d"|format(outer, loop.index), f, f.emoji) }}
+        <div class="pan"><div class="in">{% if f.lines %}{{ lines(f.lines) }}{% endif %}</div></div>
+        {% endfor %}
+      </div></div></div>
+      {% else %}
+      {{ openrow("cat%d"|format(outer), g, g.emoji) }}
+      <div class="pan"><div class="in">{% if g.lines %}{{ lines(g.lines) }}{% endif %}</div></div>
+      {% endif %}
       {% endfor %}
     </div>
     <div class="caption">{{ r.arrived }} 张卡合计 · 已扣返现和退款 · 外币折人民币{% if r.has_notes %} · 平时指前 3 个月的中位数{% endif %}</div>
   </section>
+  <div class="sf">轻点分类，看这一类本月的每一笔。</div>
   {% if r.segments[-1].tone == "none" %}<div class="sf">未分类的商户：在电脑上运行 autobill uncategorised，补进 rules.yaml，下次就能归类。</div>{% endif %}
   {% endif %}
 
@@ -98,17 +123,12 @@
     <div class="donut-wrap">{{ r.merchant_donut }}</div>
     <div class="rows">
       {% for m in r.merchants %}
-      <div class="row">
-        <span class="tile sm {{ m.tone }}">{{ m.emoji }}</span>
-        <div class="rbody">
-          <span class="name"><i class="key {{ m.tone }}"></i>{{ m.name }}</span>
-          <span class="pct">{{ m.share }}</span>
-          <span class="amt num">{{ m.amount }}</span>
-        </div>
-      </div>
+      {{ openrow("shop%d"|format(loop.index), m, m.emoji, small=True) }}
+      <div class="pan"><div class="in">{% if m.lines %}{{ lines(m.lines) }}{% endif %}</div></div>
       {% endfor %}
     </div>
   </section>
+  <div class="sf">轻点商户，看在这家店本月的每一笔。</div>
   {% endif %}
 
   {% if r.days %}
@@ -122,7 +142,7 @@
         <span class="chev">›</span>
       </div>
     </label>
-    <div class="panel">
+    <div class="pan"><div class="in"><div>
       {% for day in r.days %}
       <div class="day">{{ day.label }}</div>
       {% for t in day.lines %}
@@ -143,7 +163,7 @@
       </div>
       {% endfor %}
       {% endfor %}
-    </div>
+    </div></div></div>
   </section>
   {% endif %}
 

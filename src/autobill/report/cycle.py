@@ -40,6 +40,7 @@ from autobill.categorize import OTHER, UNCATEGORISED, Rules, load_rules
 from autobill.config import PortfolioCard
 from autobill.fx import FxRates
 from autobill.model import ZERO, Bill, TxnType
+from autobill.report import drill
 from autobill.report.monthly import cents, month_bounds
 from autobill.report.statement import (
     DayGroup,
@@ -147,6 +148,14 @@ class Segment:
     tone: str  # CSS class: s1..s4 (fixed categorical order), other, none (未分类)
     emoji: str = ""
     note: str = ""  # "比平时多 ¥800": only when this category is clearly off its usual
+    lines: drill.Lines | None = None  # what the row opens to (the month's e-mail)
+    folded: list[Segment] = field(default_factory=list)  # the categories in the grey row
+
+    @property
+    def label(self) -> str:
+        """The grey row is "其余 3 类", not 其他: 其他 is also a category of its own (a shop
+        the AI could not place), and it may be one of the three."""
+        return f"其余 {len(self.folded)} 类" if self.folded else self.name
 
 
 @dataclass
@@ -335,7 +344,7 @@ def donut_svg(segments: list[Segment], center: str, caption: str) -> Markup:
     r = (size - stroke) / 2
     c = 2 * math.pi * r
     gap = 2.0
-    said = "，".join(f"{s.name} {s.share}" for s in segments)
+    said = "，".join(f"{s.label} {s.share}" for s in segments)
     parts = [
         f'<svg class="donut" viewBox="0 0 {size} {size}" width="{size}" height="{size}" '
         f'role="img" aria-label="{escape(caption)}：{escape(said)}">',
@@ -369,7 +378,8 @@ def _segment(name: str, value: Decimal, total: Decimal, tone: str, emoji: str = 
 
 def category_segments(categories: dict[str, Decimal]) -> list[Segment]:
     """The month's categories as one stacked bar: the NAMED largest in the fixed
-    categorical order, the rest folded into 其他 (grey), 未分类 last (grey, hatched)."""
+    categorical order, the rest folded into one grey row that lists them, 未分类 last
+    (grey, hatched)."""
     values = {k: v for k, v in categories.items() if v > 0}
     total = sum(values.values(), ZERO)
     if not total:
@@ -379,7 +389,9 @@ def category_segments(categories: dict[str, Decimal]) -> list[Segment]:
     named, rest = items[:NAMED], items[NAMED:]
     segments = [_segment(name, v, total, f"s{i + 1}") for i, (name, v) in enumerate(named)]
     if rest:
-        segments.append(_segment("其他", sum((v for _, v in rest), ZERO), total, "other"))
+        fold = _segment("其他", sum((v for _, v in rest), ZERO), total, "other")
+        fold.folded = [_segment(name, v, total, "other") for name, v in rest]
+        segments.append(fold)
     if uncategorised:
         segments.append(_segment(UNCATEGORISED, uncategorised, total, "none"))
     return segments
@@ -573,6 +585,7 @@ def build_cycle_report(
     spend = ZERO
     categories: dict[str, Decimal] = {}
     merchants: dict[str, Decimal] = {}
+    spent: list[drill.Spent] = []  # what the rows open to
     for account in sorted(expected, key=lambda a: (expected[a] or 32, a)):
         label = card_label(account)
         bank, _, last4 = label.partition(" ")
@@ -608,6 +621,7 @@ def build_cycle_report(
             categories[name] = categories.get(name, ZERO) + value
         for name, value in view.merchants.items():
             merchants[name] = merchants.get(name, ZERO) + value
+        spent += drill.spent(bill, fx, rules)
 
     # Each earlier month is read once, for the trend and the category notes alike.
     history = {c: month_totals(conn, c, fx, rules) for c in earlier_cycles(cycle, TREND_MONTHS - 1)}
@@ -618,6 +632,14 @@ def build_cycle_report(
     for s in segments:
         s.note = notes.get(s.name, "")
     tones = {s.name: s.tone for s in segments}
+    by_category = drill.by_category(spent)
+    for s in segments:
+        for row in s.folded or [s]:
+            row.lines = by_category.get(row.name)
+    top = _top_merchants(merchants, rules, tones)
+    by_shop = drill.by_shop(spent)
+    for m in top:
+        m.lines = by_shop.get(m.name)
     days, count = merge_transactions(views)
     before = previous_cycle(cycle)
     trend = spend_trend(cycle, history, spend)
@@ -627,7 +649,7 @@ def build_cycle_report(
         due_total=money(cents(due_total)) if due_total is not None else None,
         spend_total=money(cents(spend)),
         segments=segments,
-        merchants=_top_merchants(merchants, rules, tones),
+        merchants=top,
         days=days,
         transaction_count=count,
         generated_at=(now or datetime.now(CHINA)).strftime("%Y-%m-%d %H:%M"),
@@ -681,7 +703,7 @@ def plain_text(report: CycleReport) -> str:
     if report.segments:
         out += ["", "分类："]
         out += [
-            f"{s.name} {s.share} ¥{s.amount}" + (f"（{s.note}）" if s.note else "")
+            f"{s.label} {s.share} ¥{s.amount}" + (f"（{s.note}）" if s.note else "")
             for s in report.segments
         ]
     out += [
