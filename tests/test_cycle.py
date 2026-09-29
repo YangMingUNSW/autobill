@@ -388,10 +388,12 @@ def test_every_transaction_is_in_the_email_but_folded_away(db):
         " WHERE substr(b.statement_date, 1, 7) = '2026-09'"
     ).fetchone()[0]
     assert len(lines) == counts == 7 + 119 + 8
-    assert html.count('type="checkbox"') == 1  # all three cards in one list now
-    assert ".panel { display: none; }" in html
-    assert ".acc:checked + label + .panel { display: block; }" in html
-    assert re.search(r'<input type="checkbox" id="tx" class="acc">\s*<label for="tx"', html)
+    assert html.count('id="tx"') == 1  # all three cards in one list now
+    # closed by default: a grid row of height 0 that opens on the spring (2026-09-29)
+    assert ".pan { display: grid; grid-template-rows: 0fr;" in html
+    assert ".acc:checked + label + .pan { grid-template-rows: 1fr; }" in html
+    toggle = r'<input type="checkbox" id="tx" class="acc">\s*<label for="tx"[^>]*>'
+    assert re.search(toggle + r'.*?</label>\s*<div class="pan">', html, re.S)
 
 
 def test_credits_read_as_plus_in_green(db):
@@ -542,7 +544,7 @@ def test_the_donut_has_one_slice_per_legend_row(db):
     assert re.findall(r'class="slice (\w+)"', donut) == [s.tone for s in r.segments]
     assert f">¥{r.spend_total}<" in donut and ">本月消费<" in donut
     for segment in r.segments:  # the aria-label says what a screen reader cannot see
-        assert f"{segment.name} {segment.share}" in donut
+        assert f"{segment.label} {segment.share}" in donut  # the grey row: "其余 N 类"
     assert str(donut).count("<circle") == len(r.segments) + 1  # + the track behind them
 
 
@@ -608,3 +610,48 @@ def test_a_foreign_line_shows_what_was_paid_and_what_it_cost_in_cny(db):
         assert line.cny.startswith("≈¥") and not line.local.startswith("≈")
     home = [t for t in lines if not t.cny]
     assert all(t.local.startswith(("¥", "-¥")) for t in home)  # CNY is never repeated
+
+
+# --- rows that open to their lines (report/drill.py) ------------------------------------------
+
+
+def test_each_category_opens_to_lines_that_add_up_to_it(db):
+    conn, fx = db
+    r = report(conn, fx)
+    assert r.segments
+    for s in r.segments:
+        rows = s.folded or [s]
+        for row in rows:
+            assert row.lines is not None and row.lines.count > 0, row.name
+            assert abs(row.lines.total - row.weight) < D("0.01"), row.name
+        if s.folded:  # the grey row lists the categories it folds, and they add up to it
+            assert s.label == f"其余 {len(s.folded)} 类"
+            assert abs(sum((f.weight for f in s.folded), D(0)) - s.weight) < D("0.01")
+
+
+def test_each_shop_opens_to_its_lines(db):
+    conn, fx = db
+    r = report(conn, fx)
+    assert r.merchants
+    for m in r.merchants:
+        assert m.lines is not None and abs(m.lines.total - m.weight) < D("0.01"), m.name
+        assert all("月" in line.title and "日" in line.title for line in m.lines.lines)  # dated
+
+
+def test_rows_open_in_the_email_and_nothing_else_is_needed(db):
+    """Every category and shop is a row that opens (a checkbox and its label), the ids
+    never clash, the grey row reads 其余 N 类, and there is still no script."""
+    conn, fx = db
+    msg = email(conn, fx, today=date(2026, 9, 30))
+    html = msg.get_body(("html",)).get_content()
+    r = report(conn, fx, today=date(2026, 9, 30))
+    ids = re.findall(r'<input type="checkbox" id="([^"]+)"', html)
+    assert len(ids) == len(set(ids))
+    folded = sum(len(s.folded) for s in r.segments)
+    assert len(ids) == 1 + len(r.segments) + folded + len(r.merchants)  # 1: 全部流水
+    assert folded, "the samples fold some categories into the grey row"
+    text = msg.get_body(("plain",)).get_content()
+    for s in r.segments:
+        assert s.label in html and s.label in text
+    assert "<script" not in html and "onclick" not in html
+    assert "touch-action: manipulation" in html  # taps answer at once

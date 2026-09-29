@@ -117,7 +117,7 @@
   /* accordion: CSS checkbox hack, closed by default */
   .acc { display: none; }
   label.cell { cursor: pointer; -webkit-tap-highlight-color: transparent; }
-  .chev { color: var(--label3); font-size: 22px; line-height: 1; transition: transform .2s; display: inline-block; }
+  .chev { color: var(--label3); font-size: 22px; line-height: 1; transition: transform .5s var(--spring); display: inline-block; }
   .acc:checked + label .chev { transform: rotate(90deg); }
   .acc:checked + label .when-closed { display: none; }
   .when-open { display: none; }
@@ -132,5 +132,46 @@
   .amt.credit { color: var(--green); }
   .cell.excluded .title, .cell.excluded .amt { color: var(--label2); }
   .tag { font-size: 11px; color: var(--label2); background: var(--fill); border-radius: 4px; padding: 0 4px; margin-right: 4px; vertical-align: 1px; }
+
+  /* rows that open to their lines (report/drill.py), and the feel of every tap: a tap
+     answers at once (no wait for a double tap), the pressed row greys, a panel opens on
+     Apple's default spring (critically damped, 0.35 s: x(t) = 1 - (1 + wt)e^-wt,
+     w = 2pi/0.35, sampled over 0.5 s) and its lines come in one after another. Chosen by
+     the author on iOS 27 Apple Mail out of five ways (2026-09-29). */
+  :root { --spring: linear(0, 0.0416, 0.1356, 0.2502, 0.3669, 0.476, 0.5729, 0.656, 0.7257, 0.783, 0.8295, 0.8669, 0.8965, 0.9199, 0.9383, 0.9526, 0.9637, 0.9723, 0.9789, 0.9839, 0.9878, 0.9908, 0.993, 0.9947, 0.996, 0.997, 0.9978, 0.9983, 1); }
+  @keyframes rowin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .wrap { touch-action: manipulation; text-autospace: ideograph-alpha; }
+  label { -webkit-tap-highlight-color: rgba(120,120,128,.28); }
+  label.row:active, label.cell:active { background: var(--fill); }
+  .ln b, .caption, .sf, .rows .name { text-wrap: pretty; }
+  .rows label.row { cursor: pointer; }
+  .rows .chev { font-size: 20px; margin-left: -2px; }
+  .rows > .acc + label.row .rbody, .rows .pan .row .rbody { border-top: .5px solid var(--sep); }
+  .rows > .acc:first-child + label.row .rbody { border-top: 0; }
+  .rows .pan .rows > .acc:first-child + label.row .rbody { border-top: .5px solid var(--sep); }
+  .rows .pan .rows .tile { transform: scale(.85); }
+  .pan { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .5s var(--spring); }
+  .pan > .in { overflow: hidden; min-height: 0; }
+  .acc:checked + label + .pan { grid-template-rows: 1fr; }
+  .pan > .in > * { opacity: 0; transition: opacity .2s ease; }
+  .acc:checked + label + .pan > .in > * { opacity: 1; transition-delay: .05s; }
+  .acc:checked + label + .pan > .in > .lines .ln { animation: rowin .45s var(--spring) both;
+                                                   animation-delay: calc(min(sibling-index(), 14) * 24ms); }
+  .pan .cell .body { border-top: .5px solid var(--sep); min-height: 52px; padding-top: 9px; padding-bottom: 9px; }
+  .pan .cell .title { font-size: 15px; line-height: 20px; }
+  .pan .cell .sub { font-size: 12px; line-height: 16px; }
+  .pan .cell .amt { font-size: 15px; }
+  .lines { margin: 0 0 10px 44px; border-radius: 10px; background: var(--fill); padding: 0 12px; }
+  .lines .lhead { font-size: 12px; color: var(--label2); padding: 8px 0 6px; }
+  .lines .ln { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+               margin: 0; padding: 7px 0; border-top: .5px solid var(--sep); }
+  .ln > span { min-width: 0; }
+  .ln b { display: block; font-size: 15px; line-height: 20px; font-weight: 400; overflow-wrap: anywhere; }
+  .ln i { display: block; font-style: normal; font-size: 12px; line-height: 16px; color: var(--label2); margin-top: 1px; }
+  .ln > em { font-style: normal; text-align: right; flex-shrink: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ln > em b { font-weight: 500; }
+  @media (prefers-reduced-motion: reduce) {
+    .wrap * { transition-duration: .01s !important; animation: none !important; }
+  }
 
   footer { font-size: 12px; color: var(--label2); text-align: center; margin-top: 28px; line-height: 1.5; }
