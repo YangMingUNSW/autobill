@@ -46,7 +46,7 @@ uv run autobill --help        # 运行程序本身
   提交要小，一次提交只做一件事，失败时容易回退。
 - **合并流程**：
   1. `git push` 推送分支，然后在 GitHub 上开 PR；
-  2. 等 CI 全绿（§4）。`main` 开了分支保护（2026-09-29）：`lint, test, identity scan` 和 `gitleaks` 没过就合不了，也不能直接推送到 `main`；不需要别人批准（仓库只有你一个人，GitHub 不让作者批准自己的 PR）；
+  2. 等 CI 全绿（§4）。`main` 开了分支保护（2026-09-29）：`lint, test, identity scan` 和 `gitleaks` 没过就合不了，也不能直接推送到 `main`；不需要别人批准（仓库只有你一个人，GitHub 不让 PR 的作者批准自己的 PR）；
   3. 自己看一遍：至少读 PR 描述里"改变了什么行为"；改了邮件外观或 README 的，先看预览（`preview-email`、`year-review -o`）或截图，确认了再合并。也可以让 Claude 用 `/code-review` 审一遍；
   4. **你自己点合并**。AI 不负责合并。
 - 做到一半想放弃的工作，保留在分支上，不删。合并完的分支也不自动删，什么时候删、删哪些由你决定（2026-09-29）。
@@ -133,7 +133,7 @@ uv run autobill --help        # 运行程序本身
 - **做完的标准**：
   - 8 份样本账单都能生成 HTML，本机有浏览器时也生成 PDF；
   - 每一笔流水都在；账户摘要等于对账恒等式；没有脚本和外部资源；
-  - 作者在 iPhone 的"文件"App 里打开看过并认可。
+  - 在 iPhone 的"文件"App 里打开看过。
 - **怎么验证**：
   ```powershell
   $env:AUTOBILL_DATA_DIR = "$env:TEMP\autobill-dev"
@@ -179,14 +179,14 @@ uv run autobill --help        # 运行程序本身
   - setup.md 改成 iCloud 版本的操作步骤。设计见 [fetcher.md](fetcher.md#imap)。
 - **做完的标准**：
   - 测试（假 IMAP 服务器）：只读、处理完才前进、UIDVALIDITY 变了重读、只处理发给别名的、拆附件、STARTTLS；
-  - 作者按 setup.md 设好后，在家里电脑上 `check-mailbox` 全部正常；转发一封真实账单，`run` 解析成功，iPhone 收到进度邮件；再运行一次不重复发送。
-- **怎么验证**：见 [setup.md 第 5 步](setup.md#5-运行m8a-手动m8b-放到服务器上定时运行)。
+  - 按 setup.md 设好后，在自己电脑上 `check-mailbox` 全部正常；转发一封真实账单，`run` 解析成功，iPhone 收到邮件；再运行一次不重复发送。
+- **怎么验证**：见 [setup.md 第 5 步](setup.md#5-先在自己电脑上试运行)。
 
 ### M8b 服务器定时运行和提醒 → 打 `v0.2.0`（第一版可用）
 - **交付**：
   - `notify/alerts.py`：不认识的邮件、解析失败、新卡号、邮箱登录失败时发提醒邮件，同一个问题只发一次（`alerts` 表，表结构版本 4）；
   - **Docker**：`Dockerfile`（两阶段构建，只有 Python 3.12 和 AutoBill，约 330 MB，普通用户运行）、`compose.yaml`、`autobill.env.example`，`autobill serve` 每 30 分钟运行一次；进度邮件默认不附 PDF；
-  - `.github/workflows/docker.yml`：每个 PR 构建并做冒烟测试（导入样本、生成一封进度邮件、确认镜像里没有个人文件）；合并到 main 和打版本标签时发布 amd64 + arm64 镜像到 ghcr.io；
+  - `.github/workflows/docker.yml`：每个 PR 构建并做冒烟测试（导入样本、生成一封月度邮件、确认镜像里没有个人文件）；合并到 main 和打版本标签时发布 amd64 + arm64 镜像到 ghcr.io；
   - 备选：`deploy/systemd/` 的 oneshot 服务和定时器；
   - [deploy.md](deploy.md)：两种部署方式、日常命令。
 - **做完的标准**：服务器上 `docker compose run --rm autobill check-mailbox` 全部正常；`docker compose up -d` 后按时运行；一封真实账单发到别名后，30 分钟内收到进度邮件；重复运行不会重复发送。
@@ -197,7 +197,7 @@ uv run autobill --help        # 运行程序本身
 ## 6. 测试规范
 - **测试不联网**：汇率接口用假数据代替，SMTP 和 IMAP 也用假对象代替。联网的验证只在手动检查时做。
 - **不碰真实数据**：用 pytest 的 `tmp_path` 作为 `AUTOBILL_DATA_DIR`。每个测试都用一个全新的空目录。
-  - **测试里不要用 `monkeypatch.undo()`**：它会把临时数据目录的设置也一起撤销（2026-09-19 真出过一次，碰到了作者的真实数据库）。要恢复某个被替换的函数，就再 `setattr` 一次原来的函数。
+  - **测试里不要用 `monkeypatch.undo()`**：它会把临时数据目录的设置也一起撤销（2026-09-19 真出过一次，碰到了真实的数据库）。要恢复某个被替换的函数，就再 `setattr` 一次原来的函数。
   - 最后一道保险（`tests/conftest.py`）：测试里一旦用到真实的数据目录，或者真的去连 SMTP（465/587）或 IMAP，都会直接报错。
 - **快照**：
   - 第一次生成时必须**人工核对**：对账通过是前提，再挑几笔和样本原文逐字比对；
