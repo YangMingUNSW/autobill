@@ -39,7 +39,7 @@
 <p align="center"><sub>动画和截图使用编造的演示数据，不是任何人的真实账单。</sub></p>
 
 > [!NOTE]
-> **开发进度**：作者每天都在用，自己的服务器上用 Docker 每 30 分钟运行一次：三家银行、每个账单月一封邮件、年度回顾、提醒邮件，以及可选的 AI 商户分类。最新版本是 `v0.2.0`，之后合并的改动见 [CHANGELOG](CHANGELOG.md)，路线见 [project.md](project.md#6-分期路线)。
+> **开发进度**：作者每天都在用，自己的服务器上用 Docker 每 30 分钟运行一次：四家银行、每个账单月一封邮件、年度回顾、提醒邮件，以及可选的 AI 商户分类。最新版本是 `v0.2.0`，之后合并的改动见 [CHANGELOG](CHANGELOG.md)，路线见 [project.md](project.md#6-分期路线)。
 
 ## 目录
 - [功能](#功能)
@@ -117,6 +117,7 @@ AutoBill 每 30 分钟读一次邮箱文件夹里的新账单，解析、对账�
 | 中国农业银行 | HTML 邮件 | ✅ 已支持 |
 | 中国建设银行 | HTML 邮件 | ✅ 已支持（消费部分待更多样本确认） |
 | 中国银行 | PDF 附件 | ✅ 已支持（含多卡合并账单） |
+| 中国工商银行 | HTML 邮件 | ✅ 已支持（含一个账户多个币种） |
 
 ## 开始使用
 ### Docker
@@ -151,7 +152,7 @@ uv run autobill year-review --year 2026                # the year so far, as tex
 | 路径 | 内容 |
 |---|---|
 | [project.md](project.md) | 总览、第一版范围、已定决策、架构、风险 |
-| [docs/](docs/README.md) | 各模块设计、三家银行的账单格式规格、开发流程、操作手册 |
+| [docs/](docs/README.md) | 各模块设计、各家银行的账单格式规格、开发流程、操作手册 |
 | [tests/fixtures/](tests/fixtures/README.md) | 作者本人的真实账单，已脱敏（只去掉了身份信息） |
 | [CHANGELOG.md](CHANGELOG.md) | 版本变更记录 |
 | [CLAUDE.md](CLAUDE.md) | 给 AI 编程助手看的项目规则 |
@@ -174,7 +175,7 @@ uv run autobill year-review --year 2026                # the year so far, as tex
 <details>
 <summary><b>支持我的银行吗？</b></summary>
 
-目前支持农业银行、建设银行和中国银行。每家银行的账单格式写在 [docs/banks/](docs/banks/README.md)，加一家新银行需要几份脱敏后的样本账单。请先开一个 issue，千万不要附上真实账单。
+目前支持农业银行、建设银行、中国银行和工商银行。每家银行的账单格式写在 [docs/banks/](docs/banks/README.md)，加一家新银行需要几份脱敏后的样本账单。请先开一个 issue，千万不要附上真实账单。
 </details>
 
 <details>

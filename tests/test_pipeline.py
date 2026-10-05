@@ -42,10 +42,16 @@ def test_import_all_fixtures(env):
         "boc_visa_2026-08.eml": "OK",
         "ccb_visa_2026-06.eml": "OK",
         "ccb_visa_2026-07.eml": "OK",
+        "icbc_a_2025-03.eml": "OK",  # ICBC's layout until mid-2025
+        "icbc_a_2025-04.eml": "OK",
+        "icbc_a_2026-02.eml": "OK",
+        "icbc_a_2026-06.eml": "OK",
+        "icbc_b_2025-05.eml": "OK",
+        "icbc_b_2026-03.eml": "OK",  # the closing statement: no summary rows
     }
-    assert conn.execute("SELECT COUNT(*) FROM bills").fetchone()[0] == 9
-    assert conn.execute("SELECT COUNT(*) FROM emails").fetchone()[0] == 8
-    assert len(list((data_dir / "raw").glob("*.eml"))) == 8  # originals kept for reparse
+    assert conn.execute("SELECT COUNT(*) FROM bills").fetchone()[0] == 15
+    assert conn.execute("SELECT COUNT(*) FROM emails").fetchone()[0] == 14
+    assert len(list((data_dir / "raw").glob("*.eml"))) == 14  # originals kept for reparse
 
 
 def test_importing_twice_changes_nothing(env):

@@ -190,6 +190,8 @@ def test_parse_directed_amount_bare_zero(raw):
         ("人民币", "CNY"),
         ("美元", "USD"),
         ("澳元", "AUD"),
+        ("澳大利亚元", "AUD"),  # ICBC
+        ("人民币(本位币)", "CNY"),  # ICBC
         ("欧元", "EUR"),
         ("USD", "USD"),
         ("CHF", "CHF"),  # CCB 2026-06: spending in Switzerland

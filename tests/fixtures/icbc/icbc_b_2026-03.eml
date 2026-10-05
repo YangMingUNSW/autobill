@@ -1,0 +1,130 @@
+Received: from icbc.com.cn (ns114.icbc.com.cn [61.129.111.231])
+	by newxmmxszgpub6-2.qq.com (NewMX) with SMTP id 817346C5
+	for <user@example.com>; Sun, 15 Mar 2026 10:32:23 +0800
+Authentication-Results: mx.qq.com; spf=pass(61.129.111.231) smtp.mailfrom=<web
+	 master@icbc.com.cn>; dkim=pass(signature was verified) header.d=icbc.com.cn;
+	  dmarc=none(permerror) header.from=icbc.com.cn
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+	d=icbc.com.cn; s=default; h=Date:From:To; bh=RBw4Se0zTMY10g9VQOi
+	jWRq5nIHPAaARmp+koUzcQgA=; b=v1cgoMoqfkPt37ftTLBrxqVLsrlIStP8z0e
+	hXQAkx9fpZLYWNTPa9wtWZi2YPJde1oNdkkiAUwVFxpxcshsUpOdAFl++8G4sjq+
+	dJ2syiRarCY/4mb8GEUDBPUBNNwGk0ZidZxEnSIPYL6y2z2JN6xxR5z88t8+7Ewd
+	j6c4vioiYypkuH1eYCiZVzrCPj1Wby13rBNdsLTfHzjr4rU/j7KIhl0u94evpgee
+	HRAxzAip6sap3XiDdb5mN2q+8xUyXOUnNEF7kCfj4mrF8/B6ALJwT8U0DLvclr3K
+	4f3lBDUHgot/NImTK1Ivb7igwayPrSXzlKGr9mWmnI0CiqH/6GQ==
+Received: from pjdhccacasvr01s (unknown [10.151.245.119])
+	by obcm18 (Coremail) with SMTP id AAAAAAAnraAmGrZp_hcsAA--.20983S2;
+	Sun, 15 Mar 2026 10:32:07 +0800 (CST)
+Message-ID: <579643536.1773541926991.JavaMail.caca@pjdhccacasvr01s>
+Date: Sun, 15 Mar 2026 10:32:06 +0800 (CST)
+From: =?UTF-8?B?5Lit5Zu95bel5ZWG6ZO26KGM?= <webmaster@icbc.com.cn>
+To: user@example.com
+Subject: =?UTF-8?B?5Lit5Zu95bel5ZWG6ZO26KGM5a6i5oi35a+56LSm5Y2VKElDQkMgUGVvbg==?=
+ =?UTF-8?B?eSBDYXJkIEJhbmsgU3RhdGVtZW50KQ==?=
+MIME-Version: 1.0
+Content-Type: multipart/mixed;
+	boundary="----=_Part_3076444_229125195.1773541926990"
+obcm_appid: f-caca
+
+------=_Part_3076444_229125195.1773541926990
+Content-Type: text/html;charset=GBK
+Content-Transfer-Encoding: quoted-printable
+
+<div style=3D"width:100%"><table width=3D800px align=3Dcenter border=3D1 ce=
+llpadding=3D0 cellspacing=3D0 bordercolordark=3DWhite bordercolorlight=3D#e=
+3e4e3 bgcolor=3Dwhite><tr><td><table width=3D'100%' cellpadding=3D1 cellspa=
+cing=3D0 margin-top=3D0.1em><tr class=3Dtitle><td width=3D40% align=3Dleft>=
+<a href=3Dhttp://www.icbc.com.cn/icbc/%e7%89%a1%e4%b8%b9%e5%8d%a1/default.h=
+tm target=3D_blank><img border=3D0 src=3D'https://example.invalid/'></a></t=
+d><td class=3Dtitle align=3Dright>=D0=C5 =D3=C3 =BF=A8 =B6=D4 =D5=CB =B5=A5=
+</td></tr></table width=3D'100%'><table width=3D100% cellpadding=3D1 cellsp=
+acing=3D1 border=3D1 bordercolordark=3DWhite bordercolorlight=3D#e3e4e3><tr=
+><td valign=3Dtop><p class=3D"first">=D7=F0=BE=B4=B5=C4=D5=C5=C8=FD=CF=C8=
+=C9=FA,=C4=FA=BA=C3!</p><table width=3D100% class=3DtableTop><tr><td>&nbsp;=
+&nbsp;=C4=FA=B5=C4=C9=FA=C8=D5=CE=AA1=D4=C21=C8=D5=A3=AC=B9=A4=C9=CC=D2=F8=
+=D0=D0=D7=A3=C4=FA=C9=FA=C8=D5=BF=EC=C0=D6=A1=A3</td></tr><tr><td><br></td>=
+</tr><tr><td><br></td></tr></table><table width=3D98% align=3Dleft cellpadd=
+ing=3D0 cellspacing=3D0 bordercolordark=3DWhite bordercolorlight=3D#e3e4e3 =
+magin-top=3D0.5em><tr><td align=3Dleft><font size=3D"3"><B>=D6=D8=D2=AA=CC=
+=E1=CA=BE=A3=BA</B></font></td></tr> <tr><td width=3D'50%'><table frame=3Db=
+ox cellpadding=3D0 cellspacing=3D0 bordercolordark=3DWhite bordercolorlight=
+=3D#e3e4e3><tr><td>=B4=FB=BC=C7=BF=A8=B5=BD=C6=DA=BB=B9=BF=EE=C8=D5</td></t=
+r></table></td><td width=3D'20%'>&nbsp;&nbsp;</td><td width=3D'30%' align=
+=3Dright>2026=C4=EA4=D4=C22=C8=D5</td></tr> <tr><td width=3D'50%' colspan=
+=3D3 class=3DtdTop><B>=D7=F0=BE=B4=B5=C4=BF=CD=BB=A7=A3=AC=CE=AA=C8=B7=B1=
+=A3=C4=FA=BB=B9=BF=EE=D7=BC=C8=B7=A3=AC=C7=EB=C4=FA=D7=D0=CF=B8=D4=C4=B6=C1=
+=CF=C2=C3=E6=D0=E8=BB=B9=BF=EE=C3=F7=CF=B8=C0=B8=C4=BF=D6=D0=B8=F7=D5=CB=BB=
+=A7=B1=BE=C6=DA=D3=A6=BB=B9=BF=EE=BD=F0=B6=EE=BC=B0=B1=BE=C6=DA=D7=EE=B5=CD=
+=BB=B9=BF=EE=B6=EE=B5=C8=D0=C5=CF=A2=A1=A3</B></td></tr> </table></td><td a=
+lign=3Dcenter><a href=3Dhttp://www.icbc.com.cn/icbc/%e7%89%a1%e4%b8%b9%e5%8=
+d%a1/default.htm target=3D_blank><img border=3D0 src=3D'https://example.inv=
+alid/'></a></td></tr></table><br><table width=3D98%><tr><td align=3Dleft>=
+=D5=CB=B5=A5=D6=DC=C6=DA&nbsp;&nbsp;2026=C4=EA02=D4=C215=C8=D5=A1=AA2026=C4=
+=EA03=D4=C214=C8=D5</td><td align=3Dright> =B6=D4=D5=CB=B5=A5=C9=FA=B3=C9=
+=C8=D5&nbsp;&nbsp;2026=C4=EA03=D4=C214=C8=D5</td></tr></table> <table width=
+=3D100% cellpadding=3D0 cellspacing=3D0> </table> <p class=3Dsecond></p><ta=
+ble width=3D100% cellpadding=3D0 cellspacing=3D0> <tr><td class=3Dtitle3 al=
+ign=3Dleft>&nbsp;=B1=BE =C6=DA =BD=BB =D2=D7 =BB=E3 =D7=DC</td></tr></table=
+><table width=3D'100%' cellpadding=3D0 cellspacing=3D0 border=3D1 bordercol=
+ordark=3DWhite bordercolorlight=3D#e3e4e3><tr bgcolor=3D#dddddd><td align=
+=3Dcenter width=3D'20%'>=BF=A8=BA=C5=BA=F3=CB=C4=CE=BB</td><td align=3Dcent=
+er width=3D'20%'>=C9=CF=C6=DA=D3=E0=B6=EE</td><td align=3Dcenter width=3D'2=
+0%'>=B1=BE=C6=DA=CA=D5=C8=EB</td><td align=3Dcenter width=3D'20%'>=B1=BE=C6=
+=DA=D6=A7=B3=F6</td><td align=3Dcenter width=3D'20%'>=B1=BE=C6=DA=D3=E0=B6=
+=EE</td></tr> </table><table width=3D100% cellpadding=3D0 cellspacing=3D0><=
+tr><td class=3Dtitle3 align=3Dleft>&nbsp;=C8=CB=C3=F1=B1=D2(=B1=BE=CE=BB=B1=
+=D2) =BD=BB =D2=D7 =C3=F7 =CF=B8</td></tr></table><table border=3D1 cellpad=
+ding=3D0 cellspacing=3D0 bordercolordark=3DWhite bordercolorlight=3D#e3e4e3=
+ width=3D100%><tr bgcolor=3D#dddddd> <td align=3Dcenter width=3D'12%'>=BF=
+=A8=BA=C5=BA=F3=CB=C4=CE=BB</td> <td align=3Dcenter width=3D'9%'>=BD=BB=D2=
+=D7=C8=D5</td> <td align=3Dcenter width=3D'9%'>=BC=C7=D5=CB=C8=D5</td> <td =
+align=3Dcenter width=3D'14%'>=BD=BB=D2=D7=C0=E0=D0=CD</td> <td align=3Dcent=
+er width=3D'23%'> =C9=CC=BB=A7=C3=FB=B3=C6/=B3=C7=CA=D0</td><td align=3Dcen=
+ter width=3D'15%'>=BD=BB=D2=D7=BD=F0=B6=EE/=B1=D2=D6=D6</td> <td align=3Dce=
+nter width=3D'18%'>=BC=C7=D5=CB=BD=F0=B6=EE/=B1=D2=D6=D6</td> </tr><tr><td =
+align=3Dleft colspan=3D7><B>---=D6=F7=BF=A8=C3=F7=CF=B8---</B></td></tr><tr=
+><td align=3Dleft>0012 </td><td align=3Dleft>2026-03-12</td><td align=3Dlef=
+t>2026-03-12</td> <td align=3Dleft>=D4=A4=D4=BC=CF=FA=BB=A7</td><td align=
+=3Dleft>=D2=F8=D0=D0=BF=A8=D6=D0=D0=C4</td><td align=3Dright>0.00/RMB</td><=
+td align=3Dright>0.00/RMB(=D6=A7=B3=F6)</td></tr></table><table width=3D100=
+% cellpadding=3D0 cellspacing=3D0></table><div></div><table width=3D100% ce=
+llpadding=3D0 cellspacing=3D0><tr><td width=3D23% class=3Dtitle3 align=3Dle=
+ft>&nbsp;=B9=A4 =D2=F8i =B6=B9 =D0=C5 =CF=A2</td><td class=3Dtitle4>=C8=E7=
+=C4=FA=CF=EB=C1=CB=BD=E2=B8=FC=B6=E0=B5=C4=B9=A4=D2=F8i=B6=B9=CF=EA=C7=E9=
+=A3=AC=C7=EB=B5=C7=C2=BC=CE=D2=D0=D0=CD=F8=D5=BE=B2=E9=D1=AF=A1=A3</td></tr=
+></table><table border=3D1 cellpadding=3D0 cellspacing=3D1 bordercolordark=
+=3DWhite bordercolorlight=3D#e3e4e3 width=3D100%><tr><td align=3Dleft width=
+=3D'100%' colspan=3D4>=D3=E0=B6=EE&nbsp;&nbsp;&nbsp;23,870&nbsp;=B6=B9</td>=
+ </tr></table><table width=3D'100%' cellpadding=3D0 cellspacing=3D0><tr><td=
+ width=3D37.25% class=3Dtitle3 align=3Dleft>&nbsp;=B9=A4 =D2=F8i =B6=B9 =A3=
+=A8=C1=AA =C3=FB =B0=E6=A3=A9 =D0=C5 =CF=A2</td><td class=3Dtitle4>=C8=E7=
+=C4=FA=CF=EB=C1=CB=BD=E2=B8=FC=B6=E0=B5=C4=B9=A4=D2=F8i=B6=B9=A3=A8=C1=AA=
+=C3=FB=B0=E6=A3=A9=CF=EA=C7=E9=A3=AC=C7=EB=B5=C7=C2=BC=CE=D2=D0=D0=CD=F8=D5=
+=BE=B2=E9=D1=AF=A1=A3</td></tr></table><table border=3D1 cellpadding=3D0 ce=
+llspacing=3D1 bordercolordark=3DWhite bordercolorlight=3D#e3e4e3 width=3D'1=
+00%'><tr bgcolor=3D#dddddd ><td width=3D'50%' align=3Dcenter colspan=3D2><B=
+>=B9=A4=D2=F8i=B6=B9=A3=A8=C1=AA=C3=FB=B0=E6=A3=A9(=C1=AA=C3=FB=BF=A8-0012)=
+</B></td><td width=3D'50%' colspan=3D2>&nbsp;</td></tr> <tr><td align=3Dlef=
+t width=3D'200px'>=D0=C2=D4=F6&nbsp;&nbsp;&nbsp;0&nbsp;=B6=B9=A3=A8=C1=AA=
+=C3=FB=B0=E6=A3=A9</td> <td align=3Dleft width=3D'200px'>=D3=E0=B6=EE&nbsp;=
+&nbsp;&nbsp;0&nbsp;=B6=B9=A3=A8=C1=AA=C3=FB=B0=E6=A3=A9</td><td width=3D'20=
+0px'>&nbsp;</td><td width=3D'200px'>&nbsp;</td></tr></table><br><br><table =
+border=3D1 width=3D'100%' align=3Dcenter cellpadding=3D0 cellspacing=3D0 bo=
+rdercolordark=3DWhite bordercolorlight=3D#e3e4e3><tr><td align=3Dleft><font=
+ size=3D"3"><B>=CE=C2=DC=B0=CC=E1=CA=BE=A3=BA</B></font><br>=D5=C2=B3=CC=BA=
+=CF=D4=BC=D2=D1=D0=DE=B6=A9=A3=AC=C4=FA=BF=C9=CD=A8=B9=FD=CE=D2=D0=D0=B9=D9=
+=CD=F8=A3=A8www.icbc.com.cn=A3=A9=A1=B0=D0=C5=D3=C3=BF=A8=A1=B1=D2=B3=C7=A9=
+=D6=D0=D0=C5=CF=A2=C5=FB=C2=B6=C0=B8=C4=BF=B2=E9=D1=AF=A1=A3</td></tr></tab=
+le><table border=3D0 cellpadding=3D0 cellspacing=3D1 bordercolordark=3DWhit=
+e bordercolorlight=3D#e3e4e3 width=3D'100%'><tr></tr></table><br><table wid=
+th=3D'100%' cellpadding=3D0 cellspacing=3D0><tr><td class=3Dtitle width=3D5=
+0%><a href=3Dhttp://www.icbc.com.cn/icbc/%e7%89%a1%e4%b8%b9%e5%8d%a1/defaul=
+t.htm target=3D_blank><img border=3D0 src=3D'https://example.invalid/'></a>=
+</td><td class=3Dtitle>&nbsp;</td></tr><tr><td class=3Dtitle2 align=3Dright=
+>&nbsp;</td><td class=3Dtitle2 align=3Dright>=CD=F8=D5=BE<a class=3Dtitle2 =
+href=3Dhttp://www.icbc.com.cn/icbc/ target=3D_blank>www.icbc.com.cn</a>&nbs=
+p;=B7=FE=CE=F1=C8=C8=CF=DF 95588&nbsp;&nbsp;</td></tr></table></td></tr></t=
+able></div>
+------=_Part_3076444_229125195.1773541926990--
+
+

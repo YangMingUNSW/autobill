@@ -9,7 +9,7 @@ AutoBill 的设计文档都在这里，用简体中文写。总览、第一版�
 | [deploy.md](deploy.md) | 部署：Docker（推荐）和 systemd、密码文件、日常命令、从备份还原 |
 | [fetcher.md](fetcher.md) | 收信：邮件源、IMAP、转发和拆附件、银行识别 |
 | [parsing.md](parsing.md) | 解析框架、三种定位方法、健壮性规则、通用工具、解析器测试 |
-| [banks/](banks/README.md) | 银行注册表、样本覆盖矩阵，以及农行、建行、中行的格式规格（写解析器之前必读） |
+| [banks/](banks/README.md) | 银行注册表、样本覆盖矩阵，以及农行、建行、中行、工行的格式规格（写解析器之前必读） |
 | [data-model.md](data-model.md) | 模型、符号约定、对账算法、汇率、SQLite 表 |
 | [pipeline.md](pipeline.md) | 状态机、去重、运行层、命令行、备份 |
 | [notify.md](notify.md) | 统计口径、分类规则和 AI 分类、报表时机、邮件内容、年度回顾、提醒邮件 |

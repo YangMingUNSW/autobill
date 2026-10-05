@@ -39,7 +39,7 @@ AutoBill reads the e-statements your banks send to a dedicated mailbox, parses t
 <p align="center"><sub>Invented demo data. The e-mails are in Simplified Chinese, for their users in mainland China.</sub></p>
 
 > [!NOTE]
-> **Status:** in daily use on the author's own server, in Docker every 30 minutes: three banks, one e-mail per statement month, the year in review, alert e-mails, and optional AI categorisation of merchants the rules miss. The latest release is `v0.2.0`; what has landed since is in the [changelog](CHANGELOG.md), and the [roadmap](project.md#6-分期路线) is in Chinese.
+> **Status:** in daily use on the author's own server, in Docker every 30 minutes: four banks, one e-mail per statement month, the year in review, alert e-mails, and optional AI categorisation of merchants the rules miss. The latest release is `v0.2.0`; what has landed since is in the [changelog](CHANGELOG.md), and the [roadmap](project.md#6-分期路线) is in Chinese.
 
 ## Contents
 - [Features](#features)
@@ -117,6 +117,7 @@ The full security model is in [SECURITY.md](SECURITY.md).
 | Agricultural Bank of China (ABC) | HTML e-mail | ✅ Supported |
 | China Construction Bank (CCB) | HTML e-mail | ✅ Supported (spending rows need more samples) |
 | Bank of China (BOC) | PDF attachment | ✅ Supported, including combined multi-card statements |
+| Industrial and Commercial Bank of China (ICBC) | HTML e-mail | ✅ Supported, including one account in several currencies |
 
 ## Getting started
 ### Docker
@@ -174,7 +175,7 @@ The e-mails are designed for Apple Mail on iPhone, and only tested there. Other 
 <details>
 <summary><b>Can it read my bank?</b></summary>
 
-Today: Agricultural Bank of China, China Construction Bank and Bank of China. Each bank's statement format is documented in [docs/banks/](docs/banks/README.md) (Chinese), and a new parser needs a few anonymised sample statements. Open an issue first; never attach a real statement.
+Today: Agricultural Bank of China, China Construction Bank, Bank of China and Industrial and Commercial Bank of China. Each bank's statement format is documented in [docs/banks/](docs/banks/README.md) (Chinese), and a new parser needs a few anonymised sample statements. Open an issue first; never attach a real statement.
 </details>
 
 <details>

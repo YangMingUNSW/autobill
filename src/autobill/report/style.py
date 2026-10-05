@@ -9,7 +9,7 @@ from decimal import Decimal
 from autobill.categorize import UNCATEGORISED
 from autobill.model import ZERO
 
-BANK_NAMES = {"ABC": "农业银行", "CCB": "建设银行", "BOC": "中国银行"}
+BANK_NAMES = {"ABC": "农业银行", "CCB": "建设银行", "BOC": "中国银行", "ICBC": "工商银行"}
 MIN_BAR = 2  # percent: even the smallest positive value gets a visible bar
 TOP_CATEGORIES = 6  # more categories than this are folded into "其他"
 

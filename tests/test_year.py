@@ -51,8 +51,11 @@ def sent_messages():
 
 
 def load_samples(conn, data_dir):
-    for mail in DirectorySource(FIXTURES).iter_new():
-        process(conn, data_dir, mail)
+    # ICBC's samples (two closed accounts, 2025-03 to 2026-06) are left out: these tests are
+    # written around the other banks' months.
+    for name in ("abc", "abc_2025", "boc", "ccb"):
+        for mail in DirectorySource(FIXTURES / name).iter_new():
+            process(conn, data_dir, mail)
 
 
 @pytest.fixture

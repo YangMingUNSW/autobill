@@ -13,10 +13,7 @@ interest, cash advances and instalments are still inferred (docs/banks/ccb.md §
 from __future__ import annotations
 
 import re
-from collections.abc import Iterator
 from decimal import Decimal
-
-from bs4 import BeautifulSoup
 
 from autobill.fetch.message import RawMessage
 from autobill.model import ZERO, Bill, BillBalance, Transaction, TxnType, make_txn_id
@@ -24,10 +21,10 @@ from autobill.parse.base import BaseParser, TemplateChanged
 from autobill.parse.util import (
     CurrencyError,
     FormatError,
-    normalize_ws,
     parse_amount,
     parse_currency,
     parse_date,
+    table_rows,
 )
 from autobill.reconcile import reconcile
 
@@ -122,7 +119,7 @@ class _Statement:
 
     def _walk(self) -> None:
         mode: str | None = None  # "summary" / "payment" / "txn"
-        for cells in _rows(self.msg.html):
+        for cells in table_rows(self.msg.html):
             first = next(c for c in cells if c)
             if first.startswith("账户币种") and any("上期全部应还款额" in c for c in cells):
                 self.summary_header_seen, mode = True, "summary"
@@ -299,16 +296,3 @@ def _is_currency(text: str) -> bool:
     except CurrencyError:
         return False
     return True
-
-
-def _rows(html: str) -> Iterator[list[str]]:
-    """Every table row in document order, as normalised cell texts. Rows whose cells hold
-    nested tables are containers and are skipped (their inner rows come separately)."""
-    soup = BeautifulSoup(html, "lxml")
-    for tr in soup.find_all("tr"):
-        cells = tr.find_all(["td", "th"], recursive=False)
-        if not cells or any(c.find("table") for c in cells):
-            continue
-        texts = [normalize_ws(c.get_text()) for c in cells]
-        if any(texts):
-            yield texts  # empty cells are kept: positions matter (e.g. a blank card number)

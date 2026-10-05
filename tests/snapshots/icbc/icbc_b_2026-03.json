@@ -1,0 +1,56 @@
+{
+  "bank": "ICBC",
+  "account_id": "ICBC:0012",
+  "cards": [
+    "0012"
+  ],
+  "statement_date": "2026-03-14",
+  "period_start": "2026-02-15",
+  "period_end": "2026-03-14",
+  "due_date": "2026-04-02",
+  "email_date": "2026-03-15",
+  "balances": [
+    {
+      "currency": "CNY",
+      "previous_balance": "0",
+      "previous_deposit": "0",
+      "new_charges": "0",
+      "interest_fees": "0",
+      "payments_credits": "0",
+      "adjustments": "0",
+      "amount_due": "0",
+      "deposit": "0",
+      "min_payment": null
+    }
+  ],
+  "transactions": [
+    {
+      "line_no": 1,
+      "txn_id": "a8f4e8d623ede6a0",
+      "trans_date": "2026-03-12",
+      "post_date": "2026-03-12",
+      "txn_type": "adjustment",
+      "amount": "0.00",
+      "currency": "CNY",
+      "orig_amount": null,
+      "orig_currency": null,
+      "fx_rate": null,
+      "description_raw": "银行卡中心",
+      "group_raw": "预约销户",
+      "merchant": null,
+      "merchant_location": null,
+      "card_last4": "0012",
+      "installment": null,
+      "category": null,
+      "synthetic": false
+    }
+  ],
+  "status": "OK",
+  "warnings": [],
+  "quality": 3,
+  "reported_at": null,
+  "source_message_id": "<579643536.1773541926991.JavaMail.caca@pjdhccacasvr01s>",
+  "source_sha256": "43d7a92e1980b4273f7e7fe1120e9c969e502b6227616075f2189b698e14c4a7",
+  "parser_name": "icbc_html",
+  "parser_version": 1
+}

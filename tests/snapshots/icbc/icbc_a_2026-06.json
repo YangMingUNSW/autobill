@@ -1,0 +1,89 @@
+{
+  "bank": "ICBC",
+  "account_id": "ICBC:0009",
+  "cards": [
+    "0009",
+    "0010"
+  ],
+  "statement_date": "2026-06-25",
+  "period_start": "2026-05-26",
+  "period_end": "2026-06-25",
+  "due_date": "2026-07-13",
+  "email_date": "2026-06-26",
+  "balances": [
+    {
+      "currency": "CNY",
+      "previous_balance": "0.00",
+      "previous_deposit": "0.00",
+      "new_charges": "67.07",
+      "interest_fees": "0",
+      "payments_credits": "0.00",
+      "adjustments": "0",
+      "amount_due": "67.07",
+      "deposit": "0",
+      "min_payment": "6.71"
+    },
+    {
+      "currency": "USD",
+      "previous_balance": "0",
+      "previous_deposit": "10.00",
+      "new_charges": "0.00",
+      "interest_fees": "0",
+      "payments_credits": "0.00",
+      "adjustments": "10.00",
+      "amount_due": "0.00",
+      "deposit": "0.00",
+      "min_payment": null
+    }
+  ],
+  "transactions": [
+    {
+      "line_no": 1,
+      "txn_id": "ddaf4bf08061a5f5",
+      "trans_date": "2026-06-03",
+      "post_date": "2026-06-03",
+      "txn_type": "purchase",
+      "amount": "67.07",
+      "currency": "CNY",
+      "orig_amount": null,
+      "orig_currency": null,
+      "fx_rate": null,
+      "description_raw": "美团支付-美团App霸王茶姬（后沙峪山姆店）",
+      "group_raw": "消费",
+      "merchant": "美团支付-美团App霸王茶姬（后沙峪山姆店）",
+      "merchant_location": null,
+      "card_last4": "0010",
+      "installment": null,
+      "category": null,
+      "synthetic": false
+    },
+    {
+      "line_no": 2,
+      "txn_id": "d06d73a6a322d236",
+      "trans_date": "2026-06-09",
+      "post_date": "2026-06-09",
+      "txn_type": "adjustment",
+      "amount": "10.00",
+      "currency": "USD",
+      "orig_amount": null,
+      "orig_currency": null,
+      "fx_rate": null,
+      "description_raw": "WAP银行",
+      "group_raw": "网转",
+      "merchant": null,
+      "merchant_location": null,
+      "card_last4": "0009",
+      "installment": null,
+      "category": null,
+      "synthetic": false
+    }
+  ],
+  "status": "OK",
+  "warnings": [],
+  "quality": 3,
+  "reported_at": null,
+  "source_message_id": "<472255347.1782441018527.JavaMail.caca@pjdhccacasvr01p>",
+  "source_sha256": "e47dffbc00235ef75fc702041ff366457def1418453c762b2aa6079d2676a3e3",
+  "parser_name": "icbc_html",
+  "parser_version": 1
+}
