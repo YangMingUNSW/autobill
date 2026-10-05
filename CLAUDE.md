@@ -1,6 +1,6 @@
 # CLAUDE.md — AutoBill 项目规则（给 AI 助手）
 
-AutoBill：读取转发到"中心邮箱"的国内信用卡账单邮件（农行 HTML、建行 HTML、中行 PDF），用**纯规则**解析，存进 SQLite，折算成人民币后生成**汇总报表**邮件。自用、公开仓库、Python。
+AutoBill：读取转发到"中心邮箱"的国内信用卡账单邮件（农行 HTML、建行 HTML、中行 PDF、工行 HTML），用**纯规则**解析，存进 SQLite，折算成人民币后生成**汇总报表**邮件。自用、公开仓库、Python。
 
 **作者是开发新手**：解释要讲清楚，每一步要能验证，不要一次改很多。
 
@@ -53,7 +53,7 @@ uv run autobill --help
 |---|---|
 | `project.md` | 总览、第一版范围、决策、架构、分期、待定事项、风险 |
 | `docs/development.md` | 开发流程、里程碑 M0–M8、测试规范、Git、CI、版本发布 |
-| `docs/banks/` | 三家银行的格式规格、注册表、样本覆盖矩阵（**写解析器之前必读**） |
+| `docs/banks/` | 各家银行的格式规格、注册表、样本覆盖矩阵（**写解析器之前必读**） |
 | `docs/data-model.md` | 模型、符号约定、分项对账、汇率、SQLite 表 |
 | `docs/parsing.md` / `fetcher.md` / `pipeline.md` / `notify.md` / `statement.md` | 各模块的设计 |
 | `docs/security.md` | 密钥、配置、数据隔离、新样本脱敏检查清单 |

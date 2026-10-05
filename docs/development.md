@@ -218,7 +218,7 @@ uv run autobill --help        # 运行程序本身
 **新增一家银行**
 1. 从邮箱里导出这家银行至少 1 期账单，最好 3 期。
 2. 按 [security.md 的检查清单](security.md#以后加入新样本时的检查清单) 脱敏，放进 `tests/fixtures/<代码>/`。
-3. 照着现有三家的格式，写 `docs/banks/<代码>.md` 格式规格。
+3. 照着现有几家的格式，写 `docs/banks/<代码>.md` 格式规格。
 4. 把它加进 [banks/README.md](banks/README.md) 的注册表和样本覆盖矩阵。
 5. 写 `parse/<代码>.py` 和快照测试（流程同 M2）。
 

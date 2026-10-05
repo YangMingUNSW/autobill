@@ -55,9 +55,15 @@ def reset_fake():
     FakeSMTP.instances.clear()
 
 
-def load(conn, data_dir, folder=FIXTURES):
-    for mail in DirectorySource(folder).iter_new():
-        process(conn, data_dir, mail)
+# The samples these tests are written around (2026-05 to 2026-09). ICBC's (two closed
+# accounts, 2025-03 to 2026-06) would add bills to the very months they look at.
+SAMPLES = [FIXTURES / name for name in ("abc", "abc_2025", "boc", "ccb")]
+
+
+def load(conn, data_dir, folder=None):
+    for source in [folder] if folder else SAMPLES:
+        for mail in DirectorySource(source).iter_new():
+            process(conn, data_dir, mail)
 
 
 @pytest.fixture

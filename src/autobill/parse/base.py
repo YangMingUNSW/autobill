@@ -16,7 +16,7 @@ class TemplateChanged(Exception):
 
 
 class BaseParser(ABC):
-    bank: str  # "ABC" / "CCB" / "BOC"
+    bank: str  # "ABC" / "CCB" / "BOC" / "ICBC"
     name: str  # "abc_html"
     version: int  # bumped when the bank's template changes
 

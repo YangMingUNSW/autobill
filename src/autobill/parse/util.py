@@ -1,4 +1,5 @@
-"""Helpers shared by all bank parsers: whitespace, amounts, currencies, dates, PDF detection.
+"""Helpers shared by all bank parsers: whitespace, HTML tables, amounts, currencies, dates,
+PDF detection.
 
 See docs/parsing.md#通用工具. Every function raises a FormatError subclass on input it
 does not recognise; nothing is guessed and no key figure silently becomes zero.
@@ -7,9 +8,12 @@ does not recognise; nothing is guessed and no key figure silently becomes zero.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from datetime import date, timedelta
 from decimal import Decimal
 from enum import StrEnum
+
+from bs4 import BeautifulSoup
 
 
 class FormatError(ValueError):
@@ -41,6 +45,24 @@ def normalize_ws(text: str) -> str:
     """
     # \s already covers U+00A0 and U+3000; the BOM is not whitespace to Python.
     return _WS_RE.sub(" ", text.replace("\ufeff", " ")).strip()
+
+
+# --- HTML tables ------------------------------------------------------------
+
+
+def table_rows(html: str) -> Iterator[list[str]]:
+    """Every table row in document order, as normalised cell texts. Rows whose cells hold
+    nested tables are containers and are skipped (their inner rows come separately). Empty
+    cells are kept: positions matter (e.g. a blank card number). For statements laid out
+    as nested tables: CCB (docs/banks/ccb.md \u00a73) and ICBC (docs/banks/icbc.md \u00a73)."""
+    soup = BeautifulSoup(html, "lxml")
+    for tr in soup.find_all("tr"):
+        cells = tr.find_all(["td", "th"], recursive=False)
+        if not cells or any(c.find("table") for c in cells):
+            continue
+        texts = [normalize_ws(c.get_text()) for c in cells]
+        if any(texts):
+            yield texts
 
 
 # Full-width digits and punctuation, plus the Unicode minus sign, mapped to ASCII.
@@ -185,6 +207,7 @@ _CHINESE_NAMES = {
     "人民币": "CNY",
     "美元": "USD",
     "澳元": "AUD",
+    "澳大利亚元": "AUD",  # ICBC
     "欧元": "EUR",
     "港币": "HKD",
     "日元": "JPY",

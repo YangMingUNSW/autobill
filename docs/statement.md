@@ -3,7 +3,7 @@
 对应代码：`autobill/report/statement.py`（数据和每日柱状图）、`autobill/report/templates/statement.html.j2`（模板）、`autobill/report/pdf.py`（打印成 PDF）。里程碑 M7b。
 
 ## 是什么
-农行、建行、中行的账单格式各不相同。解析器已经把它们统一成同一套数据结构（`Bill` / `Transaction`，见 [data-model.md](data-model.md)）。标准账单是在这之上的**渲染层**：**每份账单生成一份统一模板的 HTML 和 PDF，包含全部逐笔流水**。
+农行、建行、中行、工行的账单格式各不相同。解析器已经把它们统一成同一套数据结构（`Bill` / `Transaction`，见 [data-model.md](data-model.md)）。标准账单是在这之上的**渲染层**：**每份账单生成一份统一模板的 HTML 和 PDF，包含全部逐笔流水**。
 
 - 以后会和原始账单、数据文件一起放进 iCloud，作为"用户端"汇总的基础（下一步再做）。
 - 它是 AutoBill 自己的文档，**不仿冒银行的品牌或 logo**：标题写"AutoBill 标准账单"，页脚注明"依据银行电子账单生成，金额以银行原账单为准"。
