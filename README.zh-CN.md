@@ -15,7 +15,7 @@
 
 <p align="center"><a href="README.md">English</a> · <b>简体中文</b></p>
 
-自部署的信用卡账单汇总工具。AutoBill 读取银行发到专用邮箱的电子账单，用固定规则解析并逐项对账，每个账单月给你发一封汇总邮件，每年 1 月再发一封年度回顾，都为 iPhone 自带的邮件 App 排版。数据只在你自己的服务器和邮箱里。
+自部署的信用卡账单汇总工具。AutoBill 读取农行、建行、中行、工行发到专用邮箱的信用卡电子账单，用固定规则解析并逐项对账，每个账单月给你发一封汇总邮件，每年 1 月再发一封年度回顾，都为 iPhone 自带的邮件 App 排版。账单和数据库只在你自己的服务器上，对外发出去的那一点见[隐私](#隐私)。
 
 <table>
   <tr>
@@ -39,7 +39,7 @@
 <p align="center"><sub>动画和截图使用编造的演示数据，不是任何人的真实账单。</sub></p>
 
 > [!NOTE]
-> **开发进度**：作者每天都在用，自己的服务器上用 Docker 每 30 分钟运行一次：四家银行、每个账单月一封邮件、年度回顾、提醒邮件，以及可选的 AI 商户分类。最新版本是 `v0.2.0`，之后合并的改动见 [CHANGELOG](CHANGELOG.md)，路线见 [project.md](project.md#6-分期路线)。
+> **开发进度**：已经在日常使用，用 Docker 每 30 分钟运行一次。支持四家银行，每个账单月一封邮件，还有年度回顾、提醒邮件和可选的 AI 商户分类。最新版本是 `v0.2.0`，之后合并的改动见 [CHANGELOG](CHANGELOG.md)，路线见 [project.md](project.md#6-分期路线)。
 
 ## 目录
 - [功能](#功能)
@@ -115,7 +115,7 @@ AutoBill 每 30 分钟读一次邮箱文件夹里的新账单，解析、对账�
 | 银行 | 账单格式 | 状态 |
 |---|---|---|
 | 中国农业银行 | HTML 邮件 | ✅ 已支持 |
-| 中国建设银行 | HTML 邮件 | ✅ 已支持（消费部分待更多样本确认） |
+| 中国建设银行 | HTML 邮件 | ✅ 已支持 |
 | 中国银行 | PDF 附件 | ✅ 已支持（含多卡合并账单） |
 | 中国工商银行 | HTML 邮件 | ✅ 已支持（含一个账户多个币种） |
 
@@ -128,9 +128,11 @@ mkdir -p autobill/data && cd autobill
 curl -fsSLO https://raw.githubusercontent.com/YangMingUNSW/autobill/main/compose.yaml
 curl -fsSL https://raw.githubusercontent.com/YangMingUNSW/autobill/main/config.example.yaml -o data/config.yaml
 curl -fsSL https://raw.githubusercontent.com/YangMingUNSW/autobill/main/autobill.env.example -o autobill.env
-# Fill in data/config.yaml and autobill.env (mailbox password), then:
-docker compose run --rm autobill check-mailbox
-docker compose up -d
+chmod 600 autobill.env                  # 这个文件要放邮箱密码，只让自己能读
+printf "AUTOBILL_UID=%s\nAUTOBILL_GID=%s\n" "$(id -u)" "$(id -g)" > .env   # 容器以你的身份运行
+# 填好 data/config.yaml 和 autobill.env（邮箱密码），然后：
+docker compose run --rm autobill check-mailbox   # 检查能不能登录邮箱
+docker compose up -d                             # 启动：每 30 分钟运行一次
 ```
 
 镜像发布在 `ghcr.io/yangmingunsw/autobill`，支持 `linux/amd64` 和 `linux/arm64`，云服务器、NAS、苹果芯片的 Mac 都能跑。完整步骤、邮箱设置和日常命令见 [docs/deploy.md](docs/deploy.md) 和 [docs/setup.md](docs/setup.md)。
@@ -138,15 +140,17 @@ docker compose up -d
 ### 本地试用（不需要邮箱）
 需要 [uv](https://docs.astral.sh/uv/) 和 Git，使用仓库自带的脱敏样本：
 
-```powershell
+```bash
 git clone https://github.com/YangMingUNSW/autobill.git
 cd autobill
-$env:AUTOBILL_DATA_DIR = "$env:TEMP\autobill-dev"      # scratch data directory
-uv run autobill import-dir tests/fixtures --no-send    # import the samples
-uv run autobill preview-email --cycle 2026-09          # render September's e-mail to HTML
-uv run autobill report --month 2026-08                 # print August's summary
-uv run autobill year-review --year 2026                # the year so far, as text
+export AUTOBILL_DATA_DIR=/tmp/autobill-dev             # 临时的数据目录
+uv run autobill import-dir tests/fixtures --no-send    # 导入样本
+uv run autobill preview-email --cycle 2026-09          # 把 9 月的邮件生成 HTML 文件
+uv run autobill report --month 2026-08                 # 8 月的汇总
+uv run autobill year-review --year 2026                # 今年到目前为止，文字版
 ```
+
+Windows 的 PowerShell 里，把第三行换成 `$env:AUTOBILL_DATA_DIR = "$env:TEMP\autobill-dev"`。
 
 ## 文档
 | 路径 | 内容 |

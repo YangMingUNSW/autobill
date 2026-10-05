@@ -15,7 +15,7 @@
 
 <p align="center"><b>English</b> · <a href="README.zh-CN.md">简体中文</a></p>
 
-AutoBill reads the e-statements your banks send to a dedicated mailbox, parses them with fixed rules, reconciles every statement against the bank's own totals, and sends you one clean e-mail per month, plus a year in review each January, designed for Apple Mail on iPhone. Your data never leaves your own server and mailbox.
+AutoBill reads the credit-card e-statements that Chinese banks (ABC, CCB, BOC and ICBC) send to a dedicated mailbox, parses them with fixed rules, reconciles every statement against the bank's own totals, and sends you one clean e-mail per statement month, plus a year in review each January, designed for Apple Mail on iPhone. Your statements and the database stay on your own server; the little that goes out is listed under [Privacy](#privacy).
 
 <table>
   <tr>
@@ -36,10 +36,10 @@ AutoBill reads the e-statements your banks send to a dedicated mailbox, parses t
   </tr>
 </table>
 
-<p align="center"><sub>Invented demo data. The e-mails are in Simplified Chinese, for their users in mainland China.</sub></p>
+<p align="center"><sub>Invented demo data. The e-mails are in Simplified Chinese, like the statements they summarise.</sub></p>
 
 > [!NOTE]
-> **Status:** in daily use on the author's own server, in Docker every 30 minutes: four banks, one e-mail per statement month, the year in review, alert e-mails, and optional AI categorisation of merchants the rules miss. The latest release is `v0.2.0`; what has landed since is in the [changelog](CHANGELOG.md), and the [roadmap](project.md#6-分期路线) is in Chinese.
+> **Status:** in daily use, running in Docker every 30 minutes. Four banks are supported, with one e-mail per statement month, the year in review, alert e-mails and optional AI categorisation of merchants the rules miss. The latest release is `v0.2.0`; what has landed since is in the [changelog](CHANGELOG.md), and the [roadmap](project.md#6-分期路线) is in Chinese.
 
 ## Contents
 - [Features](#features)
@@ -79,7 +79,7 @@ AutoBill reads the e-statements your banks send to a dedicated mailbox, parses t
   </tr>
 </table>
 
-The e-mail opens with the total due and each card's statement date, due date and amount due (foreign-currency cards in both currencies), and ends with the top merchants. Due dates are shown; payment reminders are deliberately out of scope.
+The e-mail opens with the total due, the dates the statements' spending covers, and each card's statement date, due date and amount due (foreign-currency cards in both currencies), and ends with the top merchants. Due dates are shown; payment reminders are deliberately out of scope.
 
 <details>
 <summary><b>More screenshots</b>: the first screen in light and dark, the year in review, a standard statement</summary>
@@ -115,7 +115,7 @@ The full security model is in [SECURITY.md](SECURITY.md).
 | Bank | Statement format | Status |
 |---|---|---|
 | Agricultural Bank of China (ABC) | HTML e-mail | ✅ Supported |
-| China Construction Bank (CCB) | HTML e-mail | ✅ Supported (spending rows need more samples) |
+| China Construction Bank (CCB) | HTML e-mail | ✅ Supported |
 | Bank of China (BOC) | PDF attachment | ✅ Supported, including combined multi-card statements |
 | Industrial and Commercial Bank of China (ICBC) | HTML e-mail | ✅ Supported, including one account in several currencies |
 
@@ -128,6 +128,8 @@ mkdir -p autobill/data && cd autobill
 curl -fsSLO https://raw.githubusercontent.com/YangMingUNSW/autobill/main/compose.yaml
 curl -fsSL https://raw.githubusercontent.com/YangMingUNSW/autobill/main/config.example.yaml -o data/config.yaml
 curl -fsSL https://raw.githubusercontent.com/YangMingUNSW/autobill/main/autobill.env.example -o autobill.env
+chmod 600 autobill.env                  # it will hold your mailbox password
+printf "AUTOBILL_UID=%s\nAUTOBILL_GID=%s\n" "$(id -u)" "$(id -g)" > .env   # the container runs as you
 # Fill in data/config.yaml and autobill.env (mailbox password), then:
 docker compose run --rm autobill check-mailbox
 docker compose up -d
@@ -138,15 +140,17 @@ Multi-arch images (`linux/amd64`, `linux/arm64`) are published to `ghcr.io/yangm
 ### Try it locally (no mailbox needed)
 Requires [uv](https://docs.astral.sh/uv/) and Git. Uses the anonymised sample statements in this repository:
 
-```powershell
+```bash
 git clone https://github.com/YangMingUNSW/autobill.git
 cd autobill
-$env:AUTOBILL_DATA_DIR = "$env:TEMP\autobill-dev"      # scratch data directory
+export AUTOBILL_DATA_DIR=/tmp/autobill-dev             # a scratch data directory
 uv run autobill import-dir tests/fixtures --no-send    # import the samples
-uv run autobill preview-email --cycle 2026-09          # render September's e-mail to HTML
-uv run autobill report --month 2026-08                 # print August's summary
+uv run autobill preview-email --cycle 2026-09          # September's e-mail as an HTML file
+uv run autobill report --month 2026-08                 # August's summary
 uv run autobill year-review --year 2026                # the year so far, as text
 ```
+
+In Windows PowerShell, set the directory with `$env:AUTOBILL_DATA_DIR = "$env:TEMP\autobill-dev"` instead.
 
 ## Documentation
 | Path | Contents |
