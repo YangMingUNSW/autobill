@@ -41,7 +41,7 @@ from autobill.config import PortfolioCard
 from autobill.fx import FxRates
 from autobill.model import ZERO, Bill, TxnType
 from autobill.report import drill
-from autobill.report.monthly import cents, month_bounds
+from autobill.report.monthly import SPENDING_TYPES, cents, month_bounds
 from autobill.report.statement import (
     DayGroup,
     StatementView,
@@ -556,15 +556,21 @@ def latest_bills(conn: sqlite3.Connection, cycle: str) -> dict[str, int]:
     }
 
 
-def statement_window(bill: Bill) -> tuple[date, date]:
-    """The days a statement covers: its printed period, or (BOC prints none) the month up to
-    its statement date, from the day after the same date a month before. Not from the
-    card's statement before it: a missing month would stretch the window over both."""
+def statement_window(conn: sqlite3.Connection, bill: Bill) -> tuple[date, date] | None:
+    """The days a statement covers: its printed period, or (BOC prints only the statement
+    date) from the day after the card's statement before it, as every BOC statement of
+    the author's runs (32 of them in the database, 2026-10-06). Without that one, the
+    card's first or with a month missing, from its first purchase. None: neither."""
     if bill.period_start and bill.period_end:
         return bill.period_start, bill.period_end
-    end = bill.statement_date
-    month_before = end.replace(day=1) - timedelta(days=1)
-    return month_before.replace(day=min(end.day, month_before.day)) + timedelta(days=1), end
+    before = conn.execute(
+        "SELECT MAX(statement_date) FROM bills WHERE account_id = ? AND statement_date < ?",
+        (bill.account_id, bill.statement_date.isoformat()),
+    ).fetchone()[0]
+    if before is not None and before[:7] >= previous_cycle(cycle_of(bill.statement_date)):
+        return date.fromisoformat(before) + timedelta(days=1), bill.statement_date
+    days = [t.trans_date for t in bill.transactions if t.txn_type in SPENDING_TYPES]
+    return (min(days), bill.statement_date) if days else None
 
 
 def period_text(windows: list[tuple[date, date]]) -> str:
@@ -643,8 +649,8 @@ def build_cycle_report(
         spend += view.spend_cny_value
         # A card with nothing spent, often one on another statement day (the BOC card on
         # the 22nd while the others moved to the 12th), would only stretch the dates.
-        if view.spend_cny_value:
-            windows.append(statement_window(bill))
+        if view.spend_cny_value and (window := statement_window(conn, bill)):
+            windows.append(window)
         for name, value in view.categories.items():
             categories[name] = categories.get(name, ZERO) + value
         for name, value in view.merchants.items():

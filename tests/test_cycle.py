@@ -296,18 +296,23 @@ def test_a_month_without_spending_names_no_days(db):
     assert 'class="period"' not in html.get_content()
 
 
-def test_a_statement_without_a_printed_period_covers_the_month_up_to_its_date(db):
-    """BOC prints no period. Its statement of the 22nd covers from the 23rd a month before,
-    not from the card's statement before it: the samples miss 14 months of BOC:0005."""
-    conn, _ = db
-    (boc_id,) = ids(conn, "2026-08")
-    boc = load_bill(conn, boc_id)
-    assert statement_window(boc) == (date(2026, 7, 23), date(2026, 8, 22))
-    on = lambda day: statement_window(boc.model_copy(update={"statement_date": day}))  # noqa: E731
-    assert on(date(2026, 3, 31)) == (date(2026, 3, 1), date(2026, 3, 31))
-    assert on(date(2027, 1, 15)) == (date(2026, 12, 16), date(2027, 1, 15))
-    abc = load_bill(conn, ids(conn, "2026-09")[-1])  # the printed period, as it is
-    assert statement_window(abc) == (abc.period_start, abc.period_end)
+def test_a_statement_without_a_printed_period_starts_after_the_one_before(db):
+    """BOC prints only the statement date. Each of its statements starts the day after the
+    card's statement before it, as the author's database shows; without that one (the
+    card's first, or a month missing) it starts at its first purchase."""
+    conn, fx = db
+    june = {b.account_id: b for b in (load_bill(conn, i) for i in ids(conn, "2025-06"))}
+    assert statement_window(conn, june["ABC:0001"]) == (date(2025, 5, 2), date(2025, 6, 1))
+    # The samples' first BOC statements: from the first purchase on each.
+    assert statement_window(conn, june["BOC:0005"]) == (date(2025, 5, 27), date(2025, 6, 22))
+    assert statement_window(conn, june["BOC:0006"]) == (date(2025, 5, 24), date(2025, 6, 22))
+    assert report(conn, fx, cycle="2025-06", today=date(2025, 7, 30)).period == "5月2日–6月22日"
+    # BOC:0005's next sample is 14 months later and has nothing on it: nothing to go by.
+    august = load_bill(conn, ids(conn, "2026-08")[0])
+    assert statement_window(conn, august) is None
+    conn.execute("UPDATE bills SET statement_date = '2026-07-22' WHERE account_id = 'BOC:0005'"
+                 " AND statement_date = '2025-06-22'")  # fmt: skip
+    assert statement_window(conn, august) == (date(2026, 7, 23), date(2026, 8, 22))
 
 
 def test_the_days_run_from_the_earliest_start_to_the_latest_end():
