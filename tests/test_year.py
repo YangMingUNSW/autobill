@@ -480,5 +480,5 @@ def test_twelve_columns_are_narrower_six_stay_as_they_were():
     twelve = [MonthBar(f"2026-{m:02d}", D(100 * m)) for m in range(1, 13)]
     assert bar_widths(trend_svg(six)) == {40.0}
     assert bar_widths(trend_svg(twelve)) == {28.0}
-    assert 'aria-label="近 6 个月消费（人民币）：' in trend_svg(six)
+    assert 'aria-label="近 6 期消费（人民币）：' in trend_svg(six)
     assert 'aria-label="2026 年（人民币）：' in trend_svg(twelve, "2026 年")

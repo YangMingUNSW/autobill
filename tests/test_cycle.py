@@ -27,10 +27,12 @@ from autobill.report.cycle import (
     donut_svg,
     expected_cards,
     month_spend_cny,
+    period_text,
+    statement_window,
     thread_ids,
 )
 from autobill.report.style import COLORS, amount_with_symbol, bar_rows, category_bar_rows
-from autobill.store.db import connect
+from autobill.store.db import connect, load_bill
 
 FIXTURES = Path(__file__).parent / "fixtures"
 D = Decimal
@@ -121,7 +123,7 @@ def test_progress_while_cards_are_still_to_come(db):
     assert [c.label for c in r.cards][:3] == ["农业银行 0001", "农业银行 0002", "建设银行 0004"]
     assert r.progress == "已出账 3/6" and not r.complete
     assert r.status_line == "还有 2 张待出账，1 张可能无账单"
-    assert r.subject == "📊 2026年9月 信用卡账单"
+    assert r.subject == "📊 2026年9月账单"
 
 
 def test_a_card_is_pending_until_a_week_after_its_usual_day(db):
@@ -135,7 +137,7 @@ def test_a_card_is_pending_until_a_week_after_its_usual_day(db):
 def test_complete_month_says_so(db):
     conn, fx = db
     r = report(conn, fx, today=date(2026, 9, 30))
-    assert r.complete and r.status_line == "本月账单已齐，3 张可能无账单"
+    assert r.complete and r.status_line == "本期账单已齐，3 张可能无账单"
     # the due date lives on the card's own row, not in a separate timeline
     assert "10月5日还款" in next(c for c in r.cards if "0003" in c.label).note
 
@@ -217,27 +219,27 @@ def test_email_is_made_for_ios_mail(db):
     assert 'name="format-detection" content="telephone=no, date=no' in html
     assert 'name="color-scheme" content="light dark"' in html
     assert "x-apple-data-detectors" in html and "prefers-color-scheme: dark" in html
-    assert '<div class="preheader">本月合计应还 ¥' in html
+    assert '<div class="preheader">本期应还 ¥' in html
     assert "<img" not in html and "href=" not in html and "http" not in html
     assert "<script" not in html  # inline SVG only, no script and no outside images
     assert 'class="slice' in html  # the donuts are inline SVG
     assert "请尽快还款" not in html and "还款提醒" not in html
     assert msg["X-AutoBill-Report"] == "true"
     text = msg.get_body(("plain",)).get_content()
-    assert "本月合计应还：¥" in text and "建设银行 0004：可能无账单" in text
+    assert "本期应还：¥" in text and "建设银行 0004：可能无账单" in text
 
 
 def test_the_email_is_one_month_report(db):
     conn, fx = db
     html = email(conn, fx, today=date(2026, 9, 30)).get_body(("html",)).get_content()
-    for heading in ("本月消费", "花得最多的商户", "全部流水"):
+    for heading in ("本期消费", "花得最多的商户", "全部流水"):
         assert f'<div class="sh">{heading}</div>' in html, heading
     # Dropped 2026-09-24: the cards' statement periods differ, so a daily chart across
     # them was uneven at both ends, and the largest purchase added little.
     for heading in ("每日消费", "最大的一笔"):
         assert heading not in html, heading
     assert '<svg class="daily"' not in html
-    assert "本月合计应还" in html
+    assert "本期应还" in html
     assert '<div class="sh">还款日</div>' not in html  # the card rows carry the due date
     assert "新账单" not in html  # every card is in the one report, new or not
 
@@ -249,6 +251,78 @@ def test_the_footer_names_the_version_that_made_the_email(db, monkeypatch):
     msg = email(conn, fx)
     for body in ("html", "plain"):
         assert f"版本 {__version__} (15fe0d7)" in msg.get_body((body,)).get_content(), body
+
+
+# --- a bill, not a calendar month (2026-10-06) -------------------------------------------
+
+
+def test_the_month_is_called_a_bill_and_says_when_its_money_was_spent(db):
+    """A statement month is when the banks issue the bills; most of what they list was
+    spent the month before. So the e-mail is "2026年9月账单", names the days its spending
+    covers under the title, and speaks of 本期, never 本月."""
+    conn, fx = db
+    r = report(conn, fx)
+    assert r.title == "2026年9月账单" and r.subject == "📊 2026年9月账单"
+    assert r.period == "8月2日–9月16日"  # ABC:0001 from 08-02 to ABC:0003 to 09-16
+    msg = email(conn, fx)
+    html = msg.get_body(("html",)).get_content()
+    title, period, status = (
+        html.index(s)
+        for s in ("<h1>2026年9月账单</h1>", '<div class="period">消费 8月2日–9月16日</div>',
+                  '<div class="subtitle">')
+    )  # fmt: skip
+    assert title < period < status
+    text = msg.get_body(("plain",)).get_content()
+    assert text.startswith("2026年9月账单\n消费 8月2日–9月16日\n还有 2 张待出账")
+    assert "本月" not in html and "本月" not in text
+
+
+def test_a_card_that_spent_nothing_does_not_stretch_the_days(db):
+    """As in September 2026: the BOC card, still on the 22nd while the others had moved,
+    issued a statement with nothing on it. The days are those of the cards that spent."""
+    conn, fx = db
+    conn.execute("UPDATE bills SET statement_date = '2026-09-22' WHERE account_id = 'BOC:0005'"
+                 " AND statement_date = '2026-08-22'")  # fmt: skip
+    r = report(conn, fx, today=date(2026, 9, 30))
+    assert "中国银行 0005" in [c.label for c in r.cards if c.state == "arrived"]
+    assert r.period == "8月2日–9月16日"
+
+
+def test_a_month_without_spending_names_no_days(db):
+    """August 2026 has only the BOC card's empty statement."""
+    conn, fx = db
+    assert report(conn, fx, cycle="2026-08", today=date(2026, 9, 30)).period == ""
+    html = email(conn, fx, cycle="2026-08", today=date(2026, 9, 30)).get_body(("html",))
+    assert 'class="period"' not in html.get_content()
+
+
+def test_a_statement_without_a_printed_period_covers_the_month_up_to_its_date(db):
+    """BOC prints no period. Its statement of the 22nd covers from the 23rd a month before,
+    not from the card's statement before it: the samples miss 14 months of BOC:0005."""
+    conn, _ = db
+    (boc_id,) = ids(conn, "2026-08")
+    boc = load_bill(conn, boc_id)
+    assert statement_window(boc) == (date(2026, 7, 23), date(2026, 8, 22))
+    on = lambda day: statement_window(boc.model_copy(update={"statement_date": day}))  # noqa: E731
+    assert on(date(2026, 3, 31)) == (date(2026, 3, 1), date(2026, 3, 31))
+    assert on(date(2027, 1, 15)) == (date(2026, 12, 16), date(2027, 1, 15))
+    abc = load_bill(conn, ids(conn, "2026-09")[-1])  # the printed period, as it is
+    assert statement_window(abc) == (abc.period_start, abc.period_end)
+
+
+def test_the_days_run_from_the_earliest_start_to_the_latest_end():
+    october = [(date(2026, 9, 2), date(2026, 10, 12)), (date(2026, 9, 17), date(2026, 10, 12))]
+    assert period_text(october) == "9月2日–10月12日"  # the month the cards moved to the 12th
+    assert period_text([(date(2026, 12, 13), date(2027, 1, 12))]) == "12月13日–1月12日"
+    assert period_text([]) == ""
+
+
+def test_the_change_is_against_the_statement_month_before():
+    from autobill.report.cycle import _change
+
+    assert _change(D(112), D(100)) == "比上期 +12%"
+    assert _change(D(80), D(100)) == "比上期 -20%"
+    assert _change(D(80), None) == "" and _change(D(80), D(0)) == ""
 
 
 # --- sending: one e-mail per month per run, one conversation per month ---------------
@@ -268,8 +342,7 @@ def test_a_month_waits_until_every_card_is_in(db):
     assert result.failed is None and result.emails == 4
     subjects = [m["Subject"] for m in sent_messages()]
     assert subjects == [
-        "📊 2025年6月 信用卡账单", "📊 2026年6月 信用卡账单", "📊 2026年7月 信用卡账单",
-        "📊 2026年8月 信用卡账单",
+        "📊 2025年6月账单", "📊 2026年6月账单", "📊 2026年7月账单", "📊 2026年8月账单",
     ]  # fmt: skip
     assert set(result.sent).isdisjoint(ids(conn, "2026-09"))
     waiting = conn.execute("SELECT COUNT(*) FROM bills WHERE reported_at IS NULL").fetchone()[0]
@@ -286,9 +359,9 @@ def test_the_month_goes_out_once_its_missing_cards_run_out_of_time(db):
     result = send(conn, fx, date(2026, 9, 30))  # BOC cards now more than a week late
     assert result.emails == 1 and set(result.sent) == set(ids(conn, "2026-09"))
     final = sent_messages()[-1]
-    assert final["Subject"] == "📊 2026年9月 信用卡账单"
+    assert final["Subject"] == "📊 2026年9月账单"
     assert final["In-Reply-To"] is None  # the month's only e-mail: nothing to follow
-    assert "本月账单已齐" in final.get_body(("html",)).get_content()
+    assert "本期账单已齐" in final.get_body(("html",)).get_content()
     assert send(conn, fx, date(2026, 10, 30)).emails == 0  # sent once, never again
 
 
@@ -421,7 +494,7 @@ def test_the_trend_is_six_statement_months_ending_with_this_one(db):
     assert r.trend[0].value is None and r.trend[1].value is None  # a gap, not skipped
     for bar in r.trend[2:5]:
         assert bar.value == month_spend_cny(conn, bar.cycle, fx, load_rules())
-    # This month's column is exactly the 本月消费 figure above it.
+    # This month's column is exactly the 本期消费 figure above it.
     assert f"{r.trend[-1].value:,.2f}" == r.spend_total
 
 
@@ -449,7 +522,7 @@ def test_the_trend_caption_compares_this_month_with_the_average(db):
     average = sum(values, D(0)) / len(values)
     ratio = (r.trend[-1].value - average) / average
     word = "多" if ratio > 0 else "少"
-    assert r.trend_caption == f"4 个月平均 ¥{average:,.0f} · 本月比平均{word} {abs(ratio):.0%}"
+    assert r.trend_caption == f"4 期平均 ¥{average:,.0f} · 本期比平均{word} {abs(ratio):.0%}"
 
 
 def test_the_trend_is_in_the_email_between_spending_and_merchants(db):
@@ -457,12 +530,11 @@ def test_the_trend_is_in_the_email_between_spending_and_merchants(db):
     msg = email(conn, fx)
     html = msg.get_body(("html",)).get_content()
     spending, trend, merchants = (
-        html.index(f'<div class="sh">{h}</div>')
-        for h in ("本月消费", "近 6 个月", "花得最多的商户")
+        html.index(f'<div class="sh">{h}</div>') for h in ("本期消费", "近 6 期", "花得最多的商户")
     )
     assert spending < trend < merchants
     text = msg.get_body(("plain",)).get_content()
-    assert "近 6 个月：4月 无账单 · 5月 无账单 · 6月 ¥" in text
+    assert "近 6 期：4月 无账单 · 5月 无账单 · 6月 ¥" in text
 
 
 def test_one_month_alone_shows_no_trend(db):
@@ -471,7 +543,7 @@ def test_one_month_alone_shows_no_trend(db):
     r = report(conn, fx, cycle="2025-06", today=date(2025, 7, 30))
     assert not r.trend_shown and r.trend_caption == ""
     html = email(conn, fx, cycle="2025-06", today=date(2025, 7, 30)).get_body(("html",))
-    assert "近 6 个月" not in html.get_content()
+    assert "近 6 期" not in html.get_content()
 
 
 # --- categories against their usual ------------------------------------------------
@@ -531,7 +603,7 @@ def test_the_notes_are_in_the_email(db):
     html = msg.get_body(("html",)).get_content()
     for s in noted:
         assert f'<span class="note">{s.note}</span>' in html
-    assert "平时指前 3 个月的中位数" in html
+    assert "平时指前 3 期的中位数" in html
     text = msg.get_body(("plain",)).get_content()
     assert f"{noted[0].name} {noted[0].share} ¥{noted[0].amount}（{noted[0].note}）" in text
 
@@ -551,7 +623,7 @@ def test_the_donut_has_one_slice_per_legend_row(db):
     r = report(conn, fx)
     donut = str(r.category_donut)
     assert re.findall(r'class="slice (\w+)"', donut) == [s.tone for s in r.segments]
-    assert f">¥{r.spend_total}<" in donut and ">本月消费<" in donut
+    assert f">¥{r.spend_total}<" in donut and ">本期消费<" in donut
     for segment in r.segments:  # the aria-label says what a screen reader cannot see
         assert f"{segment.label} {segment.share}" in donut  # the grey row: "其余 N 类"
     assert str(donut).count("<circle") == len(r.segments) + 1  # + the track behind them
@@ -560,8 +632,8 @@ def test_the_donut_has_one_slice_per_legend_row(db):
 def test_merchant_names_in_the_donut_are_escaped():
     """Merchant names come from the statement: a quote or "<" must not break the e-mail."""
     segment = Segment('Bar "Q" & <Grill>', "1.00", "100%", Decimal("1"), "s1")
-    donut = str(donut_svg([segment], "¥1", "本月消费"))
-    assert 'aria-label="本月消费：Bar &#34;Q&#34; &amp; &lt;Grill&gt; 100%"' in donut
+    donut = str(donut_svg([segment], "¥1", "本期消费"))
+    assert 'aria-label="本期消费：Bar &#34;Q&#34; &amp; &lt;Grill&gt; 100%"' in donut
     assert "<Grill>" not in donut
 
 

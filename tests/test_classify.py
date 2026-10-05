@@ -344,7 +344,7 @@ def write_config(data_dir, per_run: int) -> None:
 
 
 def reports():
-    return [m for s in FakeSMTP.instances for m in s.sent if "信用卡账单" in str(m["Subject"])]
+    return [m for s in FakeSMTP.instances for m in s.sent if "月账单" in str(m["Subject"])]
 
 
 def test_the_month_waits_until_the_ai_has_asked_every_new_merchant(run_env):

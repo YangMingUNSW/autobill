@@ -168,7 +168,7 @@ def older_abc_parser_read_everything(conn):
 def test_a_run_after_a_parser_update_reads_stored_statements_again(env, monkeypatch):
     mailbox_with(monkeypatch, {1: to_alias(ABC[0].read_bytes())})
     runner.invoke(app, ["run"])
-    reports = len(sent("信用卡账单"))
+    reports = len(sent("月账单"))
     assert reports == 1
     conn = connect(env / "autobill.db")
     older_abc_parser_read_everything(conn)
@@ -177,7 +177,7 @@ def test_a_run_after_a_parser_update_reads_stored_statements_again(env, monkeypa
     assert "重新解析了 1 封：OK 1" in result.output
     versions = {r[0] for r in conn.execute("SELECT parser_version FROM bills")}
     assert versions == {AbcHtmlParser.version}
-    assert len(sent("信用卡账单")) == reports  # reported_at kept: nothing sent twice
+    assert len(sent("月账单")) == reports  # reported_at kept: nothing sent twice
     assert "重新解析" not in runner.invoke(app, ["run"]).output  # once only
 
 
@@ -187,10 +187,10 @@ def test_a_statement_missed_before_is_read_and_reported_after_a_parser_update(en
         m.setattr(AbcHtmlParser, "matches", lambda self, msg: False)
         runner.invoke(app, ["run"])
     (alert,) = sent()
-    assert "不认识" in str(alert["Subject"]) and sent("信用卡账单") == []
+    assert "不认识" in str(alert["Subject"]) and sent("月账单") == []
     conn = connect(env / "autobill.db")
     older_abc_parser_read_everything(conn)
     result = runner.invoke(app, ["run"])
     assert "重新解析了 1 封：OK 1" in result.output, result.output
-    assert len(sent("信用卡账单")) == 1  # read for the first time: reported as new
+    assert len(sent("月账单")) == 1  # read for the first time: reported as new
     assert len(sent()) == 1  # and no second alert
