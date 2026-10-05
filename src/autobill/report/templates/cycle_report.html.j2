@@ -51,10 +51,11 @@
 
   <div class="eyebrow">AutoBill · 信用卡账单</div>
   <h1>{{ r.title }}</h1>
+  {% if r.period %}<div class="period">消费 {{ r.period }}</div>{% endif %}
   <div class="subtitle">{% if r.complete %}✓ {% endif %}{{ r.status_line }}</div>
 
   <section class="card">
-    <div class="caption">本月合计应还</div>
+    <div class="caption">本期应还</div>
     <div class="hero">{% if r.due_total is none %}见下方各卡{% else %}{{ r.due_total | yuan }}{% endif %}</div>
     <div class="caption">{{ r.arrived }} 张卡的账单{% if r.missing %} · {{ r.missing }} 张可能无账单{% endif %}</div>
   </section>
@@ -80,7 +81,7 @@
   </section>
 
   {% if r.segments %}
-  <div class="sh">本月消费</div>
+  <div class="sh">本期消费</div>
   <section class="card">
     <div class="donut-wrap">
       {{ r.category_donut }}
@@ -103,14 +104,14 @@
       {% endif %}
       {% endfor %}
     </div>
-    <div class="caption">{{ r.arrived }} 张卡合计 · 已扣返现和退款 · 外币折人民币{% if r.has_notes %} · 平时指前 3 个月的中位数{% endif %}</div>
+    <div class="caption">{{ r.arrived }} 张卡合计 · 已扣返现和退款 · 外币折人民币{% if r.has_notes %} · 平时指前 3 期的中位数{% endif %}</div>
   </section>
-  <div class="sf">轻点分类，看这一类本月的每一笔。</div>
+  <div class="sf">轻点分类，看这一类本期的每一笔。</div>
   {% if r.segments[-1].tone == "none" %}<div class="sf">未分类的商户：在电脑上运行 autobill uncategorised，补进 rules.yaml，下次就能归类。</div>{% endif %}
   {% endif %}
 
   {% if r.trend_shown %}
-  <div class="sh">近 {{ r.trend|length }} 个月</div>
+  <div class="sh">近 {{ r.trend|length }} 期</div>
   <section class="card">
     {{ r.trend_chart }}
     <div class="caption">{{ r.trend_caption }}</div>
@@ -128,7 +129,7 @@
       {% endfor %}
     </div>
   </section>
-  <div class="sf">轻点商户，看在这家店本月的每一笔。</div>
+  <div class="sf">轻点商户，看在这家店本期的每一笔。</div>
   {% endif %}
 
   {% if r.days %}

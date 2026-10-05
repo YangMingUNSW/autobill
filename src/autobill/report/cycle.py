@@ -41,7 +41,7 @@ from autobill.config import PortfolioCard
 from autobill.fx import FxRates
 from autobill.model import ZERO, Bill, TxnType
 from autobill.report import drill
-from autobill.report.monthly import cents, month_bounds
+from autobill.report.monthly import SPENDING_TYPES, cents, month_bounds
 from autobill.report.statement import (
     DayGroup,
     StatementView,
@@ -170,19 +170,21 @@ class CycleReport:
     transaction_count: int
     generated_at: str
     build: str  # "0.2.0 (15fe0d7)": which version made this e-mail, in its footer
-    spend_change: str = ""  # "比 9 月 +12%"; empty when last month has no statements
+    spend_change: str = ""  # "比上期 +12%"; empty when last month has no statements
     trend: list[MonthBar] = field(default_factory=list)  # oldest first, this month last
+    period: str = ""  # "9月13日–10月12日": the days the month's spending was made in
 
     def _count(self, state: str) -> int:
         return sum(1 for c in self.cards if c.state == state)
 
     @property
     def title(self) -> str:
-        return cycle_title(self.cycle)
+        """ "2026年10月账单": the bills issued that month, not what the month spent."""
+        return f"{cycle_title(self.cycle)}账单"
 
     @property
     def subject(self) -> str:  # the same for every e-mail of the month: one conversation
-        return f"📊 {self.title} 信用卡账单"
+        return f"📊 {self.title}"
 
     @property
     def complete(self) -> bool:
@@ -208,14 +210,14 @@ class CycleReport:
     def status_line(self) -> str:
         maybe = f"，{self.missing} 张可能无账单" if self.missing else ""
         if self.complete:
-            return f"本月账单已齐{maybe}"
+            return f"本期账单已齐{maybe}"
         return f"还有 {self.pending} 张待出账{maybe}"
 
     @property
     def preview(self) -> str:
         """The grey line Mail shows under the subject."""
         total = f"¥{self.due_total}" if self.due_total is not None else "见邮件"
-        return f"本月合计应还 {total} · {self.arrived} 张卡 · 消费 ¥{self.spend_total}"
+        return f"本期应还 {total} · {self.arrived} 张卡 · 消费 ¥{self.spend_total}"
 
     @property
     def trend_shown(self) -> bool:
@@ -228,19 +230,19 @@ class CycleReport:
 
     @property
     def trend_caption(self) -> str:
-        """ "6 个月平均 ¥14,200 · 本月比平均多 19%": the average of the months shown."""
+        """ "6 期平均 ¥14,200 · 本期比平均多 19%": the average of the months shown."""
         values = [b.value for b in self.trend if b.value is not None]
         if len(values) < 2:
             return ""
         average = sum(values, ZERO) / len(values)
-        text = f"{len(values)} 个月平均 ¥{average:,.0f}"
+        text = f"{len(values)} 期平均 ¥{average:,.0f}"
         now = self.trend[-1].value
         if average > 0 and now is not None:
             ratio = (now - average) / average
             if round(abs(ratio), 2) == 0:
-                text += " · 本月和平均差不多"
+                text += " · 本期和平均差不多"
             else:
-                text += f" · 本月比平均{'多' if ratio > 0 else '少'} {abs(ratio):.0%}"
+                text += f" · 本期比平均{'多' if ratio > 0 else '少'} {abs(ratio):.0%}"
         return text
 
     @property
@@ -249,7 +251,7 @@ class CycleReport:
 
     @property
     def category_donut(self) -> Markup:
-        return donut_svg(self.segments, f"¥{self.spend_total}", "本月消费")
+        return donut_svg(self.segments, f"¥{self.spend_total}", "本期消费")
 
     @property
     def merchant_donut(self) -> Markup:
@@ -266,7 +268,7 @@ class MonthBar:
     """One statement month of the spending trend."""
 
     cycle: str  # "2026-09"
-    value: Decimal | None  # CNY spent, as 本月消费 counts it; None: no statements that month
+    value: Decimal | None  # CNY spent, as 本期消费 counts it; None: no statements that month
     current: bool = False
 
     @property
@@ -282,7 +284,7 @@ def trend_svg(bars: list[MonthBar], name: str = "") -> Markup:
     numbers too), this month's in the label colour and bold, the others in grey; they are
     also in the aria-label and the plain-text part. A month without statements is a dash,
     so the months stay evenly spaced. `name` is what the aria-label calls the chart
-    (default "近 6 个月消费")."""
+    (default "近 6 期消费")."""
     if not bars:
         return Markup("")
     # viewBox units: text is sized ~20 so it is ~11px when a phone scales 600 to ~330.
@@ -295,7 +297,7 @@ def trend_svg(bars: list[MonthBar], name: str = "") -> Markup:
     said = "，".join(
         f"{b.label} " + (f"¥{b.value:,.0f}" if b.value is not None else "无账单") for b in bars
     )
-    name = name or f"近 {len(bars)} 个月消费"
+    name = name or f"近 {len(bars)} 期消费"
     parts = [
         f'<svg class="trend" viewBox="0 0 {width} {height}" role="img" '
         f'aria-label="{escape(name + "（人民币）：" + said)}">',
@@ -448,7 +450,7 @@ def merge_transactions(views: list[tuple[str, StatementView]]) -> tuple[list[Day
 class MonthTotals:
     """What an earlier statement month spent, counted exactly as this month is."""
 
-    spend: Decimal  # as 本月消费: refunds and rebates taken off
+    spend: Decimal  # as 本期消费: refunds and rebates taken off
     categories: dict[str, Decimal]  # spending per category, as the category rows
 
 
@@ -508,12 +510,12 @@ def category_notes(
     }
 
 
-def _change(spend: Decimal, before: Decimal | None, cycle: str) -> str:
-    """ "比 9 月 +12%", the way Screen Time compares weeks. Nothing to compare: nothing said."""
+def _change(spend: Decimal, before: Decimal | None) -> str:
+    """ "比上期 +12%", the way Screen Time compares weeks. Nothing to compare: nothing said."""
     if before is None or before <= 0 or spend <= 0:
         return ""
     ratio = (spend - before) / before
-    return f"比 {cycle_title(cycle)} {'+' if ratio >= 0 else '-'}{abs(ratio):.0%}"
+    return f"比上期 {'+' if ratio >= 0 else '-'}{abs(ratio):.0%}"
 
 
 def previous_cycle(cycle: str) -> str:
@@ -554,6 +556,32 @@ def latest_bills(conn: sqlite3.Connection, cycle: str) -> dict[str, int]:
     }
 
 
+def statement_window(conn: sqlite3.Connection, bill: Bill) -> tuple[date, date] | None:
+    """The days a statement covers: its printed period, or (BOC prints only the statement
+    date) from the day after the card's statement before it, as every BOC statement of
+    the author's runs (32 of them in the database, 2026-10-06). Without that one, the
+    card's first or with a month missing, from its first purchase. None: neither."""
+    if bill.period_start and bill.period_end:
+        return bill.period_start, bill.period_end
+    before = conn.execute(
+        "SELECT MAX(statement_date) FROM bills WHERE account_id = ? AND statement_date < ?",
+        (bill.account_id, bill.statement_date.isoformat()),
+    ).fetchone()[0]
+    if before is not None and before[:7] >= previous_cycle(cycle_of(bill.statement_date)):
+        return date.fromisoformat(before) + timedelta(days=1), bill.statement_date
+    days = [t.trans_date for t in bill.transactions if t.txn_type in SPENDING_TYPES]
+    return (min(days), bill.statement_date) if days else None
+
+
+def period_text(windows: list[tuple[date, date]]) -> str:
+    """ "9月13日–10月12日": the earliest start to the latest end; "" when there is none."""
+    if not windows:
+        return ""
+    start = min(w[0] for w in windows)
+    end = max(w[1] for w in windows)
+    return f"{start.month}月{start.day}日–{end.month}月{end.day}日"
+
+
 def _arrived_note(bill: Bill, view: StatementView) -> str:
     parts = [f"{bill.statement_date.month}月{bill.statement_date.day}日出账"]
     if not view.nothing_due:
@@ -587,6 +615,7 @@ def build_cycle_report(
     categories: dict[str, Decimal] = {}
     merchants: dict[str, Decimal] = {}
     spent: list[drill.Spent] = []  # what the rows open to
+    windows: list[tuple[date, date]] = []  # the statements that spent something
     for account in sorted(expected, key=lambda a: (expected[a] or 32, a)):
         label = card_label(account)
         bank, _, last4 = label.partition(" ")
@@ -618,6 +647,10 @@ def build_cycle_report(
         if due_total is not None:
             due_total = None if view.due_cny_value is None else due_total + view.due_cny_value
         spend += view.spend_cny_value
+        # A card with nothing spent, often one on another statement day (the BOC card on
+        # the 22nd while the others moved to the 12th), would only stretch the dates.
+        if view.spend_cny_value and (window := statement_window(conn, bill)):
+            windows.append(window)
         for name, value in view.categories.items():
             categories[name] = categories.get(name, ZERO) + value
         for name, value in view.merchants.items():
@@ -642,7 +675,6 @@ def build_cycle_report(
     for m in top:
         m.lines = by_shop.get(m.name)
     days, count = merge_transactions(views)
-    before = previous_cycle(cycle)
     trend = spend_trend(cycle, history, spend)
     return CycleReport(
         cycle=cycle,
@@ -655,8 +687,9 @@ def build_cycle_report(
         transaction_count=count,
         generated_at=(now or datetime.now(CHINA)).strftime("%Y-%m-%d %H:%M"),
         build=build_label(),
-        spend_change=_change(spend, trend[-2].value, before),
+        spend_change=_change(spend, trend[-2].value),
         trend=trend,
+        period=period_text(windows),
     )
 
 
@@ -684,17 +717,20 @@ def render_cycle_html(report: CycleReport) -> str:
 
 def plain_text(report: CycleReport) -> str:
     """For mail apps that show no HTML."""
-    out = [f"{report.title} 信用卡账单", report.status_line]
+    out = [report.title]
+    if report.period:
+        out.append(f"消费 {report.period}")
+    out.append(report.status_line)
     if report.due_total is not None:
-        out.append(f"本月合计应还：¥{report.due_total}")
-    spent = f"本月消费：¥{report.spend_total}"
+        out.append(f"本期应还：¥{report.due_total}")
+    spent = f"本期消费：¥{report.spend_total}"
     out.append(f"{spent}（{report.spend_change}）" if report.spend_change else spent)
     if report.trend_shown:
         months = " · ".join(
             f"{b.label} " + (f"¥{b.value:,.0f}" if b.value is not None else "无账单")
             for b in report.trend
         )
-        out.append(f"近 {len(report.trend)} 个月：{months}")
+        out.append(f"近 {len(report.trend)} 期：{months}")
     out.append("")
     for card in report.cards:
         line = f"{card.label}：{card.chip} {card.amount}".rstrip()

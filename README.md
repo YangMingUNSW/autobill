@@ -54,7 +54,7 @@ AutoBill reads the e-statements your banks send to a dedicated mailbox, parses t
 
 ## Features
 - **Deterministic parsing.** Every statement is parsed with fixed rules, never AI, and checked item by item against the totals the bank prints on it. Any mismatch is reported, never silently ignored. After an update that changes a parser, the statements already stored are read again automatically.
-- **One e-mail per statement month.** Sent once every expected card has issued its statement, so you get one complete picture instead of one e-mail per card.
+- **One e-mail per statement month.** Sent once every expected card has issued its statement, so you get one complete picture instead of one e-mail per card. It reads as a bill: the dates its spending covers are under the title, while the year in review counts each purchase by its own date.
 - **Tap for details.** Categories, top merchants and the transaction list open in place, and the year in review filters by month and category. It is all CSS, with no scripts and nothing loaded from the web, so it works in Apple Mail, and offline once the e-mail has downloaded.
 - **Multi-currency.** Original currencies are kept and converted to CNY at the exchange rate of the statement e-mail's date ([Frankfurter](https://frankfurter.dev)).
 - **Categories.** Keyword rules first; merchants the rules miss can optionally be categorised by an AI endpoint you configure, which only ever sees merchant name, location and currency.
@@ -68,11 +68,11 @@ AutoBill reads the e-statements your banks send to a dedicated mailbox, parses t
   <tr>
     <td width="50%" valign="top">
       <img src="docs/images/email-spending.png" alt="Spending by category as a donut chart, with notes under categories that are clearly off their usual">
-      <p><b>Spending</b> by category with month-over-month change. A category clearly off its usual level (the median of the previous three months) gets a quiet note, whether up or down. Tap a category, or one of the top merchants, to see every purchase behind it.</p>
+      <p><b>Spending</b> by category, compared with the previous statement. A category clearly off its usual level (the median of the previous three statements) gets a quiet note, whether up or down. Tap a category, or one of the top merchants, to see every purchase behind it.</p>
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/email-trend.png" alt="Last six months: one column per month with its amount, the current month highlighted">
-      <p><b>Last six months</b>: one column per statement month with its amount, the current month highlighted, and the average.</p>
+      <img src="docs/images/email-trend.png" alt="Last six statements: one column per statement with its amount, the current one highlighted">
+      <p><b>Last six statements</b>: one column per statement month with its amount, the current one highlighted, and the average.</p>
       <img src="docs/images/email-transactions.png" alt="All transactions grouped by day, each showing its card and category">
       <p><b>All transactions</b> from every card in one list by day, collapsed until tapped. Foreign purchases show the local currency first, with the CNY equivalent.</p>
     </td>

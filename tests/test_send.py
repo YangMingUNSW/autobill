@@ -153,7 +153,7 @@ def test_preview_email_command(cli_env):
     result = runner.invoke(app, ["preview-email", "-o", str(out)])
     assert result.exit_code == 0 and "2026-09 账单月" in result.output, result.output
     html = out.read_text(encoding="utf-8")
-    assert "<h1>2026年9月</h1>" in html and "农业银行 0001" in html and "<img" not in html
+    assert "<h1>2026年9月账单</h1>" in html and "农业银行 0001" in html and "<img" not in html
     assert FakeSMTP.instances == []  # preview never sends
 
 
@@ -198,7 +198,7 @@ def test_resend_rebuilds_the_month_from_the_data_as_it_stands(cli_env, monkeypat
     assert result.exit_code == 0, result.output
     assert "已重发 2026-09" in result.output and SECRET not in result.output
     again = FakeSMTP.instances[-1].sent[-1]
-    assert again["Subject"] == first["Subject"] == "📊 2026年9月 信用卡账单"
+    assert again["Subject"] == first["Subject"] == "📊 2026年9月账单"
     assert again["In-Reply-To"] == first["Message-ID"]  # same conversation
     html = again.get_body(("html",)).get_content()
     assert "未分类" not in html  # rebuilt with the AI answers stored since the first e-mail

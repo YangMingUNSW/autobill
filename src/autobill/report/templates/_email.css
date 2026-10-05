@@ -31,6 +31,7 @@
   /* navigation-style header */
   .eyebrow { font-size: 13px; font-weight: 600; color: var(--label2); margin-top: 14px; }
   h1 { font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: .2px; margin: 2px 0 2px; }
+  .period { font-size: 15px; font-weight: 600; }
   .subtitle { font-size: 15px; color: var(--label2); margin-bottom: 18px; }
 
   /* grouped sections */

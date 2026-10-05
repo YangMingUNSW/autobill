@@ -284,7 +284,7 @@ def shoot(
             written.append(out / f"email-{scheme}.png")
             page.screenshot(path=written[-1])  # the first screen, as the phone shows it
             if scheme == "light":
-                for name, heading in (("spending", "本月消费"), ("trend", "近 6 个月")):
+                for name, heading in (("spending", "本期消费"), ("trend", "近 6 期")):
                     written.append(out / f"email-{name}.png")
                     page.screenshot(path=written[-1], clip=section(page, heading), full_page=True)
                 page.click("label[for=tx]")  # unfold the transactions
