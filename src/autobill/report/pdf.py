@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from collections.abc import Callable
 from pathlib import Path
 
@@ -64,8 +65,8 @@ def html_to_pdf(
     browser window the user has open."""
     pdf_path = pdf_path.resolve()
     pdf_path.unlink(missing_ok=True)
-    # The browser's crash reporter can outlive it and keep files open: ignore cleanup errors.
-    with tempfile.TemporaryDirectory(prefix="autobill-pdf-", ignore_cleanup_errors=True) as profile:
+    profile = _new_profile()
+    try:
         command = [
             str(browser),
             "--headless=new",
@@ -92,6 +93,23 @@ def html_to_pdf(
             raise PdfError(
                 f"browser did not write a PDF to {pdf_path}" + (f": {detail}" if detail else "")
             )
+    finally:
+        # The browser's crash reporter can outlive it and keep files open: ignore errors.
+        shutil.rmtree(profile, ignore_errors=True)
+
+
+def _new_profile() -> Path:
+    """A throw-away browser profile folder, so printing is independent of any browser window
+    the user has open. Not tempfile.TemporaryDirectory: since Python 3.12.4 it makes the
+    folder on Windows accessible to the current user only, the browser's sandboxed processes
+    cannot use it, and nothing gets printed (seen with Edge 154, 2026-10-05). Elsewhere the
+    folder stays private to the user, as before."""
+    profile = Path(tempfile.gettempdir()) / f"autobill-pdf-{uuid.uuid4().hex[:12]}"
+    if os.name == "nt":
+        profile.mkdir()  # inherits the temp folder's permissions
+    else:
+        profile.mkdir(mode=0o700)
+    return profile
 
 
 def _tail(stderr, limit: int = 300) -> str:

@@ -1,8 +1,11 @@
 """Standard statements (docs/statement.md): one unified template for every bank's bill."""
 
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
+import uuid
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -221,12 +224,19 @@ def test_html_to_pdf_failures(tmp_path):
 
 
 @pytest.mark.skipif(pdf.find_browser() is None, reason="no Edge/Chrome on this machine (CI)")
-def test_real_browser_prints_a_pdf(db, tmp_path):
+def test_real_browser_prints_a_pdf(db):
     conn, fx = db
-    html = tmp_path / "s.html"
-    html.write_text(render(conn, fx, "ABC:0003"), encoding="utf-8")
-    pdf.html_to_pdf(html, tmp_path / "s.pdf", pdf.find_browser())
-    assert (tmp_path / "s.pdf").read_bytes().startswith(b"%PDF-")
+    # Not tmp_path: pytest makes it accessible to the current user only, which on Windows
+    # the browser's sandboxed processes can neither read nor write (see pdf._new_profile).
+    folder = Path(tempfile.gettempdir()) / f"autobill-test-{uuid.uuid4().hex[:12]}"
+    folder.mkdir()
+    try:
+        html = folder / "s.html"
+        html.write_text(render(conn, fx, "ABC:0003"), encoding="utf-8")
+        pdf.html_to_pdf(html, folder / "s.pdf", pdf.find_browser())
+        assert (folder / "s.pdf").read_bytes().startswith(b"%PDF-")
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
 
 
 # --- CLI -----------------------------------------------------------------------------
