@@ -46,13 +46,13 @@ FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表�
 ## 运行层
 - **不会同时跑两个**：Docker 里是 `autobill serve` 一个循环（M8b）；不用 Docker 时是 systemd 的 oneshot 服务加定时器，上一次还没结束时不会再启动一个。所以不需要自己写文件锁。
 - **运行中出错**（邮箱登录失败、账单解析失败、不认识的邮件、新卡号）时发提醒邮件，同一个问题只发一次，见 [notify.md](notify.md#提醒邮件)。每次运行的输出进 systemd 日志（`journalctl -u autobill`）；`runs` 表以后再说。
-- **解析器更新后自动重读**（2026-09-29，作者问"以后是不是每次都要 ssh 手动做"）：每次运行开头，先把这一版解析器会读得不一样的已入库邮件重新解析一遍（`pipeline.outdated_emails()`），不用再手动 `reparse`：
+- **解析器更新后自动重读**（2026-09-29）：每次运行开头，先把这一版解析器会读得不一样的已入库邮件重新解析一遍（`pipeline.outdated_emails()`），不用再手动 `reparse`：
   - 旧版解析器读的账单（`bills.parser_version` 比现在的小）；
   - 解析器有变化时，之前没读成功的邮件（`UNRECOGNIZED`、`FAILED`、`WARN`、`UNVERIFIED`）：修好的解析器也许能读了。每封邮件的原件都在 `raw/` 里，不用重新收信。
   - 读的时候用的是哪一版，记在 `parser_versions` 表（表结构版本 7）。版本没变时这一步什么都不做；之前没读成功的邮件，同样的解析器不会每 30 分钟白读一遍。
   - 和手动 `reparse` 一样：账单原地更新、保留 `reported_at`，**不会重发邮件**；以前没认出来的账单这次第一次读到，当作新账单发（2026-09-29 那 13 封农行旧账单就是这样）。重读后仍然失败的照常发提醒（同一封只提醒一次）。
   - **改了 `config.yaml` 的 `card_aliases` 不算**：解析器没变，要手动 `reparse --all`。
-- **程序根本没在运行**（关机、休眠、断网）的情况，本机没法告警自己，只能靠**以后**的 Oracle 看门狗（见 [notify.md](notify.md#以后企业微信中转与看门狗)）。第一版接受这个风险：最坏的结果只是某个月没收到报表。
+- **程序根本没在运行**（服务器停机、容器没起来）的情况，它没法告警自己。第一版接受这个风险：最坏的结果只是某个月没收到报表。
 
 ## CLI
 `autobill run | fetch | process | report --month YYYY-MM | import-dir <路径> | reparse [--bank X --since YYYY-MM] | rebuild | status`
@@ -84,7 +84,7 @@ FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表�
 
 ## 部署
 **M8b 起：Docker**（2026-09-19 定），步骤见 [deploy.md](deploy.md)。
-- 镜像由 GitHub Actions 构建（amd64 + arm64），每次构建都会在容器里导入样本、生成一封进度邮件，确认镜像里没有任何个人文件，然后发布到 `ghcr.io/yangmingunsw/autobill`（main 分支是 `latest`，版本标签是 `0.2.0` 这样的号）。
+- 镜像由 GitHub Actions 构建（amd64 + arm64），每次构建都会在容器里导入样本、生成一封月度邮件，确认镜像里没有任何个人文件，然后发布到 `ghcr.io/yangmingunsw/autobill`（main 分支是 `latest`，版本标签是 `0.2.0` 这样的号）。
 - `docker compose up -d` 运行 `autobill serve`：立刻跑一次，之后每 30 分钟一次；某一次出错不会让它停下，下一次照常。只有一个循环，所以不会同时跑两个。
 - 配置、数据库、原始邮件都在挂载的 `data/` 文件夹里；密码在 `autobill.env`（600），不进镜像。
 - 不用 Docker 时：`deploy/systemd/` 的 oneshot 服务 + 每 30 分钟的定时器。
