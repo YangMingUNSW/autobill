@@ -1,8 +1,8 @@
-# 部署到服务器（M8b）
+# 部署到服务器
 
-**推荐用 Docker**（2026-09-19 定）：镜像由 GitHub Actions 自动构建，发布在 `ghcr.io/yangmingunsw/autobill`，同时有 x86（amd64）和 ARM（arm64）两种，Linux 服务器、群晖这类 NAS、苹果芯片的 Mac 都能跑。镜像里只有 Python 和 AutoBill（约 330 MB，不带浏览器：进度邮件不附 PDF，原始账单在邮箱里看），**服务器上只需要装 Docker**。
+**推荐用 Docker**：镜像由 GitHub Actions 自动构建，发布在 `ghcr.io/yangmingunsw/autobill`，同时有 x86（amd64）和 ARM（arm64）两种，Linux 服务器、群晖这类 NAS、苹果芯片的 Mac 都能跑。镜像里只有 Python 和 AutoBill（约 330 MB，不带浏览器），**服务器上只需要装 Docker**。
 
-作者用的是一台 Oracle Cloud 免费服务器（Ubuntu 24.04，1 核 1 GB）。
+1 核 1 GB 的小服务器就够了，比如 Oracle Cloud 的免费机型（Ubuntu 24.04）。
 
 **在服务器上跑起来以后，就不要再在自己电脑上运行 `autobill run` 了**（`--no-send` 除外），否则两边会各发一遍报表。
 
@@ -28,7 +28,7 @@ chmod 600 autobill.env
 printf "AUTOBILL_UID=%s\nAUTOBILL_GID=%s\n" "$(id -u)" "$(id -g)" > .env
 ```
 
-最后一行把你自己的用户编号写进 `.env`，让容器以你的身份读写 `data/`：配置和数据库只有你能读，容器也必须是"你"才读得到。**不写这一行、而你的编号又不是 1000 时，会报"没有权限读取 config.yaml"**（2026-09-19 在作者的 Oracle 服务器上遇到：那台机器的 1000 号是 Oracle 自带的 `opc` 用户，`ubuntu` 是 1001）。
+最后一行把你自己的用户编号写进 `.env`，让容器以你的身份读写 `data/`：配置和数据库只有你能读，容器也必须是"你"才读得到。**不写这一行、而你的编号又不是 1000 时，会报"没有权限读取 config.yaml"**（比如 Oracle Cloud 的 Ubuntu 镜像里，1000 号是自带的 `opc` 用户，`ubuntu` 是 1001）。
 
 文件夹里是这样的：
 
@@ -43,7 +43,7 @@ autobill-docker/
 ```
 
 ### 3. 填配置和密码
-- `data/config.yaml`：改 `mail_fetcher` 和 `notifier.smtp_report` 两节，见 [setup.md 第 5 步](setup.md#5-运行m8a-手动m8b-放到服务器上定时运行)。
+- `data/config.yaml`：改 `mail_fetcher` 和 `notifier.smtp_report` 两节，见 [setup.md 第 5 步](setup.md#5-先在自己电脑上试运行)。
 - `autobill.env`：`AUTOBILL_IMAP_PASSWORD=` 后面填邮箱密码（iCloud 用 App 专用密码），不加引号。
 
 ### 4. 先检查，再启动
@@ -71,10 +71,10 @@ docker compose up -d                               # 启动：立刻跑一次，
 | 手动让 AI 分类、看它的理由 | `docker compose run --rm autobill classify --dry-run`（只看不存），去掉 `--dry-run` 就保存 |
 | 其他命令 | `docker compose run --rm autobill <命令>`，比如 `uncategorised`、`report --month 2026-09` |
 
-- **什么时候更新**：`compose.yaml` 用 `:latest`，但服务器只在你运行 `docker compose pull && docker compose up -d` 时才换版本，合并到 main 不会自动上线。作者的做法（2026-09-29，issue #45 讨论后决定）：不另外固定版本号，每次更新前先备份数据库、更新后看一眼第一次运行的记录；新版有问题就按上表退回到 `:sha-短哈希`。
+- **什么时候更新**：`compose.yaml` 用 `:latest`，但服务器只在你运行 `docker compose pull && docker compose up -d` 时才换版本，GitHub 上有了新版本也不会自动上线。建议每次更新前先备份数据库（做法见下一条），更新后看一眼第一次运行的记录；新版有问题，就按上表退回到 `:sha-短哈希`。
 - **数据都在 `data/` 里**：换镜像、更新版本都不会丢。**备份不用手动做**：每月那封账单邮件自带一份压缩的数据库，服务器上也留在 `data/backups/`（见 [notify.md](notify.md#每月备份)）。想立刻手动取一份，就先 `docker compose stop` 再复制整个 `data/`（数据库是 WAL 模式，最近的改动还在 `autobill.db-wal` 里，只复制 `autobill.db` 会丢），复制完 `docker compose up -d`。
 - 容器以普通用户运行，不是 root：默认 uid 1000，`.env` 里的 `AUTOBILL_UID` / `AUTOBILL_GID` 可以改成你自己的。
-- 出问题时会发**提醒邮件**到你的邮箱（见 [notify.md](notify.md#提醒邮件)），不用盯着日志。只有"收信和发信用同一个密码，而这个密码失效了"时发不出提醒，这时看日志，或者注意到进度邮件不来了。
+- 出问题时会发**提醒邮件**到你的邮箱（见 [notify.md](notify.md#提醒邮件)），不用盯着日志。只有"收信和发信用同一个密码，而这个密码失效了"时发不出提醒，这时看日志，或者注意到月度邮件不来了。
 - 内存：`compose.yaml` 限制容器最多用 300 MB，实际用得更少；1 GB 的服务器绰绰有余。
 
 ## 从备份还原
@@ -113,4 +113,3 @@ sudo systemctl daemon-reload && sudo systemctl enable --now autobill.timer
 
 ## 其他
 - 推荐同时装 `fail2ban`（`sudo apt install fail2ban`），把反复乱试 SSH 的 IP 自动拉黑。服务器只允许密钥登录，它们本来也进不来，只是让日志清净。
-- **为什么 2026-09-19 先说不用 Docker、后来又改用**：一开始担心 1 GB 的机器构建和运行带浏览器的镜像太吃力（实测带 Chromium 的镜像 1.72 GB，打印 PDF 时内存峰值 632 MB）。后来改成"镜像在 GitHub 上构建、服务器只下载运行"，作者又决定进度邮件不附 PDF（原始账单在邮箱里看），镜像去掉浏览器、改成两阶段构建，只剩约 330 MB，这个顾虑就没有了。对开源项目来说，别人能一条命令部署才是最重要的。

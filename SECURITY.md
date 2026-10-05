@@ -25,7 +25,7 @@ This is a personal project maintained in spare time, so reports are handled on a
 What AutoBill is designed to guarantee, so you can judge whether something is a vulnerability:
 
 - **Read-only mailbox access.** Folders are opened with `EXAMINE` and messages fetched with `BODY.PEEK[]`: nothing is deleted, moved or marked as read.
-- **Secrets stay out of files.** Mailbox passwords and the AI API key are read from environment variables (`AUTOBILL_IMAP_PASSWORD`, `AUTOBILL_SMTP_PASSWORD`, `AUTOBILL_AI_API_KEY`), never from `config.yaml`, and are never printed or logged.
+- **Secrets stay out of `config.yaml`.** Mailbox passwords and the AI API key are read from environment variables (`AUTOBILL_IMAP_PASSWORD`, `AUTOBILL_SMTP_PASSWORD`, `AUTOBILL_AI_API_KEY`), kept in a file of their own that only you can read (`autobill.env`, `chmod 600`). They are never put in `config.yaml`, printed or logged.
 - **Data stays on your server.** Statements and the SQLite database live in the data directory. The only outbound connections are:
   - your own IMAP and SMTP servers;
   - the [Frankfurter](https://frankfurter.dev) exchange-rate API, which receives a currency code and a date only;

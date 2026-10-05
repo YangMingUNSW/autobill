@@ -1,23 +1,16 @@
-# AutoBill 配置示例：复制为 config.yaml 后修改（config.yaml 不入库）。
-# 密码和授权码不写在这里，见 docs/security.md#密钥。
-
-system:
-  timezone: "Asia/Shanghai"          # 账单日期按北京时间理解
-  data_dir: null                     # null 表示用 platformdirs 的默认位置；测试时用 AUTOBILL_DATA_DIR
-  backfill_months: 12
+# AutoBill 配置示例：复制成数据目录里的 config.yaml 再改（config.yaml 不入库）。
+# 数据目录：Docker 里是 compose.yaml 旁边的 data/；不用 Docker 时是系统的应用数据目录
+# （Linux ~/.local/share/autobill，macOS ~/Library/Application Support/autobill，
+# Windows %LOCALAPPDATA%\autobill），可以用环境变量 AUTOBILL_DATA_DIR 换。
+# 密码和密钥不写在这里，见 docs/security.md#密钥。
 
 cards:
   card_aliases:                      # 同一账户的其他卡号（换卡、一户两卡）→ 记在哪个账户下
     "CCB:5678": "CCB:1234"
-  portfolio:                         # 每月应该出账的卡和大约的账单日，见 docs/notify.md#账单月进度邮件
+  portfolio:                         # 每月应该出账的卡和大约的账单日，见 docs/notify.md#账单月邮件
     - { account: "ABC:0001", statement_day: 1 }    # 不写这一节时，按最近两个月出过账单的卡推算
     - { account: "CCB:0004", statement_day: 10 }
     - { account: "BOC:0005", statement_day: 22 }
-
-banks:                               # 按银行的策略，取值依据见 docs/banks/README.md
-  ABC: { due_window_days: [15, 30] } # 以后再加：dkim: verify, zero_statement: unknown
-  CCB: { due_window_days: [15, 30] } # 以后再加：dkim: none,   zero_statement: unknown
-  BOC: { due_window_days: [15, 30] } # 以后再加：dkim: verify, zero_statement: always
 
 mail_fetcher:                        # 收账单的邮箱（只读），见 docs/setup.md 第 2、5 步
   enabled: false                     # 填好后改成 true
@@ -25,7 +18,7 @@ mail_fetcher:                        # 收账单的邮箱（只读），见 docs
   imap_port: 993
   username: "me@icloud.com"          # 完整的 @icloud.com 主地址
   folders: ["AutoBill", "Junk"]      # 文件夹名只能用英文
-  only_to: "me.bills@icloud.com"     # 只处理发给这个别名的邮件（QQ 转发到它）
+  only_to: "me.bills@icloud.com"     # 只处理发给这个别名的邮件（银行把账单发到这里）
   # 密码不写在这里：环境变量 AUTOBILL_IMAP_PASSWORD（iCloud 的 App 专用密码）
 
 ai:                                  # AI 分类：规则分不出来的商户交给 AI，不碰解析和金额，见 docs/notify.md#ai-分类
@@ -56,8 +49,4 @@ notifier:
     smtp_port: 587
     security: "starttls"
     username: "me@icloud.com"
-    to_addr: "me@icloud.com"          # 收报表的邮箱（作者用 iCloud 邮箱 + iPhone 苹果邮件）
-  wechat_work:                       # 以后，经 Oracle 中转
-    enabled: false
-    relay_url: "http://10.66.66.1:8787"
-    touser: "YOUR_USERID"            # 只填本人，不用 @all
+    to_addr: "me@icloud.com"          # 收报表的邮箱（邮件为 iPhone 上的苹果邮件排版）
