@@ -389,6 +389,9 @@ def _send_reports(conn) -> None:
     )
     sent = f"已发送报表邮件 {result.emails} 封（新账单 {len(result.sent)} 份）"
     typer.echo(f"{sent}，收件人 {mailer.config.to_addr}。")
+    if result.quiet:
+        quiet = len(result.quiet)
+        typer.echo(f"另有 {quiet} 份迟到的账单没有消费、也不用还钱，已记下，不单独发邮件。")
     for cycle, error in result.backup_errors:
         typer.echo(f"数据库备份失败（{cycle} 账单月）：{error}。报表照常发出，下个月会再备份。")
     if result.failed:

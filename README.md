@@ -101,7 +101,7 @@ The e-mail opens with the total due, the dates the statements' spending covers, 
   <img src="docs/images/pipeline-light.svg" width="100%" alt="How AutoBill works: bank e-statements arrive in your mailbox, are read without changing anything, parsed and reconciled with fixed rules, stored in SQLite on your server, summarised in CNY by category, and sent to Apple Mail.">
 </picture>
 
-Every 30 minutes AutoBill reads the new statements in the mailbox folder, parses and reconciles them, and stores them in SQLite. Once every card expected for a month has issued its statement (or a week after the last one was due), it sends that month's e-mail; a statement that arrives later is sent in a follow-up in the same thread.
+Every 30 minutes AutoBill reads the new statements in the mailbox folder, parses and reconciles them, and stores them in SQLite. Once every card expected for a month has issued its statement (or a week after the last one was due), it sends that month's e-mail; a statement that arrives later is sent in a follow-up in the same thread, unless it has nothing on it and nothing to pay.
 
 ## Privacy
 - **Your mailbox is read-only.** Folders are opened with `EXAMINE` and messages fetched with `BODY.PEEK[]`: nothing is deleted, moved or marked as read.
