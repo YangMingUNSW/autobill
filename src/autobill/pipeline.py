@@ -17,7 +17,7 @@ from autobill.fetch.source import RawMail
 from autobill.model import Bill
 from autobill.parse.base import TemplateChanged
 from autobill.parse.registry import PARSERS, find_parser
-from autobill.store.db import now, save_bill
+from autobill.store.db import load_bill, now, save_bill
 
 
 @dataclass
@@ -251,6 +251,18 @@ class SendResult:
     emails: int = 0
     failed: tuple[str, str] | None = None  # (statement month, error); the first failure stops
     backup_errors: list[tuple[str, str]] = field(default_factory=list)  # (month, error)
+    quiet: list[int] = field(default_factory=list)  # late and empty: reported, no e-mail
+
+
+def nothing_to_tell(bill: Bill) -> bool:
+    """No spending, refund or rebate on it and nothing to pay: all an e-mail of its own
+    would add to the month is a "无需还款" row."""
+    from autobill.report.monthly import REDUCING_TYPES, SPENDING_TYPES
+
+    counted = {*SPENDING_TYPES, *REDUCING_TYPES}
+    return all(b.amount_due == 0 for b in bill.balances) and not any(
+        t.txn_type in counted for t in bill.transactions
+    )
 
 
 def _attach_backup(conn: sqlite3.Connection, message, cycle: str, config) -> None:
@@ -289,10 +301,20 @@ def send_pending_reports(
     failure stops the run: when the login or server is broken, every later send would
     fail the same way.
 
+    A statement arriving after its month's e-mail went out gets an e-mail of its own, but
+    not when there is nothing to tell (nothing_to_tell): a card on a later statement day
+    that was not used, its empty statement coming ten days after the others. It counts
+    as reported, in `quiet`, and the month's next e-mail shows it anyway.
+
     `backup` (config.backup) carries a copy of the database out with the e-mail, so the
     mailbox holds one per month: see autobill/backup.py.
     """
-    from autobill.report.cycle import build_cycle_email, cycle_complete, record_sent
+    from autobill.report.cycle import (
+        build_cycle_email,
+        cycle_complete,
+        record_sent,
+        thread_ids,
+    )
 
     result = SendResult()
     months: dict[str, list[int]] = {}
@@ -305,6 +327,19 @@ def send_pending_reports(
         # Asked before the e-mail is built: building it loads and renders every card of the
         # month, and a month still waiting for a card would do that every run for weeks.
         if not cycle_complete(conn, cycle, portfolio, today):
+            continue
+        if thread_ids(conn, cycle) and all(nothing_to_tell(load_bill(conn, i)) for i in bill_ids):
+            stamp = now()
+            conn.execute("BEGIN")
+            try:
+                conn.executemany(
+                    "UPDATE bills SET reported_at = ? WHERE id = ?", [(stamp, i) for i in bill_ids]
+                )
+                conn.execute("COMMIT")
+            except BaseException:
+                conn.execute("ROLLBACK")
+                raise
+            result.quiet += bill_ids
             continue
         try:
             message, report = build_cycle_email(

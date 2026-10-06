@@ -412,6 +412,36 @@ def test_a_late_statement_continues_the_conversation(isolated_data_dir):
     assert thread_ids(conn, "2026-09") == [first["Message-ID"], second["Message-ID"]]
 
 
+def test_a_late_statement_with_nothing_on_it_gets_no_email(db):
+    """A card on a later statement day issues an empty statement after the month's e-mail
+    went out (nothing spent, nothing to pay): it counts as reported without an e-mail of
+    its own (2026-10-06). The month's next e-mail still shows it."""
+    conn, fx = db
+    send(conn, fx, date(2026, 9, 30))  # September goes out without the BOC cards
+    before = len(sent_messages())
+    # BOC:0005's empty statement (no lines, nothing due), as if it came on 22 September
+    conn.execute("UPDATE bills SET statement_date = '2026-09-22', reported_at = NULL"
+                 " WHERE account_id = 'BOC:0005' AND statement_date = '2026-08-22'")  # fmt: skip
+    (late,) = ids(conn, "2026-09")[-1:]
+    result = send(conn, fx, date(2026, 10, 1))
+    assert result.emails == 0 and result.quiet == [late] and result.sent == []
+    assert len(sent_messages()) == before
+    assert conn.execute("SELECT reported_at FROM bills WHERE id = ?", (late,)).fetchone()[0]
+    assert send(conn, fx, date(2026, 10, 2)).quiet == []  # once
+    html = email(conn, fx, today=date(2026, 10, 2)).get_body(("html",)).get_content()
+    assert "中国银行 0005" in html  # the month's next e-mail shows it
+
+
+def test_a_late_statement_with_something_on_it_is_still_sent(db):
+    """A refund, a fee or an amount to pay is news: those still get their e-mail."""
+    conn, fx = db
+    send(conn, fx, date(2026, 9, 30))
+    conn.execute("UPDATE bills SET statement_date = '2026-09-22', reported_at = NULL"
+                 " WHERE account_id = 'BOC:0005' AND statement_date = '2025-06-22'")  # fmt: skip
+    result = send(conn, fx, date(2026, 10, 1))
+    assert result.emails == 1 and result.quiet == []
+
+
 def test_failed_send_keeps_bills_pending_and_records_nothing(db):
     conn, fx = db
 
