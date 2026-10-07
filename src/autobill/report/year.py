@@ -16,7 +16,7 @@ The first three cards filter the year by month and category, two groups of radio
 and one CSS rule per value, no script ("punched card coding"): every choice is written into
 the e-mail beforehand and the chosen one shows. The bars are one set of twelve that carry
 their height for every category and grow or shrink on a spring; a month chosen lists its
-lines. The author tried it as a prototype on iOS 27 Apple Mail (2026-09-29).
+lines. It was tried as a prototype on iOS 27 Apple Mail.
 """
 
 from __future__ import annotations
@@ -71,7 +71,7 @@ CURRENCY_NAMES = {
 
 @dataclass
 class Visit:
-    """A shop the author kept going back to: how often, and what it came to in CNY."""
+    """A shop you kept going back to: how often, and what it came to in CNY."""
 
     name: str
     count: int
@@ -768,8 +768,8 @@ def due_year(conn: sqlite3.Connection, today: date) -> int | None:
     """The year whose review should go out now, if any: last year, once this January's
     e-mail has gone out complete (every card's January statement is in, so all of December
     is), when its review has not been sent yet, and only until the end of March. A year
-    long past is never reviewed after the fact: the history imported on 2026-09-19 has a
-    complete January 2026, and 2025 is no year to review."""
+    long past is never reviewed after the fact: history imported in September may hold a
+    complete January, but the year before it is no year to review."""
     if (today.month, today.day) > REVIEW_UNTIL:
         return None
     january = conn.execute(

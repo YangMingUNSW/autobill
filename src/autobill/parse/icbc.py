@@ -9,7 +9,7 @@ One e-mail is one account, which may hold several cards, and each currency is an
 of its own: 人民币, 美元, 港币, 澳大利亚元 (docs/banks/icbc.md §4). ICBC prints balances
 with the opposite sign to ours (a debt is negative) and gives each transaction a direction
 instead of a sign ("99.20/RMB(支出)"); both are converted here. Purchases, refunds, rebates
-and repayments are confirmed by the author's statements; fees, interest, cash advances
+and repayments are confirmed by real statements; fees, interest, cash advances
 and instalments are inferred (§5).
 """
 

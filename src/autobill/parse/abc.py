@@ -477,7 +477,7 @@ class _Statement:
     ) -> None:
         """The account-info 本期应还款额 (debt negative) is the summary's account balance as
         it stood at some moment of the statement day: cashback posted later that day is not
-        in it yet. In the author's statements a 刷卡金 earned at 00:29 was in it and one
+        in it yet. In real statements a 刷卡金 earned at 00:29 was in it and one
         earned at 23:59 was not, and the statement-day Mastercard cashback never was. So the
         number shown must lie between the balance with none and with all of that cashback."""
         for b in balances:

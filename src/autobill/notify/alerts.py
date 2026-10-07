@@ -1,4 +1,4 @@
-"""Alert e-mails: things the author has to act on. See docs/notify.md#提醒邮件.
+"""Alert e-mails: things you have to act on. See docs/notify.md#提醒邮件.
 
 Once AutoBill runs unattended on a server, nobody reads its output. So these are e-mailed:
 

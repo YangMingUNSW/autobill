@@ -1,6 +1,6 @@
 """AI classification of merchants the rules miss. See docs/notify.md#ai-分类.
 
-A purchase is categorised by the author's rules.yaml, then the built-in rules, then the
+A purchase is categorised by your rules.yaml, then the built-in rules, then the
 answers stored here; if none has it, it is 未分类. Each merchant is asked once:
 
   1. all new merchants together, from the model's own knowledge (cheap);
@@ -8,9 +8,9 @@ answers stored here; if none has it, it is 未分类. Each merchant is asked onc
 
 A "high" answer from step 1 or a "high"/"medium" one from step 2 is used. Every answer
 is stored in ai_categories, so a merchant is asked once only and a report never changes
-from one run to the next. One the model could not place counts as 其他 (the author's
-rule, 2026-09-20: one try, no retries); `autobill classify --retry` asks those again by
-hand. A rule in rules.yaml always wins over a stored answer.
+from one run to the next. One the model could not place counts as 其他 (one try, no
+retries: a few hard-to-find shops are not worth paying for again); `autobill classify
+--retry` asks those again by hand. A rule in rules.yaml always wins over a stored answer.
 """
 
 from __future__ import annotations

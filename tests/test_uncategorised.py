@@ -51,7 +51,7 @@ def test_snippet_lists_every_merchant_as_a_comment(db):
     conn, fx = db
     unknowns = uncategorised_merchants(conn, fx, load_rules())[:3]
     text = rules_snippet(unknowns)
-    assert yaml.safe_load(text) is None  # all comments until the author moves a line
+    assert yaml.safe_load(text) is None  # all comments until you move a line
     assert all(u.name in text for u in unknowns)
 
 

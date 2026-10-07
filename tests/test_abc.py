@@ -230,11 +230,11 @@ def test_unparseable_amount_is_a_warning_not_a_crash():
 @pytest.mark.parametrize(
     ("group", "text", "kind"),
     [
-        # both seen on the author's 2026-06 VISA statement (not yet a fixture)
+        # both seen on a real 2026-06 VISA statement (not yet a fixture)
         ("取现/转出", "境外取现 MFS5080 VENEZIA IT", TxnType.CASH),
         ("利息", "利息 本期已优惠的利息金额:0.00元", TxnType.INTEREST),
         ("取现/转出", "转出 某某", TxnType.ADJUSTMENT),  # a transfer out is still unknown
-        # seen on the author's 29 history statements (2026-09-20)
+        # seen on 29 real history statements
         ("退货", "境外退货 Woolworths OnlineBellaVistaAUS", TxnType.REFUND),
         ("退货", "网上消费退货 财付通退款", TxnType.REFUND),
         ("费用", "跨行ATM取现手续费 SEVEN BANK HOKKAIDO JPN", TxnType.FEE),
@@ -253,7 +253,7 @@ def test_cash_and_interest_groups(group, text, kind):
 @pytest.mark.parametrize(
     ("text", "kind"),
     [
-        # UnionPay's cashback is in the 还款 group too (the author's 2025-07 to 2026 statements)
+        # UnionPay's cashback is in the 还款 group too (real statements from 2025-07 on)
         ("银联入账 农行银联信用卡25年3季度境外笔笔返1%", TxnType.REBATE),
         ("银联入账 银联境外25年4季度境外首笔8.8元返现", TxnType.REBATE),
         ("银联入账 农行信用卡银联手机Pay笔笔1%返", TxnType.REBATE),
@@ -315,7 +315,7 @@ def test_old_template_rows_are_kind_and_place():
 
 @pytest.mark.parametrize(
     ("kind", "place", "expected"),
-    [  # every 交易摘要 on the author's 13 statements of this template (2024-12 to 2025-06)
+    [  # every 交易摘要 on 13 real statements of this template (2024-12 to 2025-06)
         ("网上消费", "财付通，深圳市腾讯计算机系统有限公司", TxnType.PURCHASE),
         ("境外消费", "UBER *EATSSydneyAUS", TxnType.PURCHASE),
         ("跨行消费", "HUANCHEN PTY LTD HAYMARKET AUS", TxnType.PURCHASE),

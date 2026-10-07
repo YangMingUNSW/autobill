@@ -429,7 +429,7 @@ def _classify(description: str, amount: Decimal) -> TxnType:
         if REPAYMENT_RE.search(description):
             return TxnType.REPAYMENT
         if PAYER_RE.search(description) and not NOT_A_PAYER_RE.search(description):
-            return TxnType.REPAYMENT  # on the author's statements each paid the last balance
+            return TxnType.REPAYMENT  # on real statements each paid the last balance
         return TxnType.REFUND
     if "年费" in description or "手续费" in description:
         return TxnType.FEE

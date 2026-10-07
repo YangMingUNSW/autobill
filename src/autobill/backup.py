@@ -3,12 +3,11 @@
 Statements can be parsed again from raw/, and the AI can be asked again, but only if the
 database survives; it is the one thing here that cannot be rebuilt from somewhere else.
 So the month's e-mail carries a compressed copy of it (about 120 KB against a 490 KB
-database), and the server keeps the last few next to it. The author's mailbox is then the
+database), and the server keeps the last few next to it. Your mailbox is then the
 off-site copy: if the server disappears, the newest monthly e-mail still has everything.
 
 The copy is made with SQLite's own backup, never by copying the file: in WAL mode the
-newest changes live in autobill.db-wal, and a plain copy of autobill.db leaves them behind
-(which is exactly what happened on 2026-09-20 during a manual backup).
+newest changes live in autobill.db-wal, and a plain copy of autobill.db leaves them behind.
 
 The copy is taken while the month's e-mail is being built, so it does not yet know that
 this month was reported. Restoring it therefore sends that month's e-mail once more -

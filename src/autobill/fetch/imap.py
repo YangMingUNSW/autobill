@@ -32,7 +32,7 @@ ImapFactory = Callable[..., imaplib.IMAP4]
 
 
 class MailboxError(RuntimeError):
-    """Login, folder or protocol trouble, worded for the author."""
+    """Login, folder or protocol trouble, worded for the person reading the output."""
 
 
 def imap_password() -> str | None:

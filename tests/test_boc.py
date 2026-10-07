@@ -305,7 +305,7 @@ def test_missing_overview_raises_template_changed():
 @pytest.mark.parametrize(
     ("description", "kind"),
     [
-        # Visa's offers, from Visa in Singapore (the author's 2025-2026 statements)
+        # Visa's offers, from Visa in Singapore (real 2025-2026 statements)
         ("Visa 26 Apr-Sep FX RewardSGP", TxnType.REBATE),
         ("Visa 2026 Q1 FX RewardsSGP", TxnType.REBATE),
         ("Visa BOC ZJ 1PCT APRSGP", TxnType.REBATE),
@@ -314,7 +314,7 @@ def test_missing_overview_raises_template_changed():
         ("Visa26 ApplePay TransitSGP", TxnType.REBATE),
         ("VISA BOC ZJ1PCT REBATESGP", TxnType.REBATE),
         ("中行银联境外消费阶梯返活动", TxnType.REBATE),
-        # money paid in: each settled the previous balance on the author's statements
+        # money paid in: each settled the previous balance on real statements
         ("BOCNET", TxnType.REPAYMENT),
         ("张三", TxnType.REPAYMENT),
         ("支付宝（中国）网络技术有限公司", TxnType.REPAYMENT),

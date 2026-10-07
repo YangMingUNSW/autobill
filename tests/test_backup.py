@@ -91,7 +91,7 @@ def test_only_the_newest_copies_are_kept(isolated_data_dir):
 
 def test_the_copy_catches_writes_that_are_still_in_the_wal(db, tmp_path):
     """A plain file copy would miss these: in WAL mode the newest rows are not in
-    autobill.db yet. This is the mistake the author's first manual backup made."""
+    autobill.db yet. This is the mistake a first manual backup made."""
     conn, _ = db
     conn.execute("BEGIN")
     conn.execute("INSERT INTO cycle_threads VALUES ('2099-01', '[]', NULL, 'now')")

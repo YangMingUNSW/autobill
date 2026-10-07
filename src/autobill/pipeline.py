@@ -132,7 +132,7 @@ def _parse(msg: RawMessage, aliases: dict[str, str] | None):
         # model rejects or a parser bug is just as deterministic, since parsing works on
         # the stored bytes in memory and would fail the same way every run. Raising would
         # stop the whole run at this e-mail, again and again, with every later one stuck
-        # behind it and no alert. FAILED records the reason, alerts the author and lets
+        # behind it and no alert. FAILED records the reason, sends an alert and lets
         # the rest go on.
         return parser, [], "FAILED", f"{type(exc).__name__}: {exc}"
 

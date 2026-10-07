@@ -47,7 +47,7 @@ def forwarded(*originals: bytes, to: str = ALIAS) -> bytes:
 
 def qq_forwarded(original: bytes, to: str = ALIAS) -> bytes:
     """QQ Mail's "作为附件转发": the original as an application/octet-stream file whose
-    name is RFC 2047 encoded Chinese ending in .eml (seen on the author's real mail)."""
+    name is RFC 2047 encoded Chinese ending in .eml (seen on real mail)."""
     wrapper = EmailMessage()
     wrapper["From"] = "someone@qq.example"
     wrapper["To"] = to
@@ -274,7 +274,7 @@ def test_check_mailbox_all_good(cli_env, monkeypatch):
 
 
 def test_folder_names_ignore_case_and_missing_ones_are_skipped(cli_env, monkeypatch):
-    """A fresh iCloud mailbox may have no Junk folder yet, and the author named the
+    """A fresh iCloud mailbox may have no Junk folder yet, and you may have named the
     folder "Autobill" while the config says "AutoBill": both must just work."""
     write_config(cli_env)
     use_folders(monkeypatch, {"Autobill": (7, {1: readdress(ABC[0].read_bytes())})})
@@ -344,7 +344,7 @@ def test_run_reports_login_failure(cli_env, monkeypatch):
 
 
 def test_failed_mail_is_retried_and_rescan_rereads(cli_env, monkeypatch):
-    """The author's first real run: QQ's .eml attachment was not unwrapped yet, so the mail
+    """A first real run: QQ's .eml attachment was not unwrapped yet, so the mail
     was UNRECOGNIZED and the cursor moved on. After a fix, --rescan reads it again and the
     earlier failure is retried instead of skipped."""
     write_config(cli_env, smtp=False)

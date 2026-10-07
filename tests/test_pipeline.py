@@ -109,7 +109,7 @@ def test_template_change_is_failed_with_reason(env):
 
 def test_any_parser_error_is_failed_and_the_next_email_goes_on(env):
     """A damaged PDF raises pdfplumber's own error, not TemplateChanged. It must still end
-    as FAILED (which alerts the author), not stop the run: with the IMAP cursor, a raised
+    as FAILED (which sends an alert), not stop the run: with the IMAP cursor, a raised
     error would stop at the same e-mail every run and hold back every later one."""
     conn, data_dir = env
     msg = EmailMessage()
@@ -157,7 +157,7 @@ def _ccb_bill(cards, warnings, status="WARN"):
 
 
 def test_alias_files_a_two_card_statement_under_one_account():
-    """The author's CCB 2025-06 statement lists two card numbers of one account (a UnionPay
+    """A real CCB 2025-06 statement lists two card numbers of one account (a UnionPay
     and an overseas card); config names the canonical one."""
     from autobill.pipeline import apply_aliases
 

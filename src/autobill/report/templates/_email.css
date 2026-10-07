@@ -138,8 +138,8 @@
   /* rows that open to their lines (report/drill.py), and the feel of every tap: a tap
      answers at once (no wait for a double tap), the pressed row greys, a panel opens on
      Apple's default spring (critically damped, 0.35 s: x(t) = 1 - (1 + wt)e^-wt,
-     w = 2pi/0.35, sampled over 0.5 s) and its lines come in one after another. Chosen by
-     the author on iOS 27 Apple Mail out of five ways (2026-09-29). */
+     w = 2pi/0.35, sampled over 0.5 s) and its lines come in one after another. Chosen on
+     iOS 27 Apple Mail out of five ways. */
   :root { --spring: linear(0, 0.0416, 0.1356, 0.2502, 0.3669, 0.476, 0.5729, 0.656, 0.7257, 0.783, 0.8295, 0.8669, 0.8965, 0.9199, 0.9383, 0.9526, 0.9637, 0.9723, 0.9789, 0.9839, 0.9878, 0.9908, 0.993, 0.9947, 0.996, 0.997, 0.9978, 0.9983, 1); }
   @keyframes rowin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   .wrap { touch-action: manipulation; text-autospace: ideograph-alpha; }

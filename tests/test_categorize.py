@@ -31,7 +31,7 @@ def test_built_in_rules_equal_the_example_file():
         ("SQ *SLOW LANE BREWING", "餐饮"),
         ("KPAY*CITY TOBACCO", "烟酒"),
         ("DUDULE PARIS", UNCATEGORISED),
-        # seen on the author's 816 real purchases (2026-09-20)
+        # seen on 816 real purchases
         ("境外消费 MC DONALD'S SAVONA IT", "餐饮"),  # spaces and punctuation do not matter
         ("境外消费 SEVEN-ELEVEN TOKYO JP", "超市"),
         ("境外消费 7 ELEVEN 2064 SYDNEY AU", "超市"),
@@ -55,7 +55,7 @@ def test_built_in_rules_equal_the_example_file():
         ("网上消费 网银在线，京东商城-Apple产品京东自营旗舰店", "网购"),
         ("支付宝-SUMITOMO MITSUI CARD COMPANY ,L", "微信/支付宝（未细分）"),  # no "SUICA" inside
         ("境外消费 Sydney Park Hotel Newtown AU", UNCATEGORISED),  # an Australian pub, not a hotel
-        # the author's 2025 statements: kinds of spending no category fitted (2026-09-29)
+        # real statements: kinds of spending no category fitted
         ("NSW RENTAL BONDPARRAMATTAAUS", "住房"),
         ("SERVICE NSW 4018SYDNEY", "政府缴费"),
         ("SDRO INFRNGMNT PAYMEMAITLANDAUS", "政府缴费"),  # a fine
@@ -97,7 +97,7 @@ def test_rules_yaml_in_data_dir_comes_before_the_built_in_rules(isolated_data_di
         "酒吧: [OLIVE]\n超市: [MAPLE]\n", encoding="utf-8"
     )
     rules = load_rules()
-    assert rules.categorize("OLIVE GREEK TAVERNA") == "酒吧"  # the author's rule wins
+    assert rules.categorize("OLIVE GREEK TAVERNA") == "酒吧"  # your own rule wins
     assert rules.categorize("Woolworths") == "超市"  # the built-in rules still apply
     assert rules.categories.count("超市") == 1  # listed once although both files have it
 
