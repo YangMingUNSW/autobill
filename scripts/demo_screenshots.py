@@ -228,9 +228,11 @@ def render(conn):
     from autobill.categorize import load_rules
     from autobill.config import FxConfig
     from autobill.fx import FxRates
-    from autobill.report.cycle import build_cycle_report, latest_bills, render_cycle_html
+    from autobill.report.cycle import build_cycle_report, latest_bills
+    from autobill.report.cycle_mail import render_cycle_html
     from autobill.report.statement import render_statement_html
-    from autobill.report.year import build_year_report, render_year_html
+    from autobill.report.year import build_year_report
+    from autobill.report.year_mail import render_year_html
     from autobill.store.db import load_bill
 
     fx = FxRates(conn, FxConfig(), offline)

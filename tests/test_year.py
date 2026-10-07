@@ -19,15 +19,13 @@ from autobill.fx import FxRates
 from autobill.model import Bill, BillBalance, Transaction, TxnType, make_txn_id
 from autobill.notify.mail import Mailer
 from autobill.pipeline import process, send_year_review
-from autobill.report.cycle import MonthBar, Segment, record_sent, trend_svg
+from autobill.report.charts import trend_svg
+from autobill.report.cycle import MonthBar, Segment
+from autobill.report.cycle_mail import record_sent
 from autobill.report.monthly import monthly_summary
-from autobill.report.year import (
-    _month_list,
-    build_year_report,
-    due_year,
-    render_year_html,
-    year_plain_text,
-)
+from autobill.report.year import build_year_report, due_year
+from autobill.report.year_explorer import _month_list
+from autobill.report.year_mail import render_year_html, year_plain_text
 from autobill.store.db import connect, save_bill
 
 FIXTURES = Path(__file__).parent / "fixtures"

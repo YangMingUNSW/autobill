@@ -16,21 +16,20 @@ from autobill.fetch.source import DirectorySource
 from autobill.fx import FxRates
 from autobill.notify.mail import Mailer
 from autobill.pipeline import process, send_pending_reports
+from autobill.report.charts import donut_svg
 from autobill.report.cycle import (
     MonthTotals,
     Segment,
-    build_cycle_email,
     build_cycle_report,
     category_notes,
     cycle_complete,
     cycle_title,
-    donut_svg,
     expected_cards,
     month_spend_cny,
     period_text,
     statement_window,
-    thread_ids,
 )
+from autobill.report.cycle_mail import build_cycle_email, thread_ids
 from autobill.report.style import COLORS, amount_with_symbol, bar_rows, category_bar_rows
 from autobill.store.db import connect, load_bill
 

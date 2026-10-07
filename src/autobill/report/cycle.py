@@ -1,5 +1,5 @@
-"""The e-mail of a statement month, sent once the month is complete.
-See docs/notify.md#账单月邮件.
+"""The report of a statement month: every expected card, what is owed, what was spent
+and how it compares with the months before. See docs/notify.md#账单月邮件.
 
 Every card issues one statement a month. The statement month ("账单月") is the month of
 the statement date, as the banks name their statements. The month's e-mail goes out once
@@ -9,33 +9,23 @@ categories across every card, and a summary of each new statement. Until then th
 statements wait, so you get one e-mail a month instead of one per card (a delivered
 e-mail cannot be corrected, so only the final one is worth sending).
 
-A month that gets a second e-mail - a statement arriving late, or `autobill resend` after
-a fix - shares the first one's subject and points at it with In-Reply-To and References,
-so Apple Mail shows them as one conversation. Every e-mail is rebuilt from the database,
-so the newest one is always the whole month as it stands now. The layout is written for Apple
-Mail on iPhone (WebKit): <style>, CSS variables, dark mode and inline SVG work there.
-Nothing is loaded from outside and there are no links. Due dates are shown, never
-reminders.
+This module gathers the figures (build_cycle_report); report/cycle_mail.py turns them into
+the e-mail and report/charts.py draws its charts.
 """
 
 from __future__ import annotations
 
-import json
-import math
 import sqlite3
 import statistics
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from email.message import EmailMessage
-from email.utils import formatdate, make_msgid
 
-from jinja2 import Environment, PackageLoader, select_autoescape
-from markupsafe import Markup, escape
+from markupsafe import Markup
 
 from autobill import build_label
-from autobill.categorize import OTHER, UNCATEGORISED, Rules, load_rules
+from autobill.categorize import OTHER, UNCATEGORISED, Rules
 from autobill.config import PortfolioCard
 from autobill.fx import FxRates
 from autobill.ledger import (
@@ -50,6 +40,7 @@ from autobill.ledger import (
 )
 from autobill.model import ZERO, Bill, TxnType
 from autobill.report import drill
+from autobill.report.charts import donut_svg, trend_svg
 from autobill.report.statement import (
     DayGroup,
     StatementView,
@@ -59,7 +50,6 @@ from autobill.report.statement import (
 )
 from autobill.report.style import amount_with_symbol, card_label, emoji_for, money, share
 from autobill.store.db import load_bill
-from autobill.store.db import now as db_now
 
 GRACE = timedelta(days=7)  # this long past a card's usual day, it may have no statement
 EXPECTED_WINDOW = timedelta(days=62)  # without a portfolio: cards with a statement this close
@@ -275,103 +265,7 @@ class MonthBar:
         return f"{int(self.cycle[5:])}月"
 
 
-def trend_svg(bars: list[MonthBar], name: str = "") -> Markup:
-    """One column per statement month, Apple Card's monthly activity: this month in the
-    accent, the months before in grey (emphasis, not categories). Marks follow the dataviz
-    spec: 4px rounded top, square base, one hairline baseline. Every month's value is
-    written over its column (the difference should read in numbers too), this month's in the
-    label colour and bold, the others in grey; they are also in the aria-label and the
-    plain-text part. A month without statements is a dash, so the months stay evenly spaced.
-    `name` is what the aria-label calls the chart (default "近 6 期消费")."""
-    if not bars:
-        return Markup("")
-    # viewBox units: text is sized ~20 so it is ~11px when a phone scales 600 to ~330.
-    width, height, top_pad, bottom_pad = 600, 210, 40, 34
-    plot_h = height - top_pad - bottom_pad
-    base = height - bottom_pad
-    slot = width / len(bars)
-    bar_w = min(40.0, slot * 0.56)  # six months: ~22px on a phone, under the 24px cap
-    peak = max((b.value for b in bars if b.value is not None and b.value > 0), default=ZERO)
-    said = "，".join(
-        f"{b.label} " + (f"¥{b.value:,.0f}" if b.value is not None else "无账单") for b in bars
-    )
-    name = name or f"近 {len(bars)} 期消费"
-    parts = [
-        f'<svg class="trend" viewBox="0 0 {width} {height}" role="img" '
-        f'aria-label="{escape(name + "（人民币）：" + said)}">',
-        f'<line class="axis" x1="0" y1="{base}" x2="{width}" y2="{base}" />',
-    ]
-    for i, bar in enumerate(bars):
-        cx = i * slot + slot / 2
-        now = " now" if bar.current else ""
-        parts.append(
-            f'<text class="tick{now}" x="{cx:.1f}" y="{height - 6}" text-anchor="middle">'
-            f"{bar.label}</text>"
-        )
-        if bar.value is None:
-            parts.append(
-                f'<text class="gap" x="{cx:.1f}" y="{base - 8}" text-anchor="middle">—</text>'
-            )
-            continue
-        top = base
-        if bar.value > 0 and peak > 0:
-            h = max(float(bar.value / peak) * plot_h, 2.0)
-            x, top = cx - bar_w / 2, base - h
-            r = min(4.0, bar_w / 2, h)
-            parts.append(
-                f'<path class="bar{now}" d="M{x:.1f},{base} V{top + r:.1f} '
-                f"Q{x:.1f},{top:.1f} {x + r:.1f},{top:.1f} H{x + bar_w - r:.1f} "
-                f'Q{x + bar_w:.1f},{top:.1f} {x + bar_w:.1f},{top + r:.1f} V{base} Z" />'
-            )
-        parts.append(
-            f'<text class="value{now}" x="{cx:.1f}" y="{top - 8:.1f}" text-anchor="middle">'
-            f"¥{bar.value:,.0f}</text>"
-        )
-    parts.append("</svg>")
-    return Markup("".join(parts))
-
-
-def donut_svg(segments: list[Segment], center: str, caption: str) -> Markup:
-    """The shares as a ring, one arc per segment, clockwise from 12 o'clock in the order of
-    the legend below it. Colours come from CSS classes, so the chart follows light and dark
-    mode; a 2px gap keeps neighbouring slices apart. Every slice is named with its share in
-    the legend, so a slice too thin to see is never the only place a number appears.
-    Merchant names come from the statement, so every text is escaped ("H&M", a quote).
-    """
-    total = sum((s.weight for s in segments), ZERO)
-    if not segments or total <= 0:
-        return Markup("")
-    size, stroke = 180, 30
-    r = (size - stroke) / 2
-    c = 2 * math.pi * r
-    gap = 2.0
-    said = "，".join(f"{s.label} {s.share}" for s in segments)
-    parts = [
-        f'<svg class="donut" viewBox="0 0 {size} {size}" width="{size}" height="{size}" '
-        f'role="img" aria-label="{escape(caption)}：{escape(said)}">',
-        f'<circle class="track" cx="{size / 2}" cy="{size / 2}" r="{r}" />',
-        f'<g transform="rotate(-90 {size / 2} {size / 2})">',
-    ]
-    offset = 0.0
-    for segment in segments:
-        length = float(segment.weight / total) * c
-        dash = max(length - gap, 1.0)
-        parts.append(
-            f'<circle class="slice {segment.tone}" cx="{size / 2}" cy="{size / 2}" r="{r}" '
-            f'stroke-dasharray="{dash:.2f} {c - dash:.2f}" stroke-dashoffset="{-offset:.2f}" />'
-        )
-        offset += length
-    parts.append("</g>")
-    if center:
-        parts.append(
-            f'<text class="donut-num" x="50%" y="49%" text-anchor="middle">{escape(center)}</text>'
-            f'<text class="donut-cap" x="50%" y="63%" text-anchor="middle">{escape(caption)}</text>'
-        )
-    parts.append("</svg>")
-    return Markup("".join(parts))
-
-
-def _segment(name: str, value: Decimal, total: Decimal, tone: str, emoji: str = "") -> Segment:
+def make_segment(name: str, value: Decimal, total: Decimal, tone: str, emoji: str = "") -> Segment:
     return Segment(
         name, money(cents(value)), share(value, total), value, tone, emoji or emoji_for(name)
     )
@@ -388,13 +282,13 @@ def category_segments(categories: dict[str, Decimal]) -> list[Segment]:
     uncategorised = values.pop(UNCATEGORISED, None)
     items = sorted(values.items(), key=lambda kv: -kv[1])
     named, rest = items[:NAMED], items[NAMED:]
-    segments = [_segment(name, v, total, f"s{i + 1}") for i, (name, v) in enumerate(named)]
+    segments = [make_segment(name, v, total, f"s{i + 1}") for i, (name, v) in enumerate(named)]
     if rest:
-        fold = _segment("其他", sum((v for _, v in rest), ZERO), total, "other")
-        fold.folded = [_segment(name, v, total, "other") for name, v in rest]
+        fold = make_segment("其他", sum((v for _, v in rest), ZERO), total, "other")
+        fold.folded = [make_segment(name, v, total, "other") for name, v in rest]
         segments.append(fold)
     if uncategorised:
-        segments.append(_segment(UNCATEGORISED, uncategorised, total, "none"))
+        segments.append(make_segment(UNCATEGORISED, uncategorised, total, "none"))
     return segments
 
 
@@ -409,7 +303,7 @@ def _top_merchants(
     for name, v in top[:count]:
         category = rules.categorize(name, TxnType.PURCHASE)
         tone = tones.get(category, "other")
-        rows.append(_segment(name, v, total, tone, emoji_for(category)))
+        rows.append(make_segment(name, v, total, tone, emoji_for(category)))
     return rows
 
 
@@ -678,82 +572,6 @@ def build_cycle_report(
     )
 
 
-def _yuan(amount: str) -> Markup:
-    """ "16,714.84" -> ¥16,714 with smaller .84, as Apple Card and Wallet show money."""
-    whole, _, fraction = amount.partition(".")
-    return Markup('<span class="cur">¥</span>{}<span class="dec">.{}</span>').format(
-        whole, fraction or "00"
-    )
-
-
-_env = Environment(
-    loader=PackageLoader("autobill.report", "templates"),
-    autoescape=select_autoescape(default=True, default_for_string=True),
-    trim_blocks=True,
-    lstrip_blocks=True,
-)
-_env.filters["yuan"] = _yuan
-_env.filters["emoji"] = emoji_for
-
-
-def render_cycle_html(report: CycleReport) -> str:
-    return _env.get_template("cycle_report.html.j2").render(r=report)
-
-
-def plain_text(report: CycleReport) -> str:
-    """For mail apps that show no HTML."""
-    out = [report.title]
-    if report.period:
-        out.append(f"消费 {report.period}")
-    out.append(report.status_line)
-    if report.due_total is not None:
-        out.append(f"本期应还：¥{report.due_total}")
-    spent = f"本期消费：¥{report.spend_total}"
-    out.append(f"{spent}（{report.spend_change}）" if report.spend_change else spent)
-    if report.trend_shown:
-        months = " · ".join(
-            f"{b.label} " + (f"¥{b.value:,.0f}" if b.value is not None else "无账单")
-            for b in report.trend
-        )
-        out.append(f"近 {len(report.trend)} 期：{months}")
-    out.append("")
-    for card in report.cards:
-        line = f"{card.label}：{card.chip} {card.amount}".rstrip()
-        if card.amount_orig:
-            line += f"（{card.amount_orig}）"
-        out.append(f"{line}（{card.note}）")
-    if report.segments:
-        out += ["", "分类："]
-        out += [
-            f"{s.label} {s.share} ¥{s.amount}" + (f"（{s.note}）" if s.note else "")
-            for s in report.segments
-        ]
-    out += [
-        "",
-        f"全部 {report.transaction_count} 笔流水见 HTML 版本。",
-        f"生成于 {report.generated_at} · 版本 {report.build}",
-    ]
-    return "\n".join(out)
-
-
-def thread_ids(conn: sqlite3.Connection, cycle: str) -> list[str]:
-    row = conn.execute("SELECT message_ids FROM cycle_threads WHERE cycle = ?", (cycle,)).fetchone()
-    return json.loads(row[0]) if row else []
-
-
-def record_sent(conn: sqlite3.Connection, cycle: str, message_id: str, complete: bool) -> None:
-    ids = [*thread_ids(conn, cycle), message_id]
-    stamp = db_now()
-    conn.execute(
-        "INSERT INTO cycle_threads (cycle, message_ids, completed_at, updated_at)"
-        " VALUES (?, ?, ?, ?) ON CONFLICT (cycle) DO UPDATE SET"
-        " message_ids = excluded.message_ids,"
-        " completed_at = excluded.completed_at,"
-        " updated_at = excluded.updated_at",
-        (cycle, json.dumps(ids), stamp if complete else None, stamp),
-    )
-
-
 def cycle_complete(
     conn: sqlite3.Connection,
     cycle: str,
@@ -779,49 +597,3 @@ def cycle_complete(
         account in arrived or today > _usual_date(cycle, day) + GRACE
         for account, day in expected_cards(conn, cycle, portfolio).items()
     )
-
-
-def build_cycle_email(
-    conn: sqlite3.Connection,
-    cycle: str,
-    fx: FxRates,
-    sender: str,
-    to_addr: str,
-    *,
-    portfolio: Iterable[PortfolioCard] = (),
-    rules: Rules | None = None,
-    today: date | None = None,
-) -> tuple[EmailMessage, CycleReport]:
-    """The month's e-mail: the whole statement month as it stands now."""
-    rules = rules or load_rules(conn)
-    report = build_cycle_report(conn, cycle, fx, rules, portfolio=portfolio, today=today)
-    msg = EmailMessage()
-    msg["Subject"] = report.subject
-    msg["From"] = sender
-    msg["To"] = to_addr
-    msg["Date"] = formatdate(localtime=True)
-    msg["Message-ID"] = make_msgid(domain="autobill.invalid")
-    previous = thread_ids(conn, cycle)
-    if previous:  # Apple Mail threads on these headers, not only on the subject
-        msg["In-Reply-To"] = previous[-1]
-        msg["References"] = " ".join(previous)
-    msg["X-AutoBill-Report"] = "true"  # second guard against ever parsing our own reports
-    msg.set_content(plain_text(report))
-    msg.add_alternative(render_cycle_html(report), subtype="html")
-    return msg, report
-
-
-def preview_cycle_html(
-    conn: sqlite3.Connection,
-    cycle: str,
-    fx: FxRates,
-    *,
-    portfolio: Iterable[PortfolioCard] = (),
-    rules: Rules | None = None,
-    today: date | None = None,
-) -> str:
-    """The HTML of the month's e-mail, exactly as it would be sent. Sends nothing."""
-    report = build_cycle_report(
-        conn, cycle, fx, rules or load_rules(conn), portfolio=portfolio, today=today
-    )
-    return render_cycle_html(report)

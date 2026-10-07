@@ -215,7 +215,7 @@ python3 ~/autobill/scripts/export_ai_categories.py ~/autobill-docker/data/autobi
 
 **不再有**：进度圆环（收齐才发，圆环永远是满的）、"新账单"区块、日历式还款日一览（还款日已经在卡片那一行）、PDF 附件（2026-09-19 就决定原始账单在邮箱里看）、**每日消费柱状图和"最大的一笔"**（2026-09-24 删掉：各张卡的账单周期错开，合在一起画的每日图两头只算到部分卡，日均也被拉低；最大的一笔经常和商户排行第一名重复。标准账单里一张卡一个完整周期，每日图保留）。
 
-**实现**：`autobill/report/cycle.py` + 模板 `report/templates/cycle_report.html.j2`；样式在 `report/templates/_email.css`（和[年度回顾](#年度回顾)共用）；共用的配色、emoji、货币符号在 `report/style.py`。
+**实现**：`autobill/report/cycle.py` 算出这个月的数字，`report/cycle_mail.py` 把它做成邮件（HTML、纯文本、对话邮件头），`report/charts.py` 画图，`report/render.py` 是两种邮件共用的模板环境；模板是 `report/templates/cycle_report.html.j2`，样式在 `report/templates/_email.css`（和[年度回顾](#年度回顾)共用）；共用的配色、emoji、货币符号在 `report/style.py`。
 
 - **折叠用 CSS 的"复选框技巧"**（checkbox hack），不用脚本：一个隐藏的 `<input type="checkbox">`，点它的 `<label>` 切换选中状态，CSS 用 `:checked` 打开**紧邻**的 `.pan`。靠相邻选择器，所以这三个标签的顺序不能动。分类、商户、"全部流水"都是这样，展开后的每一笔来自 `report/drill.py`。
   - `.pan` 是一个网格，唯一一行的高度从 `0fr` 过渡到 `1fr`，所以展开和收起都是平滑的，不是一下子跳出来（Safari 16 / iOS 16 起支持）。
@@ -225,7 +225,7 @@ python3 ~/autobill/scripts/export_ai_categories.py ~/autobill-docker/data/autobi
   - 展开后每一行依次浮现（`sibling-index()`，iOS 27 起；更老的系统一起出现）；
   - 中英文之间自动留空（`text-autospace`）、换行避免最后一行只剩一个字（`text-wrap: pretty`）；
   - 打开"减少动态效果"时，这些动画都几乎不动。
-- **圆盘图是内嵌 SVG**（`donut_svg()`）：和进度圆环同样的画法（`stroke-dasharray` 画弧），切片之间留 2px 间隙，颜色用 CSS 类，跟随深色模式，`aria-label` 里写全每个切片的名字和占比。
+- **圆盘图是内嵌 SVG**（`report/charts.py` 的 `donut_svg()`）：和进度圆环同样的画法（`stroke-dasharray` 画弧），切片之间留 2px 间隙，颜色用 CSS 类，跟随深色模式，`aria-label` 里写全每个切片的名字和占比。
 - **苹果邮件的处理**：
   - `<style>`、CSS 变量、`prefers-color-scheme` 深色模式、内嵌 SVG 都能用，所以没有 `<table>` 排版；
   - `<meta name="format-detection" …>` 加上 `x-apple-data-detectors` 样式：不然 iOS 会把金额、日期、卡号识别成蓝色链接；
@@ -237,7 +237,7 @@ python3 ~/autobill/scripts/export_ai_categories.py ~/autobill-docker/data/autobi
 - **本地预览**：`autobill preview-email [--cycle 2026-09] [-o 文件]` 把这个月的邮件写成 HTML，不发信。检查排版用 WebKit 内核（和 iOS 同一个内核）在 375 像素宽下看浅色、深色两种，并点开折叠看一次。
 
 ## 年度回顾
-**一个自然年（1 月 1 日到 12 月 31 日）合成一封，一年发一次**（2026-09-29 加；设计稿用真实数据在手机上看过）。实现在 `autobill/report/year.py` + 模板 `report/templates/year_review.html.j2`，和月度邮件共用 `_email.css`，样子一样。
+**一个自然年（1 月 1 日到 12 月 31 日）合成一封，一年发一次**（2026-09-29 加；设计稿用真实数据在手机上看过）。实现在 `autobill/report/year.py`（全年的数字）、`report/year_explorer.py`（按月份和分类筛选）、`report/year_mail.py`（邮件），模板是 `report/templates/year_review.html.j2`，和月度邮件共用 `_email.css`，样子一样。
 
 - **口径：自然年，按交易日期**。账单是跨月的：1 月 12 日出的那期覆盖 12 月 12 日到 1 月 12 日，所以"12 月账单月"（12 月出账）只到 12 月 12 日，12 月下半月的消费要等 1 月的账单。年度回顾因此不按账单月，而是**每笔交易按它自己的交易日期归到年和月**，和 `autobill report --month` 同一个算法：1 月 12 日那期里，12.12–12.31 算上一年，1.1–1.12 算下一年。
   - 每笔的人民币金额、算不算消费、归哪一类，都和月度邮件一样（每份账单里属于这一年、这个月的交易，交给同一个 `build_view` 算），所以 **12 个月加起来就是全年**。
@@ -261,7 +261,7 @@ python3 ~/autobill/scripts/export_ai_categories.py ~/autobill-docker/data/autobi
   7. **用哪些货币消费**：按付款时的币种算，在澳洲刷的就算澳元，哪怕卡是美元卡。每种货币折合人民币，一条分段条，每种一行，小字写原币金额（`A$24,643.71`）。只算消费，不含返现和利息。
   8. **各张卡**的全年消费和占比，没消费的卡不列。
   9. **返现和利息**：全年返现（已经从消费里扣掉），以及"利息和手续费"。后者就是分类里"利息""手续费"两类的合计，含分期利息，算在消费里。有的服务费银行记成了"消费"，但规则把它归进"手续费"，所以按分类算才和上面的分类行对得上。
-- **筛选是怎么做到的**（`report/year.py` 的 `_explorer()`、`explorer_css()`）：邮件里没有脚本，所以用 Mark Robbins 的"punched card coding"：月份（13 个：全年 + 12 个月）和分类（全部 + 每一类）各是一组单选框，放在前面；柱子、分类行、按钮都是它们的 `<label>`。
+- **筛选是怎么做到的**（`report/year_explorer.py` 的 `build_explorer()`、`explorer_css()`）：邮件里没有脚本，所以用 Mark Robbins 的"punched card coding"：月份（13 个：全年 + 12 个月）和分类（全部 + 每一类）各是一组单选框，放在前面；柱子、分类行、按钮都是它们的 `<label>`。
   - **每一种选择的内容都提前写进邮件**，CSS 按选中的单选框只显示对应那一份：只跟月份有关的块、只跟分类有关的块，以及两者都有关的（月份块套在分类块里面，两个都显示才看得见）。**一个值一条规则，从不按组合写**，所以规则数是 13 + 分类数这个量级。
   - 每一笔在邮件里只写一次，带着月份和分类的标记；选了月份，其他月份的行隐藏；选了分类，其他分类的行隐藏。
   - 柱子只有一套：每根柱子在自己的 `style` 里写着每个分类的高度（`--h0`、`--h1`……）和标签（`--t0`……），选哪个分类就用哪一对；`--h` 用 `@property` 注册过，高度变化能按弹簧过渡。
