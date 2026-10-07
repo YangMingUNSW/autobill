@@ -155,6 +155,7 @@ In Windows PowerShell, set the directory with `$env:AUTOBILL_DATA_DIR = "$env:TE
 | Path | Contents |
 |---|---|
 | [docs/project.md](docs/project.md) | Overview, scope, decisions, architecture, risks |
+| [docs/architecture.md](docs/architecture.md) | Code map: which file does each step, and where to make a change |
 | [docs/](docs/README.md) | Module design, bank statement format specs, development process, setup guide |
 | [tests/fixtures/](tests/fixtures/README.md) | The author's real statements, anonymised (identity data removed) |
 | [CHANGELOG.md](CHANGELOG.md) | Release notes |
