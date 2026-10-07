@@ -8,7 +8,7 @@ from fakes import FakeFrankfurter
 from typer.testing import CliRunner
 
 from autobill import fx as fx_module
-from autobill.categorize import load_rules
+from autobill.categories.rules import load_rules
 from autobill.cli import app
 from autobill.config import FxConfig
 from autobill.fetch.source import DirectorySource

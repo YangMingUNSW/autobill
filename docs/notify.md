@@ -24,7 +24,7 @@
   - 所以同一个"月"两边的数字对不上是正常的：月度邮件标题下写着这一期消费的日期，年度回顾底部有一行说明。
 
 ### 分类规则
-实现在 `autobill/categorize.py`（M6；M7d 加了整词匹配、商户名匹配和行业通用词）。
+实现在 `autobill/categories/rules.py`（M6；M7d 加了整词匹配、商户名匹配和行业通用词）。
 
 - **规则文件**：`<数据目录>/rules.yaml`，也可以用环境变量 `AUTOBILL_RULES` 指到别处；`rules.yaml` 不入库。**没有这个文件时用内置默认规则**，内容和仓库里的 [`rules.example.yaml`](../rules.example.yaml) 完全相同（有测试保证两份一致）。
   - 自己的 `rules.yaml` 只写要补的规则。它**排在内置规则前面**：你的关键词先匹配，内置规则照样生效（2026-09-20 起；以前是整个替换，你一写个人规则，内置的品牌词就全失效了）。
@@ -56,7 +56,7 @@
   - **生活服务**（理发 `word:HAIR`、`BARBER`、`SALON`、美甲、洗衣、邮局 `word:LPO`、`AUSTRALIA POST`、快递）。
   - 同时补了几个词：签证费 `VISA APPLICATION`、英国签证 `UKVI` 归旅行（和"签证"一样）；Zara 的中国公司名"飒拉"、日本 Loft 的罗马字 `ROFUTO` 归购物；`NETEASE` 游戏归娱乐；澳洲自动售货机的收款方 `CANTALOUPE` 归餐饮。
   - 这四个分类排在"购物"后面：校园里的酒吧 `UNSW ROUNDHOUSE BAR` 先被"餐饮"匹配上，不会算成教育。**没放的词**：`RENT`（`RENT-A-CAR` 是租车）、`LOFT`（悉尼有同名酒吧）、"大学""学院"（"大学城店""学院路店"是分店名）。
-  - AI 也能选这四个分类（`ai_anthropic.py` 的 `HINTS` 里写了每类是什么）。
+  - AI 也能选这四个分类（`categories/deepseek.py` 的 `HINTS` 里写了每类是什么）。
 - **已知限制**：国内用微信、支付宝付款的消费，账单上只写"财付通，深圳市腾讯计算机系统有限公司"或"支付宝-…"，**看不到真正的商户**。这是银行账单本身的信息不够，不是程序出错。这类消费统一归到"微信/支付宝（未细分）"。
 - **为什么不用 MCC（商户类别码）**：MCC 在刷卡授权时就有，但几家银行的电子账单都不打印它（7 份样本全部解码检查过，也没有"商户类别""商户编号"）。按店名反查 MCC 没有免费、可靠的数据库，Visa、Mastercard 的查询接口只对企业开放；而且微信、支付宝付款的 MCC 是支付平台自己的，拿到也分不出真正的店。
 - **补规则**：`autobill uncategorised [--cycle 2026-09] [--limit 20]` 按人民币金额列出还没分类的商户（AI 已经分好的不列）（笔数、金额），并生成一段可以直接复制进 `rules.yaml` 的 YAML。你常去的店是固定的，每家只需要补一次。月度邮件的分类下面有"未分类"时也会提示这个命令。
@@ -65,7 +65,7 @@
 **原则：解析和金额永远不用 AI**（钱数必须确定、可复查）。**分类可以用 AI**：规则分不出来的商户交给你自己的 AI 接口。AI 的结果**直接生效**，可以**联网搜索**，**不发金额**（2026-09-20 定，取代了 M7d 的"AI 建议只打印、不自动生效"）。
 
 - **顺序**：你的 `rules.yaml` → 内置规则 → AI 的结果 → 未分类。规则永远优先：AI 分错了，在 `rules.yaml` 里写一行就能改过来。
-- **每个商户只问一次**（`autobill/classify.py`）：
+- **每个商户只问一次**（`autobill/categories/ai.py`）：
   1. 所有新商户一起问（每批 10 个），**不联网**，凭模型自己的知识；
   2. 第 1 步没把握的，**一个一个联网查**：用"店名 + 城市 + 国家"去搜（`ai.web_search`），**默认只搜 1 次**（`ai.max_searches`）：一次查不到就算"不确定"。为几家难找的小店反复联网，既费 token 又拖慢账单邮件，不值得（实测 98 个商户最多搜 3 次时，一轮要十几分钟、约 1.7 元）。
   - 第 1 步只采用 `high`（很确定）的回答，第 2 步采用 `high` 和 `medium`（网上查到了）的回答。
@@ -83,7 +83,7 @@
 - **出错**：密钥错、余额用完、连不上时，发一封"AI 分类出错"的提醒（同一个问题只发一次，恢复后自动清除）。这时新商户先算"未分类"，账单和报表照常。
   - 只是某个商户的回答不合格（没按格式回答、太长被截断）时不算出错：一批里的先对半拆开重问，单个商户就算"不确定"，其余照常继续（实测 98 个商户里遇到过这两种情况）。
 - **邮件里的标记**：逐笔流水里，AI 分的类后面带"（AI）"，比如"餐饮（AI）"；AI 没分出来的是"其他（AI）"。
-- **提供方**（`autobill/ai_anthropic.py`，`config.yaml` 的 `ai.provider`）：
+- **提供方**（`autobill/categories/deepseek.py`，`config.yaml` 的 `ai.provider`）：
   - `deepseek`：DeepSeek 的 Anthropic 兼容接口 `https://api.deepseek.com/anthropic`，默认模型 `deepseek-v4-flash`。**联网搜索由 DeepSeek 在它那边完成**（`web_search` 服务端工具），所以一个 DeepSeek 密钥就够，不用另外接搜索服务。
   - `anthropic`：同一套代码，接任何说 Anthropic Messages 格式的接口，在 `ai.base_url`、`ai.model` 里指定（没有默认模型，必须写）。
   - 密钥只从环境变量 `AUTOBILL_AI_API_KEY` 读（服务器上写在 `autobill.env`）。
@@ -101,7 +101,7 @@ python3 ~/autobill/scripts/export_ai_categories.py ~/autobill-docker/data/autobi
 python3 ~/autobill/scripts/export_ai_categories.py ~/autobill-docker/data/autobill.db --review   # 要你自己判断的那些
 ```
 
-- **为什么不能整表导出**：`ai_categories.merchant` 存的是解析器拆出来的商户名，**解析器认不出商户时存的是原始描述**（见 `autobill/classify.py`）。微信、支付宝付给个人的消费，描述里带着收款人的真名，而 [tests/fixtures/README.md](../tests/fixtures/README.md) 定了别人的真实姓名也不公开。
+- **为什么不能整表导出**：`ai_categories.merchant` 存的是解析器拆出来的商户名，**解析器认不出商户时存的是原始描述**（见 `autobill/categories/ai.py`）。微信、支付宝付给个人的消费，描述里带着收款人的真名，而 [tests/fixtures/README.md](../tests/fixtures/README.md) 定了别人的真实姓名也不公开。
 - **分成三档**（`verdict_for()` 判一次原名、判一次清理后的名字，取更严的那个）：
   | 档 | 判断依据 | 默认打印？ |
   |---|---|---|
@@ -114,11 +114,11 @@ python3 ~/autobill/scripts/export_ai_categories.py ~/autobill-docker/data/autobi
   - 两道检查都**认不出拉丁字母写的人名**（比如用自己名字开店的个体户）。所以**粘之前要扫一眼**，像人名的不要放。
 - 判断"是不是整条原始描述"用的是**清理后**的名字：`跨行消费`、`境外消费` 这类是银行自己的前缀，不是店名的一部分，而且几乎每笔境外消费都带，按原名判会把绝大多数行都推进"待判断"。
 - **默认输出是按"宁可少放"过滤过的，但不是免检**：扣错一个商户只是少一条规则，放错一个名字就进了公开历史，拿不回来。`--review` 和 `--show-held` 的输出只在服务器上看。
-- **名字会先清理再导出**（`clean_name()`，和 `suggest.py` 的 `shown_name()` 同样两条正则）：去掉 `跨行消费` 这类前缀和 `AUSVISA Apple Pay` 这类付款标记，**同一家店的多种写法合并成一条规则**，注释里标"覆盖 N 种写法"。不然 FAROS BROS 会因为写法不同出现三次，而且每条只能命中那一笔。
+- **名字会先清理再导出**（`clean_name()`，和 `categories/names.py` 的 `shown_name()` 同样两条正则）：去掉 `跨行消费` 这类前缀和 `AUSVISA Apple Pay` 这类付款标记，**同一家店的多种写法合并成一条规则**，注释里标"覆盖 N 种写法"。不然 FAROS BROS 会因为写法不同出现三次，而且每条只能命中那一笔。
 - 清理后**仍带四位以上数字的不自动截断**，只在注释里标"建议改短"：`TOTAL 4375372` 截成 `TOTAL` 反而会造出项目明令不放的歧义词，这种取舍只能你自己做。
 - AI 没把握的（`category IS NULL`）一律不导出：那不是分类结论，按"其他"算。
 - 只导出商户名、地点、币种和把握程度四样，**不导出**金额、日期、卡号、模型名、询问时间和 AI 给的理由（有测试检查）。
-- 合并时**两份规则文件要一起改**：`rules.example.yaml` 和 `src/autobill/default_rules.yaml` 必须完全一致，`tests/test_categorize.py` 会检查。逐条核对，可以把店名改短或换成通用词；**有歧义的词不要放**（见上面"仍然不放的词"）。
+- 合并时**两份规则文件要一起改**：`rules.example.yaml` 和 `src/autobill/categories/default_rules.yaml` 必须完全一致，`tests/test_categorize.py` 会检查。逐条核对，可以把店名改短或换成通用词；**有歧义的词不要放**（见上面"仍然不放的词"）。
 - 过滤器本身有测试（`tests/test_export_ai_categories.py`）：和 `scripts/check_identity.py` 一样，**先证明它扣得住人名，才能相信它说的"可公开"**。
 
 你自己的 `rules.yaml` 被 `.gitignore` 排除，不会进 Git，要自己备份；它比 AI 分类更难重建（数据库丢了能重新解析，AI 分类丢了能重新问，手攒的规则只能重攒）。通用的规则可以合并进上面那两份文件，个人专用的几条留在本地。
@@ -267,7 +267,7 @@ python3 ~/autobill/scripts/export_ai_categories.py ~/autobill-docker/data/autobi
   - 柱子只有一套：每根柱子在自己的 `style` 里写着每个分类的高度（`--h0`、`--h1`……）和标签（`--t0`……），选哪个分类就用哪一对；`--h` 用 `@property` 注册过，高度变化能按弹簧过渡。
   - 新出现的块淡入（0.3 秒）；手感其余部分和月度邮件共用（见[邮件内容](#邮件内容)）。
   - 大小：一整年（23 类、767 笔）大约 470 KB，苹果邮件没问题；去掉了模板的缩进，省了大约一成。
-- **同一家店合在一起**：银行会把付款标记粘在商户名上（`Woolworths OnlineAUSVISA Apple Pay`、`跨行消费 …`），一年下来同一家店有好几种写法。年度回顾先用 `suggest.shown_name()` 去掉这些标记再合并。比如 Woolworths 常有两种写法，合并以后次数和金额才对。月度邮件的商户排行暂时没有合并。
+- **同一家店合在一起**：银行会把付款标记粘在商户名上（`Woolworths OnlineAUSVISA Apple Pay`、`跨行消费 …`），一年下来同一家店有好几种写法。年度回顾先用 `categories/names.py` 的 `shown_name()` 去掉这些标记再合并。比如 Woolworths 常有两种写法，合并以后次数和金额才对。月度邮件的商户排行暂时没有合并。
 - 取现也算在商户排行里，和月度邮件一致。银行印的商户名原样显示，比如农行把"携程支付"印成了"程支付"。
 - **随时预览**：`autobill year-review --year 2026` 在终端打印纯文本，加 `-o 文件` 写成 HTML，都不发信。
 - **手动发一封**：加 `--send` 立刻发到邮箱（比如年中想在手机上看看"今年到现在"，或者修好什么之后重发）。**手动发的不记进 `year_reviews`**，第二年 1 月照样自动发。

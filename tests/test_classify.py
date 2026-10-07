@@ -9,9 +9,16 @@ from fakes import FakeFrankfurter, FakeIMAP, FakeSMTP
 from typer.testing import CliRunner
 
 from autobill import fx as fx_module
-from autobill import suggest
-from autobill.categorize import UNCATEGORISED, load_rules
-from autobill.classify import classify_merchants, forget_unsure, paid_in, pending_merchants
+from autobill.categories import provider
+from autobill.categories.ai import classify_merchants, forget_unsure, paid_in, pending_merchants
+from autobill.categories.provider import (
+    AnswerCutOff,
+    BadAnswer,
+    MerchantInfo,
+    SuggesterError,
+    Verdict,
+)
+from autobill.categories.rules import UNCATEGORISED, load_rules
 from autobill.cli import app
 from autobill.config import AiConfig, Config, FxConfig
 from autobill.fetch.source import DirectorySource
@@ -21,7 +28,6 @@ from autobill.pipeline import process
 from autobill.report.statement import build_view
 from autobill.service import auto_classify
 from autobill.store.db import connect, load_bill
-from autobill.suggest import AnswerCutOff, BadAnswer, MerchantInfo, SuggesterError, Verdict
 
 FIXTURES = Path(__file__).parent / "fixtures"
 RATES = {("USD", "2026-09-02"): "6.7215", ("USD", "2026-09-04"): "6.7109",
@@ -66,16 +72,16 @@ def stored(conn):
 
 
 def test_no_provider_configured_is_explained():
-    with pytest.raises(suggest.SuggesterUnavailable, match="ai.provider"):
-        suggest.get_suggester(AiConfig())
-    with pytest.raises(suggest.SuggesterUnavailable, match="不认识"):
-        suggest.get_suggester(AiConfig(provider="nope"))
+    with pytest.raises(provider.SuggesterUnavailable, match="ai.provider"):
+        provider.get_suggester(AiConfig())
+    with pytest.raises(provider.SuggesterUnavailable, match="不认识"):
+        provider.get_suggester(AiConfig(provider="nope"))
 
 
 def test_invented_merchants_and_categories_are_dropped():
     asked = [MerchantInfo("KELLYS")]
     answer = {"KELLYS": Verdict("会展", "high"), "INVENTED": Verdict("餐饮", "high")}
-    assert suggest.keep_valid(answer, asked, ["餐饮"]) == {"KELLYS": Verdict(None, "low")}
+    assert provider.keep_valid(answer, asked, ["餐饮"]) == {"KELLYS": Verdict(None, "low")}
 
 
 def test_the_model_learns_only_name_location_and_currency(db):
@@ -241,7 +247,7 @@ def test_transaction_list_marks_ai_categories(db):
 def test_auto_classify_failure_is_alerted_once_and_cleared(db, monkeypatch):
     config = Config(ai=AiConfig(provider="fake"))
     model = FakeModel(fail_on_search=True)
-    suggest.register("fake", lambda c: model)
+    provider.register("fake", lambda c: model)
     try:
         auto_classify(db, config)  # step 1 answers nothing -> search -> 402
         assert [a.kind for _, a in alerts.pending(db)] == ["ai"]
@@ -251,7 +257,7 @@ def test_auto_classify_failure_is_alerted_once_and_cleared(db, monkeypatch):
         auto_classify(db, config)
         assert alerts.pending(db) == []  # working again: the alert is cleared
     finally:
-        suggest._PROVIDERS.pop("fake", None)
+        provider._PROVIDERS.pop("fake", None)
 
 
 def test_auto_classify_is_off_without_a_provider(db):
@@ -270,9 +276,9 @@ def cli_env(isolated_data_dir, monkeypatch):
     conn = connect(isolated_data_dir / "autobill.db")
     first = names(conn, 1)[0]
     model = FakeModel(known={first: Verdict("餐饮", "high", "拉面店")})
-    suggest.register("fake", lambda c: model)
+    provider.register("fake", lambda c: model)
     yield conn, first
-    suggest._PROVIDERS.pop("fake", None)
+    provider._PROVIDERS.pop("fake", None)
 
 
 def test_classify_command(cli_env):
@@ -290,7 +296,7 @@ def test_classify_command(cli_env):
 def test_classify_can_search_more_this_time(cli_env):
     """A retry by hand may look harder than the runs do (ai.max_searches, default 1)."""
     searches = []
-    suggest.register("fake", lambda c: searches.append(c.max_searches) or FakeModel())
+    provider.register("fake", lambda c: searches.append(c.max_searches) or FakeModel())
     runner.invoke(app, ["classify", "--dry-run", "--limit", "1", "--searches", "3"])
     runner.invoke(app, ["classify", "--dry-run", "--limit", "1"])
     assert searches == [3, 1]
@@ -317,7 +323,7 @@ def run_env(isolated_data_dir, monkeypatch):
     for mail in DirectorySource(FIXTURES).iter_new():
         process(conn, isolated_data_dir, mail)
     yield isolated_data_dir, conn
-    suggest._PROVIDERS.pop("fake", None)
+    provider._PROVIDERS.pop("fake", None)
 
 
 MAIL_CONFIG = """mail_fetcher:
@@ -356,7 +362,7 @@ def test_the_month_waits_until_the_ai_has_asked_every_new_merchant(run_env):
     pending = len(pending_merchants(conn, load_rules(conn)))
     assert pending > per_run
     write_config(data_dir, per_run)
-    suggest.register("fake", lambda c: FakeModel())  # sure of nothing: all end up 其他
+    provider.register("fake", lambda c: FakeModel())  # sure of nothing: all end up 其他
     runs = 0
     while True:
         runs += 1
@@ -372,7 +378,7 @@ def test_the_month_waits_until_the_ai_has_asked_every_new_merchant(run_env):
 def test_an_ai_that_fails_never_holds_the_month_back(run_env):
     data_dir, conn = run_env
     write_config(data_dir, 5)
-    suggest.register("fake", lambda c: FakeModel(fail_on_search=True))
+    provider.register("fake", lambda c: FakeModel(fail_on_search=True))
     result = runner.invoke(app, ["run"])
     assert "AI 分类没有完成" in result.output and "账单邮件等" not in result.output
     assert reports()  # the month goes out; the AI error is alerted

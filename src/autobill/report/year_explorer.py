@@ -10,13 +10,13 @@ from decimal import Decimal
 
 from markupsafe import Markup
 
+from autobill.categories.names import shown_name
 from autobill.ledger import cents
 from autobill.model import ZERO
 from autobill.report import drill
 from autobill.report.charts import donut_svg
 from autobill.report.cycle import Segment, make_segment
 from autobill.report.style import emoji_for, money, share
-from autobill.suggest import shown_name
 
 TOP_MERCHANTS = 10
 TOP_VISITS = 5

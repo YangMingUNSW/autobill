@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
-from autobill.categorize import UNCATEGORISED, Rules, load_rules
+from autobill.categories.rules import UNCATEGORISED, Rules, load_rules
 from autobill.fx import FxRates, Rate, RateUnavailable
 from autobill.ledger import REDUCING_TYPES, SPENDING_TYPES, cents, month_bounds
 from autobill.model import ZERO, TxnType

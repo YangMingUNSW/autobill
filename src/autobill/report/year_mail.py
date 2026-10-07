@@ -7,7 +7,7 @@ import sqlite3
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 
-from autobill.categorize import Rules, load_rules
+from autobill.categories.rules import Rules, load_rules
 from autobill.fx import FxRates
 from autobill.report.render import env
 from autobill.report.year import YearReport, build_year_report

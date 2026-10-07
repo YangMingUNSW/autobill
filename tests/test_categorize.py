@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from autobill.categorize import UNCATEGORISED, Rules, default_rules_text, load_rules
+from autobill.categories.rules import UNCATEGORISED, Rules, default_rules_text, load_rules
 from autobill.model import TxnType
 
 REPO = Path(__file__).parent.parent

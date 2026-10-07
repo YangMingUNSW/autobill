@@ -4,16 +4,15 @@ See docs/notify.md#ai-分类.
 Parsing and amounts never use AI. A classifier is given, per merchant, only its name,
 where it is (as the statement prints it, e.g. "SAPPORO JP") and the currency it was paid
 in, plus the category names: never amounts, dates, card numbers or other statement
-content. autobill/classify.py decides which merchants are asked and stores the answers.
+content. categories/ai.py decides which merchants are asked and stores the answers.
 
 Providers register with `register`; config.yaml names one in ai.provider and the key
 comes from the AUTOBILL_AI_API_KEY environment variable. The first provider is
-autobill/ai_anthropic.py (DeepSeek, or any API speaking the Anthropic Messages format).
+categories/deepseek.py (DeepSeek, or any API speaking the Anthropic Messages format).
 """
 
 from __future__ import annotations
 
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
@@ -22,20 +21,6 @@ from autobill.config import AiConfig
 
 API_KEY_ENV = "AUTOBILL_AI_API_KEY"
 CONFIDENCE = ("high", "medium", "low")
-
-# Bank markers around a merchant name that are not part of it. "AUSVISA Apple Pay" means
-# "Australia, Visa card, Apple Pay", but a model reads it as an Australian visa office.
-_CHANNEL = re.compile(
-    r"^(?:[A-Z]{3} )?(?:跨行无卡消费|跨行预授权完成|跨行消费|境外消费|网上消费|跨境消费)\s*"
-)
-_WALLET = re.compile(r"(?:[A-Z]{3})?(?:VISA|CUP|MC)\s*apple\s*pay.*$", re.IGNORECASE)
-
-
-def shown_name(name: str) -> str:
-    """The merchant name as a model is shown it, without the bank's payment markers:
-    "GM SYDNEY PTY LTDAUSVISA Apple Pay" -> "GM SYDNEY PTY LTD"."""
-    cleaned = _WALLET.sub("", _CHANNEL.sub("", name)).strip()
-    return cleaned or name
 
 
 @dataclass(frozen=True)
@@ -123,4 +108,4 @@ def keep_valid(
 
 
 def _load_builtin() -> None:
-    from autobill import ai_anthropic  # noqa: F401 - registers itself
+    from autobill.categories import deepseek  # noqa: F401 - registers itself
