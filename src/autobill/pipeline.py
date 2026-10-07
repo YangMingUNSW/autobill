@@ -308,12 +308,8 @@ def send_pending_reports(
     `backup` (config.backup) carries a copy of the database out with the e-mail, so the
     mailbox holds one per month: see autobill/backup.py.
     """
-    from autobill.report.cycle import (
-        build_cycle_email,
-        cycle_complete,
-        record_sent,
-        thread_ids,
-    )
+    from autobill.report.cycle import cycle_complete
+    from autobill.report.cycle_mail import build_cycle_email, record_sent, thread_ids
 
     result = SendResult()
     months: dict[str, list[int]] = {}
@@ -386,7 +382,8 @@ def send_year_review(
     Returns (year, None) when it went out, (year, error) when sending failed, and
     (None, None) when no review is due.
     """
-    from autobill.report.year import build_year_email, due_year
+    from autobill.report.year import due_year
+    from autobill.report.year_mail import build_year_email
 
     year = due_year(conn, today or today_in_china())
     if year is None:

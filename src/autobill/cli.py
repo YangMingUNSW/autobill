@@ -31,21 +31,13 @@ from autobill.pipeline import (
     send_pending_reports,
     send_year_review,
 )
-from autobill.report.cycle import (
-    build_cycle_email,
-    preview_cycle_html,
-    record_sent,
-)
+from autobill.report.cycle_mail import build_cycle_email, preview_cycle_html, record_sent
 from autobill.report.monthly import monthly_summary, render_text
 from autobill.report.pdf import PdfError, find_browser, html_to_pdf
 from autobill.report.statement import render_statement_html
 from autobill.report.uncategorised import rules_snippet, uncategorised_merchants
-from autobill.report.year import (
-    build_year_email,
-    build_year_report,
-    render_year_html,
-    year_plain_text,
-)
+from autobill.report.year import build_year_report
+from autobill.report.year_mail import build_year_email, render_year_html, year_plain_text
 from autobill.store.db import connect, load_bill
 from autobill.suggest import SuggesterUnavailable, get_suggester
 
