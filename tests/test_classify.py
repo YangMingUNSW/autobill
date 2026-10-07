@@ -72,7 +72,7 @@ def stored(conn):
 
 
 def test_no_provider_configured_is_explained():
-    with pytest.raises(provider.SuggesterUnavailable, match="ai.provider"):
+    with pytest.raises(provider.SuggesterUnavailable, match=r"ai\.provider"):
         provider.get_suggester(AiConfig())
     with pytest.raises(provider.SuggesterUnavailable, match="不认识"):
         provider.get_suggester(AiConfig(provider="nope"))
@@ -181,7 +181,7 @@ def test_a_rule_always_wins_over_the_ai(db, isolated_data_dir):
 
 
 def test_failure_part_way_keeps_the_answers_before_it(db):
-    a, b = names(db, 2)
+    a, _b = names(db, 2)
     model = FakeModel(known={a: Verdict("餐饮", "high")}, fail_on_search=True)
     result = classify_merchants(db, model, load_rules(db), AiConfig(), limit=2)
     assert "余额不足" in str(result.error) and result.left >= 1
@@ -376,7 +376,7 @@ def test_the_month_waits_until_the_ai_has_asked_every_new_merchant(run_env):
 
 
 def test_an_ai_that_fails_never_holds_the_month_back(run_env):
-    data_dir, conn = run_env
+    data_dir, _conn = run_env
     write_config(data_dir, 5)
     provider.register("fake", lambda c: FakeModel(fail_on_search=True))
     result = runner.invoke(app, ["run"])

@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        AutoBill is a small personal project with a deliberate scope ([project.md](https://github.com/YangMingUNSW/autobill/blob/main/project.md), in Chinese), so not every idea will fit, but every one is read.
+        AutoBill is a small personal project with a deliberate scope ([docs/project.md](https://github.com/YangMingUNSW/autobill/blob/main/docs/project.md), in Chinese), so not every idea will fit, but every one is read.
 
         For another bank, describe its statement (HTML e-mail or PDF, what it contains) and do **not** attach a real one.
   - type: textarea

@@ -140,7 +140,7 @@ def message_texts(msg: Message) -> Iterator[str]:
         for key, value in part.items():
             try:
                 yield f"{key}: {make_header(decode_header(str(value)))}"
-            except Exception:
+            except Exception:  # noqa: BLE001 - a header that will not decode is checked as it is
                 yield f"{key}: {value}"
         if part.is_multipart():
             continue

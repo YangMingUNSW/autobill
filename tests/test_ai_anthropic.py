@@ -135,7 +135,7 @@ def test_provider_needs_a_key(monkeypatch):
     monkeypatch.setenv(API_KEY_ENV, "sk-test")
     model = get_suggester(AiConfig(provider="deepseek", model="deepseek-v4-pro"))
     assert model.model == "deepseek-v4-pro" and model.base_url.endswith("/anthropic")
-    with pytest.raises(SuggesterUnavailable, match="ai.model"):
+    with pytest.raises(SuggesterUnavailable, match=r"ai\.model"):
         get_suggester(AiConfig(provider="anthropic", base_url="https://llm.example/"))
     other = get_suggester(
         AiConfig(provider="anthropic", base_url="https://llm.example/", model="m")

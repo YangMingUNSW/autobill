@@ -128,18 +128,16 @@ def test_recipient_filter_and_own_reports():
 
 
 def test_wrong_password_is_a_clear_error():
-    with pytest.raises(MailboxError, match="登录被拒绝"):
-        with mailbox({}, password="wrong"):
-            pass
+    with pytest.raises(MailboxError, match="登录被拒绝"), mailbox({}, password="wrong"):
+        pass
 
 
 def test_unreachable_server_is_a_clear_error():
     def refuse(*args, **kwargs):
         raise ConnectionRefusedError("refused")
 
-    with pytest.raises(MailboxError, match="连不上"):
-        with Mailbox(CONFIG, "app-password", refuse):
-            pass
+    with pytest.raises(MailboxError, match="连不上"), Mailbox(CONFIG, "app-password", refuse):
+        pass
 
 
 def test_repr_hides_password():

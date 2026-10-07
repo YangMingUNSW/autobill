@@ -43,7 +43,7 @@ def find_browser(configured: str | None = None) -> Path | None:
     if configured:
         path = Path(configured)
         return path if path.exists() else None
-    for base in (os.environ.get("ProgramFiles(x86)"), os.environ.get("ProgramFiles")):
+    for base in (os.environ.get("PROGRAMFILES(X86)"), os.environ.get("PROGRAMFILES")):
         for candidate in _WINDOWS_CANDIDATES:
             if base and (Path(base) / candidate).exists():
                 return Path(base) / candidate

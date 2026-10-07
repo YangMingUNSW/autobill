@@ -90,7 +90,7 @@ def test_month_bounds(month, bounds):
 
 @pytest.mark.parametrize("bad", ["2026-13", "2026/08", "August", "2026"])
 def test_month_bounds_rejects(bad):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="2026-08"):
         month_bounds(bad)
 
 

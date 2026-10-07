@@ -1,6 +1,6 @@
 # 开发流程
 
-这份文档讲**怎么把 AutoBill 一步步做出来**：环境、节奏、Git 流程、里程碑、测试规范和发布。设计本身（要做什么）见 [project.md](../project.md) 和其他 docs；给 AI 助手看的规则见 [CLAUDE.md](../CLAUDE.md)。不熟悉的术语见文末的[词汇表](#词汇表)。
+这份文档讲**怎么把 AutoBill 一步步做出来**：环境、节奏、Git 流程、里程碑、测试规范和发布。设计本身（要做什么）见 [project.md](project.md) 和其他 docs；给 AI 助手看的规则见 [CLAUDE.md](../CLAUDE.md)。不熟悉的术语见文末的[词汇表](#词汇表)。
 
 ## 1. 开发环境
 **前提**：已安装 [uv](https://docs.astral.sh/uv/)（本机已有）和 Git。Python ≥3.12 由 uv 负责，不需要单独安装。
@@ -8,6 +8,7 @@
 ```powershell
 uv sync                       # 按 pyproject.toml / uv.lock 安装依赖，第一次和依赖变化后执行
 uv run pytest                 # 跑全部测试
+uv run pytest --cov           # 同上，再列出覆盖率
 uv run pytest tests/test_abc.py -k unionpay   # 只跑某个文件或某个用例
 uv run ruff check .           # 代码检查
 uv run ruff format .          # 自动格式化
@@ -55,8 +56,8 @@ uv run autobill --help        # 运行程序本身
 ## 4. CI（自动检查）
 公开仓库可以免费使用 GitHub Actions。在 M0 建立 `.github/workflows/ci.yml`，每次推送和开 PR 时自动执行：
 
-1. `uv run ruff check .` 和 `uv run ruff format --check .`；
-2. `uv run pytest`；
+1. `uv run ruff check .` 和 `uv run ruff format --check .`；规则在 `pyproject.toml` 的 `[tool.ruff.lint]`，除了基本的错误和风格，还查笼统的 `except Exception`（BLE）、可以简化的写法（SIM、C4、RET）和测试写法（PT）；
+2. `uv run pytest --cov`：顺带统计覆盖率，CI 日志里有一张表（只列没全覆盖的文件），不设门槛；
 3. **身份信息扫描**：
    - 用 gitleaks 扫描；
    - 自定义规则：拦截 18 位证件号、11 位手机号、16 位以上的卡号；
@@ -65,7 +66,7 @@ uv run autobill --help        # 运行程序本身
 任何一项不通过，PR 就不能合并。本地的 pre-commit 跑的是同一套检查（前两项和身份扫描），这样在提交之前就能发现问题。
 
 ## 5. 里程碑：第一版（M0–M8）
-第一版的范围见 [project.md](../project.md#2-第一版mvp范围)。**顺序是：先用农行把整条链路打通（M2–M3），再加别的银行。**这样尽早就能看到能用的结果，后面每加一家银行，只是往已经跑通的链路上加一个解析器。
+第一版的范围见 [project.md](project.md#2-第一版mvp范围)。**顺序是：先用农行把整条链路打通（M2–M3），再加别的银行。**这样尽早就能看到能用的结果，后面每加一家银行，只是往已经跑通的链路上加一个解析器。
 
 每一步都是一个分支、一个 PR。"怎么验证"写的是你自己能执行的命令，以及应该看到的结果。
 
@@ -123,7 +124,7 @@ uv run autobill --help        # 运行程序本身
 - **做完的标准**：用样本跑出来的报表，每一节都有内容；"财付通"等消费归入"微信 / 支付宝（未细分）"。
 
 ### M7 邮件报表
-- **交付**（M7c 已替换为账单月进度邮件）：`report/mail_report.py`（Jinja2 + MJML 模板，所有可视化都是 HTML 横条，不用图片）、`notify/mail.py`（SMTP 465）、`autobill preview-email`（本地预览）。每导入一份账单就发一封邮件（见 [notify.md](notify.md#报表什么时候发)）。
+- **交付**（M7c 已替换为账单月进度邮件）：`report/mail_report.py`（Jinja2 + MJML 模板，所有可视化都是 HTML 横条，不用图片）、`notify/mail.py`（SMTP 465）、`autobill preview-email`（本地预览）。每导入一份账单就发一封邮件（见 [notify.md](notify.md#账单月邮件)）。
 - **先看预览**：真实发信之前，`uv run autobill preview-email -o preview.html` 生成报表，用浏览器打开、按 F12 切到手机尺寸检查排版。
 - **做完的标准**：用 `import-dir` 导入一份样本后，主邮箱收到报表，**用手机打开**排版正常，图片能显示。
 - **测试**：SMTP 用假对象代替，测试不真正发信；真实发信只在手动验证时做一次。
@@ -205,7 +206,7 @@ uv run autobill --help        # 运行程序本身
 - **金额一律用 `Decimal`**，不要用浮点数。
 
 ## 7. 文档同步规则
-- 设计文档和代码包一一对应（见 [project.md 的对照表](../project.md#5-文档导航与代码包对照)）。**改了代码的行为，就在同一个分支里改对应的文档。**
+- 设计文档和代码包一一对应（见 [project.md 的对照表](project.md#5-文档导航与代码包对照)）。**改了代码的行为，就在同一个分支里改对应的文档。**
 - 新的决策写进 project.md 的决策表；版本变化写进 [research.md 的版本历史](research.md#版本历史)。
 - 某个功能从"以后"挪进"第一版"，或者反过来，都要同时改 project.md 的范围一节。
 

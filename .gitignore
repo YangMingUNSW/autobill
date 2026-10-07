@@ -25,3 +25,9 @@ __pycache__/
 
 # Docker deployment: the real password file and the data folder next to compose.yaml
 /autobill.env
+
+# test coverage (uv run pytest --cov)
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml

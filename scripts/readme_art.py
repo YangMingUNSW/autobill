@@ -232,7 +232,7 @@ def banner_body(t: dict, x: dict, animate: bool) -> str:
             f"{round(share * 100)}%</text></g>"
         )
     dx, dy, r = cx0 + 352, cy0 + 108, 62
-    ring = list(zip(SHARES, t["series"], strict=True)) + [(1 - sum(SHARES), t["other"])]
+    ring = [*zip(SHARES, t["series"], strict=True), (1 - sum(SHARES), t["other"])]
     mask = ' mask="url(#reveal)"' if animate else ""
     parts.append(f"<g{mask}>{donut(dx, dy, r, 22, ring, 3)}</g>")
     base, top = cy0 + 268, max(TREND)
