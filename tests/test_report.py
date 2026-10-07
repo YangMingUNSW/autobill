@@ -11,8 +11,9 @@ from fakes import FakeFrankfurter
 from autobill.config import FxConfig
 from autobill.fetch.source import DirectorySource
 from autobill.fx import FxRates, Rate
+from autobill.ledger import month_bounds
 from autobill.pipeline import process
-from autobill.report.monthly import Line, MonthlySummary, month_bounds, monthly_summary, render_text
+from autobill.report.monthly import Line, MonthlySummary, monthly_summary, render_text
 from autobill.store.db import connect
 
 FIXTURES = Path(__file__).parent / "fixtures"

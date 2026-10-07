@@ -26,7 +26,7 @@ import sqlite3
 import statistics
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
@@ -38,9 +38,18 @@ from autobill import build_label
 from autobill.categorize import OTHER, UNCATEGORISED, Rules, load_rules
 from autobill.config import PortfolioCard
 from autobill.fx import FxRates
+from autobill.ledger import (
+    CHINA,
+    SPENDING_TYPES,
+    cents,
+    cycle_of,
+    earlier_cycles,
+    month_bounds,
+    previous_cycle,
+    today_in_china,
+)
 from autobill.model import ZERO, Bill, TxnType
 from autobill.report import drill
-from autobill.report.monthly import SPENDING_TYPES, cents, month_bounds
 from autobill.report.statement import (
     DayGroup,
     StatementView,
@@ -52,7 +61,6 @@ from autobill.report.style import amount_with_symbol, card_label, emoji_for, mon
 from autobill.store.db import load_bill
 from autobill.store.db import now as db_now
 
-CHINA = timezone(timedelta(hours=8))  # statement and due dates are Beijing time (no DST)
 GRACE = timedelta(days=7)  # this long past a card's usual day, it may have no statement
 EXPECTED_WINDOW = timedelta(days=62)  # without a portfolio: cards with a statement this close
 WEEKDAYS = "一二三四五六日"
@@ -67,17 +75,9 @@ NOTE_MIN_RATIO = Decimal("0.3")
 NOTE_MAX = 3
 
 
-def cycle_of(statement_date: date) -> str:
-    return statement_date.strftime("%Y-%m")
-
-
 def cycle_title(cycle: str) -> str:
     year, month = cycle.split("-")
     return f"{year}年{int(month)}月"
-
-
-def today_in_china() -> date:
-    return datetime.now(CHINA).date()
 
 
 def _usual_date(cycle: str, day: int | None) -> date:
@@ -514,19 +514,6 @@ def _change(spend: Decimal, before: Decimal | None) -> str:
         return ""
     ratio = (spend - before) / before
     return f"比上期 {'+' if ratio >= 0 else '-'}{abs(ratio):.0%}"
-
-
-def previous_cycle(cycle: str) -> str:
-    start, _ = month_bounds(cycle)
-    return (start - timedelta(days=1)).strftime("%Y-%m")
-
-
-def earlier_cycles(cycle: str, count: int) -> list[str]:
-    """The `count` statement months before `cycle`, oldest first."""
-    cycles: list[str] = []
-    while len(cycles) < count:
-        cycles.insert(0, previous_cycle(cycles[0] if cycles else cycle))
-    return cycles
 
 
 def spend_trend(

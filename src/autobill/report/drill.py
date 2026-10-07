@@ -14,8 +14,8 @@ from decimal import Decimal
 
 from autobill.categorize import Rules
 from autobill.fx import FxRates, RateUnavailable
+from autobill.ledger import SPENDING_TYPES, cents
 from autobill.model import ZERO, Bill, TxnType
-from autobill.report.monthly import SPENDING_TYPES, cents
 from autobill.report.statement import _line
 from autobill.report.style import BANK_NAMES, money
 

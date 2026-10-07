@@ -82,7 +82,7 @@
 | [docs/pipeline.md](docs/pipeline.md) | 状态机、去重、运行层、CLI、备份、部署、技术栈 | `autobill/pipeline.py`、`autobill/store/`、`autobill/cli.py` |
 | [docs/statement.md](docs/statement.md) | 标准账单（本地命令，可选）：设计参考、版面、PDF 生成 | `autobill/report/statement.py`、`autobill/report/pdf.py` |
 | [docs/deploy.md](docs/deploy.md) | 部署：Docker（推荐）和 systemd（备选）、密码文件、日常命令 | `Dockerfile`、`compose.yaml`、`deploy/systemd/` |
-| [docs/notify.md](docs/notify.md) | 统计口径、分类规则、报表时机和内容、邮件、⏳ 企业微信 | `autobill/report/`、`autobill/notify/` |
+| [docs/notify.md](docs/notify.md) | 统计口径、分类规则、报表时机和内容、邮件、⏳ 企业微信 | `autobill/ledger.py`（统计口径）、`autobill/report/`、`autobill/notify/` |
 | [docs/security.md](docs/security.md) | 密钥、配置示例、数据隔离、.gitignore/.gitattributes/pre-commit、依赖更新、新样本脱敏清单 | `autobill/config.py` |
 | [docs/setup.md](docs/setup.md) | **操作手册**（你本人要做的）：银行电子账单、中心邮箱、转发规则、历史账单、计划任务 | — |
 | [docs/research.md](docs/research.md) | 竞品、行业趋势、v1 评审结论、版本历史 | — |

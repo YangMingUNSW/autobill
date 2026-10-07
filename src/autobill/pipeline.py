@@ -14,6 +14,7 @@ from pathlib import Path
 
 from autobill.fetch.message import RawMessage
 from autobill.fetch.source import RawMail
+from autobill.ledger import REDUCING_TYPES, SPENDING_TYPES, today_in_china
 from autobill.model import Bill
 from autobill.parse.base import TemplateChanged
 from autobill.parse.registry import PARSERS, find_parser
@@ -257,8 +258,6 @@ class SendResult:
 def nothing_to_tell(bill: Bill) -> bool:
     """No spending, refund or rebate on it and nothing to pay: all an e-mail of its own
     would add to the month is a "无需还款" row."""
-    from autobill.report.monthly import REDUCING_TYPES, SPENDING_TYPES
-
     counted = {*SPENDING_TYPES, *REDUCING_TYPES}
     return all(b.amount_due == 0 for b in bill.balances) and not any(
         t.txn_type in counted for t in bill.transactions
@@ -387,7 +386,6 @@ def send_year_review(
     Returns (year, None) when it went out, (year, error) when sending failed, and
     (None, None) when no review is due.
     """
-    from autobill.report.cycle import today_in_china
     from autobill.report.year import build_year_email, due_year
 
     year = due_year(conn, today or today_in_china())
