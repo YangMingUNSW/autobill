@@ -1,8 +1,14 @@
 import json
 import os
+import shutil
+import sqlite3
 from pathlib import Path
 
 import pytest
+
+from autobill.fetch.source import DirectorySource
+from autobill.pipeline import process
+from autobill.store.db import connect
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -27,6 +33,45 @@ def isolated_data_dir(tmp_path, monkeypatch):
     data_dir.mkdir()
     monkeypatch.setenv("AUTOBILL_DATA_DIR", str(data_dir))
     return data_dir
+
+
+@pytest.fixture(scope="session")
+def _imported_samples(tmp_path_factory):
+    """Where sample_db keeps each set of folders once it has been imported."""
+    return tmp_path_factory.mktemp("samples"), {}
+
+
+@pytest.fixture
+def sample_db(isolated_data_dir, _imported_samples):
+    """sample_db(*folders): this test's database holding the sample statements in
+    `folders`, imported in that order; returns a connection to it.
+
+    Importing parses every sample, the 12-page BOC PDF too, and takes about a second; a
+    hundred tests doing that would take minutes. So each set of folders is imported once
+    per test run, and every test gets its own copy of the result (the database and raw/):
+    what one test changes, no other test sees."""
+    root, built = _imported_samples
+
+    def load(*folders: Path) -> sqlite3.Connection:
+        if folders not in built:
+            template = root / f"set{len(built)}"
+            template.mkdir()
+            conn = connect(template / "autobill.db")
+            for folder in folders:
+                for mail in DirectorySource(folder).iter_new():
+                    process(conn, template, mail)
+            conn.close()
+            built[folders] = template
+        template = built[folders]
+        source = sqlite3.connect(template / "autobill.db")
+        copy = sqlite3.connect(isolated_data_dir / "autobill.db")
+        source.backup(copy)
+        source.close()
+        copy.close()
+        shutil.copytree(template / "raw", isolated_data_dir / "raw", dirs_exist_ok=True)
+        return connect(isolated_data_dir / "autobill.db")
+
+    return load
 
 
 SNAPSHOT_DIR = Path(__file__).parent / "snapshots"

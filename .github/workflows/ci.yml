@@ -1,10 +1,10 @@
 name: CI
 
 # One workflow, so a pull request and a push to main each end in exactly one result, one
-# notification: lint, tests and the identity scan, gitleaks, then the Docker image. The
-# image is built and smoke-tested on a pull request and published to
-# ghcr.io/yangmingunsw/autobill from main (tag "latest") and from version tags ("0.2.0"),
-# only once the checks have passed.
+# notification. Lint, tests and the identity scan, gitleaks, and a build and smoke test of
+# the Docker image run side by side. From main (tag "latest") and from version tags
+# ("0.2.0") the image is then published to ghcr.io/yangmingunsw/autobill, only once all
+# three have passed.
 on:
   push:
     branches: [main]
@@ -50,15 +50,12 @@ jobs:
           GITLEAKS_ENABLE_COMMENTS: false # commenting needs write access; results show in the job log
 
   image:
-    name: build, smoke-test, publish
-    needs: [check, gitleaks]  # nothing is built, let alone published, from code that fails them
+    name: build, smoke-test
+    # Alongside the checks rather than after them, so a pull request's result waits for the
+    # slowest job, not for the checks and then the build. Only publish waits for them all.
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v7
-      - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
 
       - name: Build for this runner (amd64) to test it
@@ -94,8 +91,20 @@ jobs:
             ! find /opt/venv /home/autobill /data \( -name "*.eml" -o -name "*.db" -o -name "config.yaml" -o -name "*.env" -o -name "private-terms.txt" \) | grep .
           '
 
+  publish:
+    name: publish
+    if: github.event_name == 'push'
+    needs: [check, gitleaks, image]  # nothing is published from code that fails them
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+
       - name: Log in to GitHub Container Registry
-        if: github.event_name == 'push'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -103,7 +112,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Image tags
-        if: github.event_name == 'push'
         id: meta
         uses: docker/metadata-action@v6
         with:
@@ -114,7 +122,6 @@ jobs:
             type=sha,format=short
 
       - name: Build for amd64 and arm64 and publish
-        if: github.event_name == 'push'
         uses: docker/build-push-action@v7
         with:
           context: .
