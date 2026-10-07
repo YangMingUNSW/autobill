@@ -155,6 +155,7 @@ Windows 的 PowerShell 里，把第三行换成 `$env:AUTOBILL_DATA_DIR = "$env:
 | 路径 | 内容 |
 |---|---|
 | [docs/project.md](docs/project.md) | 总览、第一版范围、已定决策、架构、风险 |
+| [docs/architecture.md](docs/architecture.md) | 代码结构：每一步在哪个文件，想改什么去哪里 |
 | [docs/](docs/README.md) | 各模块设计、各家银行的账单格式规格、开发流程、操作手册 |
 | [tests/fixtures/](tests/fixtures/README.md) | 作者本人的真实账单，已脱敏（只去掉了身份信息） |
 | [CHANGELOG.md](CHANGELOG.md) | 版本变更记录 |

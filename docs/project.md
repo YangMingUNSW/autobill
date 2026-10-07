@@ -69,11 +69,14 @@
              ⏳ 企业微信摘要 → WireGuard → Oracle 中转 + 心跳看门狗
 ```
 
+每一步在哪个文件、入口是哪个函数，见 [architecture.md](architecture.md)。
+
 ## 5. 文档导航与代码包对照
 
 | 文档 | 内容 | 代码包 |
 |---|---|---|
 | [CLAUDE.md](../CLAUDE.md) | **给 AI 助手看的项目规则和红线**，每次开新对话先让它读 | — |
+| [docs/architecture.md](architecture.md) | **代码结构**：一次运行、一封邮件、月度邮件各经过哪些函数，模块之间的关系，想改什么去哪里 | `autobill/` 全部 |
 | [docs/development.md](development.md) | **开发流程**：环境、节奏、Git、CI、里程碑 M0–M8、测试规范、版本发布、词汇表 | — |
 | [docs/fetcher.md](fetcher.md) | 邮件源抽象、IMAP、转发和拆附件、银行识别、⏳ 来源校验 | `autobill/fetch/` |
 | [docs/parsing.md](parsing.md) | 解析框架、三种定位方法、健壮性规则、通用工具、解析器测试 | `autobill/parse/`（`base`、`registry`、`util`） |

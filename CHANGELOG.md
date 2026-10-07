@@ -18,6 +18,7 @@
 - `scripts/export_ai_categories.py`：把 AI 分好的商户导成规则片段；可能是人名的要用 `--review` 自己判断，带支付渠道字样的不导出。
 - 每月一次依赖更新：Dependabot 把 Python 依赖、GitHub Actions、Docker 基础镜像各合成一个 PR（`.github/dependabot.yml`），Python 本身的版本不自动升。
 - README 重做（动画横幅、两段交互动画、截图，全部用编的数据、由脚本生成），以及 `CONTRIBUTING.md`、`CODE_OF_CONDUCT.md`、`SECURITY.md`、issue 表单、PR 模板和 `docs/README.md`。
+- `docs/architecture.md`：一页代码结构，写明一封账单经过哪些文件、入口是哪个函数，想改什么去哪里。
 
 ### Changed
 - 月度邮件按"一期账单"来写：标题是"2026年9月账单"，下面写这一期消费的日期，金额都说"本期"（本期应还、本期消费、比上期、近 6 期），主题改成"📊 2026年9月账单"。日期是几份账单账期的并集；中行不印账期，从上一期账单日的次日算起，库里没有上一期就从第一笔消费算起；没有消费的账单不算进去。只改说法，金额的算法不变。

@@ -37,7 +37,7 @@ Tests never go online (exchange rates, IMAP and SMTP are faked) and always use a
 
 - Code, comments and commit messages are in English; the design documents in [docs/](docs/README.md) are in Simplified Chinese.
 
-The full workflow, testing conventions and release steps are in [docs/development.md](docs/development.md) (Chinese).
+Where the code for each step lives is in [docs/architecture.md](docs/architecture.md); the full workflow, testing conventions and release steps are in [docs/development.md](docs/development.md) (both Chinese).
 
 ## Code of Conduct
 Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).

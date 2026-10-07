@@ -76,7 +76,7 @@ def main(
 def import_dir(
     path: Annotated[Path, typer.Argument(help="Directory of .eml files (searched recursively).")],
     send: Annotated[
-        bool, typer.Option("--send/--no-send", help="E-mail a report for each new bill.")
+        bool, typer.Option("--send/--no-send", help="Then e-mail the reports that are due.")
     ] = True,
 ) -> None:
     """Import every .eml file in a directory (offline; e-mails already imported are skipped)."""
@@ -145,7 +145,7 @@ def _run_once(send: bool = True, rescan: bool = False) -> int:
 @app.command()
 def run(
     send: Annotated[
-        bool, typer.Option("--send/--no-send", help="E-mail the progress reports.")
+        bool, typer.Option("--send/--no-send", help="E-mail the reports and alerts that are due.")
     ] = True,
     rescan: Annotated[
         bool,
@@ -232,7 +232,7 @@ def preview_email(
         Path | None, typer.Option("--output", "-o", help="HTML file to write.")
     ] = None,
 ) -> None:
-    """Write the next progress e-mail of a statement month as an HTML file (sends nothing)."""
+    """Write a statement month's e-mail as an HTML file (sends nothing)."""
     conn = open_database()
     if cycle is None:
         row = conn.execute("SELECT MAX(statement_date) FROM bills").fetchone()
