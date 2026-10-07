@@ -19,11 +19,7 @@ import sqlite3
 from collections import Counter
 from dataclasses import dataclass, field, replace
 
-from autobill.categorize import UNCATEGORISED, Rules
-from autobill.config import AiConfig
-from autobill.model import TxnType
-from autobill.store.db import now
-from autobill.suggest import (
+from autobill.categories.provider import (
     BadAnswer,
     CategorySuggester,
     MerchantInfo,
@@ -31,6 +27,10 @@ from autobill.suggest import (
     Verdict,
     keep_valid,
 )
+from autobill.categories.rules import UNCATEGORISED, Rules
+from autobill.config import AiConfig
+from autobill.model import TxnType
+from autobill.store.db import now
 
 BATCH = 10  # merchants per step-1 request: the model thinks at length about each
 USE_UNSEARCHED = {"high"}

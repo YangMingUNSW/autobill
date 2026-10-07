@@ -225,7 +225,7 @@ def offline(url: str) -> str:
 
 def render(conn):
     """(the month's e-mail, the year in review, one standard statement) as HTML."""
-    from autobill.categorize import load_rules
+    from autobill.categories.rules import load_rules
     from autobill.config import FxConfig
     from autobill.fx import FxRates
     from autobill.report.cycle import build_cycle_report, latest_bills

@@ -10,7 +10,7 @@ to run while `serve` is going. Standard library only, so plain `python3` runs it
 server without the project installed.
 
 Privacy: `ai_categories.merchant` is the parser's merchant name, but falls back to the raw
-description when the parser found no merchant (autobill/classify.py). A WeChat or Alipay
+description when the parser found no merchant (autobill/categories/ai.py). A WeChat or Alipay
 payment to a person prints that person's name in the description, and
 tests/fixtures/README.md rules that other people's real names stay out of the repository.
 So every row lands in one of three buckets:
@@ -66,7 +66,7 @@ from pathlib import Path
 CHANNEL_WORDS = re.compile(r"财付通|支付宝|微信|转账|转帐|代付|收款|汇款|个人")
 
 # The bank's own markers around a merchant name, same two patterns as shown_name() in
-# src/autobill/suggest.py (copied, not imported: this script stays standard-library only).
+# src/autobill/categories/names.py (copied, not imported: this script stays standard-library only).
 CHANNEL_PREFIX = re.compile(
     r"^(?:[A-Z]{3} )?(?:跨行无卡消费|跨行预授权完成|跨行消费|境外消费|网上消费|跨境消费)\s*"
 )
@@ -217,7 +217,8 @@ def as_table(safe: list[Export]) -> list[str]:
 def as_yaml(safe: list[Export]) -> list[str]:
     """Grouped by category, ready to merge into rules.example.yaml by hand."""
     out = [
-        "# 合并进 rules.example.yaml 和 src/autobill/default_rules.yaml（两份必须一致）。",
+        "# 合并进 rules.example.yaml 和 src/autobill/categories/default_rules.yaml，",
+        "# 两份必须一致。",
         "# 先逐条核对：可以把店名改短或换成通用词，有歧义的词不要放。",
         "# 见 docs/notify.md#分类规则",
     ]

@@ -10,7 +10,7 @@ outside, no links, no script.
 
 Over a year one shop shows up under several names, because the bank glues its payment
 markers to the name ("Woolworths OnlineAUSVISA Apple Pay", "跨行消费 ..."); the year's
-lists put them together under the name without the markers (suggest.shown_name).
+lists put them together under the name without the markers (categories/names.py).
 
 The first three cards filter the year by month and category, two groups of radio buttons
 and one CSS rule per value, no script ("punched card coding"): every choice is written into
@@ -31,7 +31,8 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from autobill import build_label
-from autobill.categorize import TYPE_CATEGORIES, UNCATEGORISED, Rules
+from autobill.categories.names import shown_name
+from autobill.categories.rules import TYPE_CATEGORIES, UNCATEGORISED, Rules
 from autobill.fx import FxRates, RateUnavailable
 from autobill.ledger import CHINA, REDUCING_TYPES, SPENDING_TYPES, cents
 from autobill.model import ZERO, Bill, Transaction, TxnType
@@ -48,7 +49,6 @@ from autobill.report.statement import StatementView, build_view
 from autobill.report.style import amount_with_symbol, card_label, emoji_for, money, share
 from autobill.report.year_explorer import TOP_MERCHANTS, TOP_VISITS, Explorer, build_explorer
 from autobill.store.db import load_bill
-from autobill.suggest import shown_name
 
 REVIEW_UNTIL = (3, 31)  # a year's review goes out in the next year's first quarter, or never
 CHARGES = (TYPE_CATEGORIES[TxnType.INTEREST], TYPE_CATEGORIES[TxnType.FEE])  # 利息, 手续费

@@ -15,8 +15,8 @@ from collections.abc import Callable
 
 import httpx
 
-from autobill.config import AiConfig
-from autobill.suggest import (
+from autobill.categories.names import shown_name
+from autobill.categories.provider import (
     API_KEY_ENV,
     CONFIDENCE,
     AnswerCutOff,
@@ -26,8 +26,8 @@ from autobill.suggest import (
     SuggesterUnavailable,
     Verdict,
     register,
-    shown_name,
 )
+from autobill.config import AiConfig
 
 DEFAULTS: dict[str, tuple[str, str | None]] = {  # provider -> (base_url, default model)
     "deepseek": ("https://api.deepseek.com/anthropic", "deepseek-v4-flash"),

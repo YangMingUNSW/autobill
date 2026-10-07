@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
-from autobill.categorize import Rules
+from autobill.categories.rules import Rules
 from autobill.fx import FxRates, RateUnavailable
 from autobill.ledger import SPENDING_TYPES, cents
 from autobill.model import ZERO, Bill, TxnType

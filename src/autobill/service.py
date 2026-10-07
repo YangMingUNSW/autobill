@@ -14,8 +14,9 @@ import smtplib
 import sqlite3
 from collections.abc import Callable, Iterable
 
-from autobill.categorize import load_rules
-from autobill.classify import classify_merchants
+from autobill.categories.ai import classify_merchants
+from autobill.categories.provider import SuggesterUnavailable, get_suggester
+from autobill.categories.rules import load_rules
 from autobill.config import Config, data_dir, load_config
 from autobill.fetch.imap import PASSWORD_ENV as IMAP_PASSWORD_ENV
 from autobill.fetch.imap import ImapSource, Mailbox, MailboxError, imap_password
@@ -27,7 +28,6 @@ from autobill.notify.mail import PASSWORD_ENV, Mailer, smtp_password
 from autobill.notify.reports import send_pending_reports, send_year_review
 from autobill.pipeline import Outcome, outdated_emails, process, record_parsers, reparse
 from autobill.store.db import connect
-from autobill.suggest import SuggesterUnavailable, get_suggester
 
 Say = Callable[[str], None]  # where a job's progress lines go
 

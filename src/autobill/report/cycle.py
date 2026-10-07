@@ -25,7 +25,7 @@ from decimal import Decimal
 from markupsafe import Markup
 
 from autobill import build_label
-from autobill.categorize import OTHER, UNCATEGORISED, Rules
+from autobill.categories.rules import OTHER, UNCATEGORISED, Rules
 from autobill.config import PortfolioCard
 from autobill.fx import FxRates
 from autobill.ledger import (

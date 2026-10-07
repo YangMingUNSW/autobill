@@ -16,7 +16,7 @@ characters and kana, which have no spaces between words.
 
 Your rules.yaml comes first and the built-in rules after it, so your own
 keywords win and every built-in keyword still applies. A merchant no rule matches may
-still have an AI answer (autobill/classify.py), used last.
+still have an AI answer (categories/ai.py), used last.
 
 Categories are worked out when a report is made, not stored, so editing rules.yaml takes
 effect on the next report.
@@ -154,7 +154,11 @@ def rules_path() -> Path:
 
 
 def default_rules_text() -> str:
-    return resources.files("autobill").joinpath("default_rules.yaml").read_text(encoding="utf-8")
+    return (
+        resources.files("autobill.categories")
+        .joinpath("default_rules.yaml")
+        .read_text(encoding="utf-8")
+    )
 
 
 def load_rules(conn: sqlite3.Connection | None = None) -> Rules:

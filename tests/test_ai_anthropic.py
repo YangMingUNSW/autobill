@@ -3,18 +3,18 @@
 import httpx
 import pytest
 
-from autobill import ai_anthropic
-from autobill.ai_anthropic import AnthropicClassifier, parse_answer
-from autobill.config import AiConfig
-from autobill.suggest import (
+from autobill.categories import deepseek
+from autobill.categories.deepseek import AnthropicClassifier, parse_answer
+from autobill.categories.names import shown_name
+from autobill.categories.provider import (
     API_KEY_ENV,
     MerchantInfo,
     SuggesterError,
     SuggesterUnavailable,
     Verdict,
     get_suggester,
-    shown_name,
 )
+from autobill.config import AiConfig
 
 MERCHANTS = [MerchantInfo("ICHIKAKUYA", "TOKYO JP", "JPY"), MerchantInfo("FAROS BROS PTY LTD")]
 ANSWER = (  # the first by id, as asked; the second by name, which a model may still do
@@ -116,7 +116,7 @@ def test_bank_payment_markers_are_not_shown_to_the_model(raw, shown):
 def test_http_errors_are_explained(monkeypatch, status, message):
     monkeypatch.setattr(httpx, "post", lambda *a, **k: httpx.Response(status, text="internal"))
     with pytest.raises(SuggesterError, match=message):
-        ai_anthropic.http_post("https://x.invalid/v1/messages", {}, {})
+        deepseek.http_post("https://x.invalid/v1/messages", {}, {})
 
 
 def test_network_failure_is_a_suggester_error(monkeypatch):
@@ -125,7 +125,7 @@ def test_network_failure_is_a_suggester_error(monkeypatch):
 
     monkeypatch.setattr(httpx, "post", refuse)
     with pytest.raises(SuggesterError, match="连不上"):
-        ai_anthropic.http_post("https://x.invalid/v1/messages", {}, {})
+        deepseek.http_post("https://x.invalid/v1/messages", {}, {})
 
 
 def test_provider_needs_a_key(monkeypatch):

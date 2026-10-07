@@ -19,7 +19,7 @@ from datetime import date
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 
-from autobill.categorize import Rules, load_rules
+from autobill.categories.rules import Rules, load_rules
 from autobill.config import PortfolioCard
 from autobill.fx import FxRates
 from autobill.report.cycle import CycleReport, build_cycle_report

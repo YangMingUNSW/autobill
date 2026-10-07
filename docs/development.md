@@ -161,7 +161,7 @@ uv run autobill --help        # 运行程序本身
   - 分类规则支持整词匹配 `word:`，原始描述和商户名一起匹配；
   - 默认规则加上行业通用词和"烟酒"分类；
   - `autobill uncategorised`：列出未分类的商户，生成可以复制进 `rules.yaml` 的 YAML；
-  - AI 接口 `autobill/suggest.py` + `config.yaml` 的 `ai`，`--suggest` 调用；这一步不接任何 AI。
+  - AI 接口 `autobill/suggest.py`（现在是 `autobill/categories/provider.py`）+ `config.yaml` 的 `ai`，`--suggest` 调用；这一步不接任何 AI。
   - 设计见 [notify.md](notify.md#分类规则)。
 - **做完的标准**：样本里未分类的消费从 86 笔降到 40 笔以内；每条新词都核对过没有误分；AI 只收到商户名和分类名，建议不会自动写进 `rules.yaml`。
 - **怎么验证**：

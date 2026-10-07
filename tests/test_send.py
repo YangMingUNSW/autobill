@@ -8,7 +8,7 @@ from fakes import FakeFrankfurter, FakeSMTP
 from typer.testing import CliRunner
 
 from autobill import fx
-from autobill.categorize import UNCATEGORISED, load_rules
+from autobill.categories.rules import UNCATEGORISED, load_rules
 from autobill.cli import app
 from autobill.config import FxConfig, SmtpReportConfig
 from autobill.fetch.source import DirectorySource

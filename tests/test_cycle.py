@@ -10,7 +10,7 @@ import pytest
 from fakes import FakeFrankfurter, FakeSMTP
 
 from autobill import __version__
-from autobill.categorize import load_rules
+from autobill.categories.rules import load_rules
 from autobill.config import FxConfig, PortfolioCard, SmtpReportConfig
 from autobill.fetch.source import DirectorySource
 from autobill.fx import FxRates

@@ -12,8 +12,9 @@ from typing import Annotated
 import typer
 
 from autobill import build_label
-from autobill.categorize import load_rules
-from autobill.classify import classify_merchants, forget_unsure
+from autobill.categories.ai import classify_merchants, forget_unsure
+from autobill.categories.provider import SuggesterUnavailable, get_suggester
+from autobill.categories.rules import load_rules
 from autobill.config import data_dir, load_config
 from autobill.fetch.imap import PASSWORD_ENV as IMAP_PASSWORD_ENV
 from autobill.fetch.imap import MailboxError
@@ -42,7 +43,6 @@ from autobill.service import (
     send_reports,
 )
 from autobill.store.db import load_bill
-from autobill.suggest import SuggesterUnavailable, get_suggester
 
 _sleep = time.sleep  # tests replace it
 

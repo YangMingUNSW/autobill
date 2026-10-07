@@ -122,12 +122,12 @@ class CardsConfig(BaseModel):
 
 
 class AiConfig(BaseModel):
-    """AI classification of merchants the rules miss (autobill/classify.py), never parsing
+    """AI classification of merchants the rules miss (autobill/categories/ai.py), never parsing
     or amounts. Off until a provider is named; the key comes from the environment."""
 
     model_config = ConfigDict(extra="ignore")
 
-    provider: str | None = None  # "deepseek" or "anthropic" (autobill/ai_anthropic.py)
+    provider: str | None = None  # "deepseek" or "anthropic" (autobill/categories/deepseek.py)
     model: str | None = None  # default: the provider's cheap model
     base_url: str | None = None  # default: the provider's own
     auto_classify: bool = True  # run / serve classify new merchants before reporting

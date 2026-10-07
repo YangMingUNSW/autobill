@@ -19,7 +19,7 @@ from decimal import Decimal
 from jinja2 import Environment, PackageLoader, select_autoescape
 from markupsafe import Markup
 
-from autobill.categorize import Rules, load_rules
+from autobill.categories.rules import Rules, load_rules
 from autobill.fx import FxRates, Rate, RateUnavailable
 from autobill.ledger import SPENDING_TYPES, cents
 from autobill.model import ZERO, Bill, BillBalance, Transaction, TxnType
