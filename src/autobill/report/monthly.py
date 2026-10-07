@@ -17,23 +17,17 @@ import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 
 from autobill.categorize import UNCATEGORISED, Rules, load_rules
 from autobill.fx import FxRates, Rate, RateUnavailable
+from autobill.ledger import REDUCING_TYPES, SPENDING_TYPES, cents, month_bounds
 from autobill.model import ZERO, TxnType
 
-SPENDING_TYPES = [TxnType.PURCHASE, TxnType.FEE, TxnType.INTEREST, TxnType.CASH]
-REDUCING_TYPES = [TxnType.REFUND, TxnType.REBATE]  # stored negative, so a plain sum subtracts
 CREDIT_NAMES = {TxnType.REBATE: "返现", TxnType.REFUND: "退款"}
-CENT = Decimal("0.01")
 TREND_MONTHS = 6
 TOP_MERCHANTS = 10
 TOP_UNCATEGORISED = 10
-
-
-def cents(value: Decimal) -> Decimal:
-    return value.quantize(CENT, rounding=ROUND_HALF_UP)
 
 
 @dataclass
@@ -81,17 +75,6 @@ class MonthlySummary:
     @property
     def complete_conversion(self) -> bool:
         return all(line.cny is not None for line in self.lines)
-
-
-def month_bounds(month: str) -> tuple[date, date]:
-    """ "2026-08" -> (2026-08-01, 2026-09-01): start inclusive, end exclusive."""
-    try:
-        year, mon = (int(x) for x in month.split("-"))
-        start = date(year, mon, 1)
-    except ValueError:
-        raise ValueError(f"month must look like 2026-08, got {month!r}") from None
-    end = date(year + (mon == 12), mon % 12 + 1, 1)
-    return start, end
 
 
 def previous_months(month: str, count: int) -> list[str]:

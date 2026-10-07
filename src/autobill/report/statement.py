@@ -21,8 +21,8 @@ from markupsafe import Markup
 
 from autobill.categorize import Rules, load_rules
 from autobill.fx import FxRates, Rate, RateUnavailable
+from autobill.ledger import SPENDING_TYPES, cents
 from autobill.model import ZERO, Bill, BillBalance, Transaction, TxnType
-from autobill.report.monthly import SPENDING_TYPES, cents
 from autobill.report.style import (
     BANK_NAMES,
     COLORS,
