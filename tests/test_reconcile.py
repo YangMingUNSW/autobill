@@ -40,13 +40,13 @@ def bill(balances, transactions, warnings=()) -> Bill:
 
 
 def balance(**kw) -> BillBalance:
-    fields = dict(
-        currency="CNY",
-        previous_balance=D("100.00"),
-        new_charges=D("30.00"),
-        payments_credits=D("100.00"),
-        amount_due=D("30.00"),
-    )
+    fields = {
+        "currency": "CNY",
+        "previous_balance": D("100.00"),
+        "new_charges": D("30.00"),
+        "payments_credits": D("100.00"),
+        "amount_due": D("30.00"),
+    }
     fields.update({k: v if k == "currency" else D(v) for k, v in kw.items()})
     return BillBalance(**fields)
 

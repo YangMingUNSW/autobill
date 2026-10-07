@@ -3,7 +3,7 @@
 AutoBill：读取转发到"中心邮箱"的国内信用卡账单邮件（农行 HTML、建行 HTML、中行 PDF、工行 HTML），用**纯规则**解析，存进 SQLite，折算成人民币后生成**汇总报表**邮件。公开仓库，Python。
 
 ## 开始任何工作前
-1. 读 [project.md](project.md)，了解定位、决策、**第一版范围**和风险。
+1. 读 [docs/project.md](docs/project.md)，了解定位、决策、**第一版范围**和风险。
 2. 读 [docs/development.md](docs/development.md)，了解流程、测试规范和版本发布。
 3. 读和这一步有关的设计文档（见下面的文档地图）。
 4. **先给出计划，等维护者确认后再动手。** 一次只做一件事，每一步都要能验证。
@@ -51,7 +51,7 @@ uv run autobill --help
 ## 文档地图
 | 文件 | 内容 |
 |---|---|
-| `project.md` | 总览、第一版范围、决策、架构、分期、待定事项、风险 |
+| `docs/project.md` | 总览、第一版范围、决策、架构、分期、待定事项、风险 |
 | `docs/development.md` | 开发流程、里程碑 M0–M8、测试规范、Git、CI、版本发布 |
 | `docs/banks/` | 各家银行的格式规格、注册表、样本覆盖矩阵（**写解析器之前必读**） |
 | `docs/data-model.md` | 模型、符号约定、分项对账、汇率、SQLite 表 |

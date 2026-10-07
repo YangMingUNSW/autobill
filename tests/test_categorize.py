@@ -111,7 +111,7 @@ def test_rules_path_from_environment(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("text", ["- just a list\n", "超市: Woolworths\n", "超市: [1, 2]\n"])
 def test_malformed_rules_are_rejected(text):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="keyword"):
         Rules.from_yaml(text)
 
 

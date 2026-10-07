@@ -1,9 +1,10 @@
 # 文档
 
-AutoBill 的设计文档都在这里，用简体中文写。总览、第一版范围和已定的决策先看仓库根目录的 [project.md](../project.md)；给 AI 编程助手的规则在 [CLAUDE.md](../CLAUDE.md)。
+AutoBill 的设计文档都在这里，用简体中文写。总览、第一版范围和已定的决策先看 [project.md](project.md)；给 AI 编程助手的规则在 [CLAUDE.md](../CLAUDE.md)。
 
 | 文档 | 内容 |
 |---|---|
+| [project.md](project.md) | 总览：定位、第一版范围、已定的决策、架构、分期、风险 |
 | [development.md](development.md) | 开发流程：环境、节奏、Git、CI、里程碑、测试规范、版本发布、README 的图片 |
 | [setup.md](setup.md) | 操作手册（你本人要做的）：银行电子账单、中心邮箱、转发规则、历史账单 |
 | [deploy.md](deploy.md) | 部署：Docker（推荐）和 systemd、密码文件、日常命令、从备份还原 |

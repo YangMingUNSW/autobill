@@ -187,9 +187,9 @@ class _Statement:
         for cells in self.summary_rows:
             currency = parse_currency(cells[0])
             previous, charges, credits, due = (parse_amount(c) for c in cells[1:])
-            if currency != "CNY" and not any((previous, charges, credits, due)):
-                if currency not in txn_currencies:
-                    continue  # CCB always lists USD and EUR, even when everything is zero
+            empty = currency != "CNY" and not any((previous, charges, credits, due))
+            if empty and currency not in txn_currencies:
+                continue  # CCB always lists USD and EUR, even when everything is zero
             balances.append(
                 BillBalance(
                     currency=currency,

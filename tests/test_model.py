@@ -10,54 +10,54 @@ D = Decimal
 
 
 def make_txn(**overrides) -> Transaction:
-    fields = dict(
-        line_no=1,
-        txn_id=make_txn_id("ABC", "ABC:0001", date(2026, 8, 3), D("28.25"), "WOOLWORTHS", 1),
-        trans_date=date(2026, 8, 3),
-        post_date=date(2026, 8, 5),
-        txn_type=TxnType.PURCHASE,
-        amount=D("28.25"),
-        currency="USD",
-        orig_amount=D("39.90"),
-        orig_currency="AUD",
-        description_raw="WOOLWORTHS",
-        card_last4="0001",
-    )
+    fields = {
+        "line_no": 1,
+        "txn_id": make_txn_id("ABC", "ABC:0001", date(2026, 8, 3), D("28.25"), "WOOLWORTHS", 1),
+        "trans_date": date(2026, 8, 3),
+        "post_date": date(2026, 8, 5),
+        "txn_type": TxnType.PURCHASE,
+        "amount": D("28.25"),
+        "currency": "USD",
+        "orig_amount": D("39.90"),
+        "orig_currency": "AUD",
+        "description_raw": "WOOLWORTHS",
+        "card_last4": "0001",
+    }
     fields.update(overrides)
     return Transaction(**fields)
 
 
 def make_balance(**overrides) -> BillBalance:
-    fields = dict(
-        currency="USD",
-        previous_balance=D("0"),
-        previous_deposit=D("1.13"),
-        new_charges=D("100.00"),
-        payments_credits=D("50.00"),
-        amount_due=D("48.87"),
-    )
+    fields = {
+        "currency": "USD",
+        "previous_balance": D("0"),
+        "previous_deposit": D("1.13"),
+        "new_charges": D("100.00"),
+        "payments_credits": D("50.00"),
+        "amount_due": D("48.87"),
+    }
     fields.update(overrides)
     return BillBalance(**fields)
 
 
 def make_bill(**overrides) -> Bill:
-    fields = dict(
-        bank="ABC",
-        account_id="ABC:0001",
-        cards=["0001"],
-        statement_date=date(2026, 9, 1),
-        period_start=date(2026, 8, 2),
-        period_end=date(2026, 9, 1),
-        due_date=date(2026, 9, 26),
-        email_date=date(2026, 9, 2),
-        balances=[make_balance()],
-        transactions=[make_txn()],
-        status="OK",
-        source_message_id="<x@example.invalid>",
-        source_sha256="0" * 64,
-        parser_name="abc_html",
-        parser_version=1,
-    )
+    fields = {
+        "bank": "ABC",
+        "account_id": "ABC:0001",
+        "cards": ["0001"],
+        "statement_date": date(2026, 9, 1),
+        "period_start": date(2026, 8, 2),
+        "period_end": date(2026, 9, 1),
+        "due_date": date(2026, 9, 26),
+        "email_date": date(2026, 9, 2),
+        "balances": [make_balance()],
+        "transactions": [make_txn()],
+        "status": "OK",
+        "source_message_id": "<x@example.invalid>",
+        "source_sha256": "0" * 64,
+        "parser_name": "abc_html",
+        "parser_version": 1,
+    }
     fields.update(overrides)
     return Bill(**fields)
 

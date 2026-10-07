@@ -2,6 +2,7 @@
 
 import json
 from datetime import date
+from typing import ClassVar
 
 import httpx
 
@@ -34,7 +35,7 @@ class FakeFrankfurter:
 class FakeSMTP:
     """Stands in for smtplib.SMTP_SSL: records logins and messages, never connects."""
 
-    instances: list["FakeSMTP"] = []
+    instances: ClassVar[list["FakeSMTP"]] = []
 
     def __init__(self, host, port, timeout=None, fail_on_send=False):
         self.host, self.port, self.timeout = host, port, timeout
@@ -71,7 +72,7 @@ class FakeIMAP:
     FakeIMAP.factory(...) and pass it (or monkeypatch imaplib.IMAP4_SSL with it).
     """
 
-    instances: list["FakeIMAP"] = []
+    instances: ClassVar[list["FakeIMAP"]] = []
 
     def __init__(self, host, port, timeout=None, folders=None, password="app-password"):
         self.host, self.port, self.timeout = host, port, timeout

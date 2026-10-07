@@ -14,6 +14,7 @@ Uses the standard library's imaplib; tests pass a fake in place of IMAP4_SSL.
 
 from __future__ import annotations
 
+import contextlib
 import imaplib
 import os
 import re
@@ -78,10 +79,8 @@ class Mailbox:
 
     def __exit__(self, *exc) -> None:
         if self._imap is not None:
-            try:
+            with contextlib.suppress(imaplib.IMAP4.error, OSError):
                 self._imap.logout()
-            except (imaplib.IMAP4.error, OSError):
-                pass
 
     @property
     def imap(self) -> imaplib.IMAP4:

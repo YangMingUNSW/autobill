@@ -4,7 +4,7 @@ Thanks for your interest. AutoBill is a personal project maintained in spare tim
 
 ## Before you start
 - **Bugs:** open an issue with the *Bug report* form and include the output of `autobill --version`.
-- **New features or banks:** open an issue first, so the approach is agreed before any code is written. The project's scope and decisions are in [project.md](project.md) (Chinese).
+- **New features or banks:** open an issue first, so the approach is agreed before any code is written. The project's scope and decisions are in [docs/project.md](docs/project.md) (Chinese).
 - **Security problems:** do not open an issue; see [SECURITY.md](SECURITY.md).
 
 ## Privacy comes first

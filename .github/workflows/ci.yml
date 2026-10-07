@@ -22,7 +22,7 @@ jobs:
           uv run ruff check .
           uv run ruff format --check .
       - name: Tests
-        run: uv run pytest
+        run: uv run pytest --cov  # the coverage table is printed in the log; no threshold
       - name: Identity scan
         run: uv run python scripts/check_identity.py --all
 

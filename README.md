@@ -39,7 +39,7 @@ AutoBill reads the credit-card e-statements that Chinese banks (ABC, CCB, BOC an
 <p align="center"><sub>Invented demo data. The e-mails are in Simplified Chinese, like the statements they summarise.</sub></p>
 
 > [!NOTE]
-> **Status:** in daily use, running in Docker every 30 minutes. Four banks are supported, with one e-mail per statement month, the year in review, alert e-mails and optional AI categorisation of merchants the rules miss. The latest release is `v0.2.0`; what has landed since is in the [changelog](CHANGELOG.md), and the [roadmap](project.md#6-分期路线) is in Chinese.
+> **Status:** in daily use, running in Docker every 30 minutes. Four banks are supported, with one e-mail per statement month, the year in review, alert e-mails and optional AI categorisation of merchants the rules miss. The latest release is `v0.2.0`; what has landed since is in the [changelog](CHANGELOG.md), and the [roadmap](docs/project.md#6-分期路线) is in Chinese.
 
 ## Contents
 - [Features](#features)
@@ -155,7 +155,7 @@ In Windows PowerShell, set the directory with `$env:AUTOBILL_DATA_DIR = "$env:TE
 ## Documentation
 | Path | Contents |
 |---|---|
-| [project.md](project.md) | Overview, scope, decisions, architecture, risks |
+| [docs/project.md](docs/project.md) | Overview, scope, decisions, architecture, risks |
 | [docs/](docs/README.md) | Module design, bank statement format specs, development process, setup guide |
 | [tests/fixtures/](tests/fixtures/README.md) | The author's real statements, anonymised (identity data removed) |
 | [CHANGELOG.md](CHANGELOG.md) | Release notes |

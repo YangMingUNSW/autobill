@@ -138,7 +138,7 @@ def category_bar_rows(categories: dict[str, Decimal]) -> list[Row]:
     items = sorted(categories.items(), key=lambda kv: -kv[1])
     if len(items) > TOP_CATEGORIES:
         rest = sum((v for _, v in items[TOP_CATEGORIES - 1 :]), ZERO)
-        items = items[: TOP_CATEGORIES - 1] + [("其他", rest)]
+        items = [*items[: TOP_CATEGORIES - 1], ("其他", rest)]
     if uncategorised is not None:
         items.append((UNCATEGORISED, uncategorised))
     rows = bar_rows(items, total)
