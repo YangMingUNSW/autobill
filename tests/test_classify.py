@@ -12,13 +12,14 @@ from autobill import fx as fx_module
 from autobill import suggest
 from autobill.categorize import UNCATEGORISED, load_rules
 from autobill.classify import classify_merchants, forget_unsure, paid_in, pending_merchants
-from autobill.cli import _auto_classify, app
+from autobill.cli import app
 from autobill.config import AiConfig, Config, FxConfig
 from autobill.fetch.source import DirectorySource
 from autobill.fx import FxRates
 from autobill.notify import alerts
 from autobill.pipeline import process
 from autobill.report.statement import build_view
+from autobill.service import auto_classify
 from autobill.store.db import connect, load_bill
 from autobill.suggest import AnswerCutOff, BadAnswer, MerchantInfo, SuggesterError, Verdict
 
@@ -242,19 +243,19 @@ def test_auto_classify_failure_is_alerted_once_and_cleared(db, monkeypatch):
     model = FakeModel(fail_on_search=True)
     suggest.register("fake", lambda c: model)
     try:
-        _auto_classify(db, config)  # step 1 answers nothing -> search -> 402
+        auto_classify(db, config)  # step 1 answers nothing -> search -> 402
         assert [a.kind for _, a in alerts.pending(db)] == ["ai"]
-        _auto_classify(db, config)
+        auto_classify(db, config)
         assert len(alerts.pending(db)) == 1  # the same problem is not repeated
         model.fail_on_search = False
-        _auto_classify(db, config)
+        auto_classify(db, config)
         assert alerts.pending(db) == []  # working again: the alert is cleared
     finally:
         suggest._PROVIDERS.pop("fake", None)
 
 
 def test_auto_classify_is_off_without_a_provider(db):
-    _auto_classify(db, Config())
+    auto_classify(db, Config())
     assert stored(db) == {}
 
 

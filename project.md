@@ -79,7 +79,7 @@
 | [docs/parsing.md](docs/parsing.md) | 解析框架、三种定位方法、健壮性规则、通用工具、解析器测试 | `autobill/parse/`（`base`、`registry`、`util`） |
 | [docs/banks/](docs/banks/README.md) | 银行注册表、样本覆盖矩阵，以及[农行](docs/banks/abc.md)、[建行](docs/banks/ccb.md)、[中行](docs/banks/boc.md)的格式规格 | `autobill/parse/{abc,ccb,boc}.py` |
 | [docs/data-model.md](docs/data-model.md) | 模型、符号约定、对账算法、汇率、SQLite 表、Beancount 映射 | `autobill/model.py`、`autobill/reconcile.py`、`autobill/fx.py` |
-| [docs/pipeline.md](docs/pipeline.md) | 状态机、去重、运行层、CLI、备份、部署、技术栈 | `autobill/pipeline.py`、`autobill/store/`、`autobill/cli.py` |
+| [docs/pipeline.md](docs/pipeline.md) | 状态机、去重、运行层、CLI、备份、部署、技术栈 | `autobill/pipeline.py`、`autobill/store/`、`autobill/service.py`、`autobill/cli.py` |
 | [docs/statement.md](docs/statement.md) | 标准账单（本地命令，可选）：设计参考、版面、PDF 生成 | `autobill/report/statement.py`、`autobill/report/pdf.py` |
 | [docs/deploy.md](docs/deploy.md) | 部署：Docker（推荐）和 systemd（备选）、密码文件、日常命令 | `Dockerfile`、`compose.yaml`、`deploy/systemd/` |
 | [docs/notify.md](docs/notify.md) | 统计口径、分类规则、报表时机和内容、邮件、⏳ 企业微信 | `autobill/ledger.py`（统计口径）、`autobill/report/`、`autobill/notify/` |

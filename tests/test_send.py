@@ -15,7 +15,8 @@ from autobill.fetch.source import DirectorySource
 from autobill.fx import FxRates
 from autobill.model import TxnType
 from autobill.notify.mail import Mailer
-from autobill.pipeline import process, send_pending_reports
+from autobill.notify.reports import send_pending_reports
+from autobill.pipeline import process
 from autobill.store.db import connect
 
 FIXTURES = Path(__file__).parent / "fixtures"

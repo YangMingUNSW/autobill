@@ -166,3 +166,19 @@ def send_pending(conn: sqlite3.Connection, mailer) -> int:
     stamp = now()
     conn.executemany("UPDATE alerts SET sent_at = ? WHERE id = ?", [(stamp, i) for i, _ in rows])
     return len(rows)
+
+
+def from_outcomes(outcomes, known_accounts: set[str]) -> list[Alert]:
+    """What you should hear about from these processed e-mails (docs/notify.md#提醒邮件)."""
+    found: list[Alert] = []
+    for o in outcomes:
+        if o.status == "UNRECOGNIZED":
+            found.append(unrecognized(o.message_id, o.subject, o.from_addr))
+        elif o.status == "FAILED":
+            found.append(failed(o.message_id, o.subject, o.bank, o.error))
+        # On the very first import every card is new: that is not news.
+        if known_accounts:
+            for bill in o.bills:
+                if bill.account_id not in known_accounts:
+                    found.append(new_card(bill.account_id))
+    return found

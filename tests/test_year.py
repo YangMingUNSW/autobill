@@ -12,13 +12,14 @@ from typer.testing import CliRunner
 from autobill import __version__
 from autobill import fx as fx_module
 from autobill.categorize import load_rules
-from autobill.cli import _send_reports, app
+from autobill.cli import app
 from autobill.config import FxConfig, SmtpReportConfig
 from autobill.fetch.source import DirectorySource
 from autobill.fx import FxRates
 from autobill.model import Bill, BillBalance, Transaction, TxnType, make_txn_id
 from autobill.notify.mail import Mailer
-from autobill.pipeline import process, send_year_review
+from autobill.notify.reports import send_year_review
+from autobill.pipeline import process
 from autobill.report.charts import trend_svg
 from autobill.report.cycle import MonthBar, Segment
 from autobill.report.cycle_mail import record_sent
@@ -26,6 +27,7 @@ from autobill.report.monthly import monthly_summary
 from autobill.report.year import build_year_report, due_year
 from autobill.report.year_explorer import _month_list
 from autobill.report.year_mail import render_year_html, year_plain_text
+from autobill.service import send_reports
 from autobill.store.db import connect, save_bill
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -453,12 +455,12 @@ def test_year_review_send_mails_it_now_without_counting_as_sent(mail_config):
 
 
 def test_every_run_looks_for_the_review_after_the_months(mail_config, monkeypatch):
-    """_send_reports is what `run` and `serve` send with: it must go on to the review."""
+    """send_reports is what `run` and `serve` send with: it must go on to the review."""
     calls = []
     monkeypatch.setattr(
-        "autobill.cli.send_year_review", lambda *args, **kwargs: calls.append(1) or (None, None)
+        "autobill.service.send_year_review", lambda *args, **kwargs: calls.append(1) or (None, None)
     )
-    _send_reports(mail_config)
+    send_reports(mail_config)
     assert calls == [1]
 
 

@@ -349,14 +349,14 @@ def test_failed_mail_is_retried_and_rescan_rereads(cli_env, monkeypatch):
     earlier failure is retried instead of skipped."""
     write_config(cli_env, smtp=False)
     use_folders(monkeypatch, folders_with({1: qq_forwarded(ABC[0].read_bytes())}))
-    from autobill import cli as cli_module
+    from autobill import service
 
-    fixed = cli_module.split_forwarded
-    monkeypatch.setattr("autobill.cli.split_forwarded", lambda data: [data])  # the old bug
+    fixed = service.split_forwarded
+    monkeypatch.setattr("autobill.service.split_forwarded", lambda data: [data])  # the old bug
     first = runner.invoke(app, ["run", "--no-send"])
     assert "共 1 封：UNRECOGNIZED 1" in first.output
     # Put the fix back by hand: monkeypatch.undo() would also drop the isolated data dir.
-    monkeypatch.setattr("autobill.cli.split_forwarded", fixed)
+    monkeypatch.setattr("autobill.service.split_forwarded", fixed)
     again = runner.invoke(app, ["run", "--no-send"])
     assert "处理了 0 封" in again.output  # without --rescan the cursor is past it
     rescan = runner.invoke(app, ["run", "--no-send", "--rescan"])
