@@ -16,6 +16,7 @@
 - 解析器更新后，已入库的账单自动重读，不用再手动 `reparse`（改了卡号别名除外）。
 - 月度邮件最后一行和 `autobill --version` 写出版本和构建镜像的提交号，一眼看出服务器是不是最新版。
 - `scripts/export_ai_categories.py`：把 AI 分好的商户导成规则片段；可能是人名的要用 `--review` 自己判断，带支付渠道字样的不导出。
+- 每月一次依赖更新：Dependabot 把 Python 依赖、GitHub Actions、Docker 基础镜像各合成一个 PR（`.github/dependabot.yml`），Python 本身的版本不自动升。
 - README 重做（动画横幅、两段交互动画、截图，全部用编的数据、由脚本生成），以及 `CONTRIBUTING.md`、`CODE_OF_CONDUCT.md`、`SECURITY.md`、issue 表单、PR 模板和 `docs/README.md`。
 
 ### Changed

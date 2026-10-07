@@ -52,9 +52,10 @@
 - **数据库会作为附件离开服务器**：每月那封账单邮件带一份压缩的数据库，收件人只有你自己配置的 `to_addr`（见 [notify.md](notify.md#每月备份)）。它落在你自己的邮箱里，和银行原始账单待在同一个地方，没有引入新的暴露面；不想要就 `backup: {enabled: false}`。
 - 数据库本身不加密，靠文件权限（数据目录只有你能读）；需要的话再加磁盘加密。SQLCipher 是以后的可选项。
 
-## 依赖漏洞提醒
-- GitHub 的 **Dependabot 安全提醒**已打开（2026-09-29）：依赖里出现已知漏洞时，GitHub 发邮件提醒维护者。只开提醒，**不开**自动修复 PR 和版本更新 PR，免得刷屏。
-- GitHub 自己读 `uv.lock`：Dependabot 有一个"Graph Update: uv"任务（在 Actions 页面能看到），依赖文件变了就更新依赖图，开发依赖也算在内（2026-09-29 实测 48 个 Python 包）。不需要另外放 `requirements.txt`。
+## 依赖更新
+- **安全提醒**：GitHub 的 Dependabot 安全提醒已打开，依赖里出现已知漏洞时发邮件提醒维护者。
+- **每月一次版本更新**（`.github/dependabot.yml`）：Python 依赖（读 `uv.lock`）、GitHub Actions、Docker 基础镜像各合成**一个 PR**，每月最多三个。CI 全绿就可以合并；小步常升，比一年后一次升几十个包安全。Python 本身的大小版本（比如 3.12 → 3.13）不自动升，那要单独决定。
+- 不需要另外放 `requirements.txt`：GitHub 直接读 `uv.lock`。
 
 ## 样本与脱敏
 **这是公开仓库。** 测试样本 [`tests/fixtures/`](../tests/fixtures/README.md) 是作者本人的真实账单，2026-09-18 **一次性脱敏**。项目里**没有**脱敏脚本：脱敏不是产品功能，用过的工具和原件都不在仓库里。

@@ -14,6 +14,6 @@ AutoBill 的设计文档都在这里，用简体中文写。总览、第一版�
 | [pipeline.md](pipeline.md) | 状态机、去重、运行层、命令行、备份 |
 | [notify.md](notify.md) | 统计口径、分类规则和 AI 分类、报表时机、邮件内容、年度回顾、提醒邮件 |
 | [statement.md](statement.md) | 标准账单（本地命令，可选）：设计参考、版面、PDF 生成 |
-| [security.md](security.md) | 密钥、配置、数据隔离、依赖漏洞提醒、新样本脱敏检查清单 |
+| [security.md](security.md) | 密钥、配置、数据隔离、依赖更新、新样本脱敏检查清单 |
 | [research.md](research.md) | 竞品、行业趋势、评审结论、版本历史 |
 | [images/](images/) | README 用的图片，由 `scripts/readme_art.py` 和 `scripts/demo_screenshots.py` 生成，数据全部是编的 |

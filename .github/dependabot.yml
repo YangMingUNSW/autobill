@@ -1,0 +1,28 @@
+# Monthly version updates, one pull request per ecosystem (docs/security.md#依赖更新).
+# Security alerts are separate and still arrive as soon as a vulnerability is known.
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      python:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      docker:
+        patterns: ["*"]
+    ignore:  # a new Python version is a decision of its own, not a monthly bump
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
