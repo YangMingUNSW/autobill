@@ -11,13 +11,11 @@ from autobill import fx
 from autobill.categories.rules import UNCATEGORISED, load_rules
 from autobill.cli import app
 from autobill.config import FxConfig, SmtpReportConfig
-from autobill.fetch.source import DirectorySource
 from autobill.fx import FxRates
 from autobill.model import TxnType
 from autobill.notify.mail import Mailer
 from autobill.notify.reports import send_pending_reports
 from autobill.pipeline import process
-from autobill.store.db import connect
 
 FIXTURES = Path(__file__).parent / "fixtures"
 RATES = {("USD", "2026-09-02"): "6.7215", ("USD", "2026-09-04"): "6.7109"}
@@ -36,10 +34,8 @@ def reset_fake():
 
 
 @pytest.fixture
-def db(isolated_data_dir):
-    conn = connect(isolated_data_dir / "autobill.db")
-    for mail in DirectorySource(FIXTURES / "abc").iter_new():
-        process(conn, isolated_data_dir, mail)
+def db(sample_db):
+    conn = sample_db(FIXTURES / "abc")
     return conn, FxRates(conn, FxConfig(), FakeFrankfurter(RATES))
 
 

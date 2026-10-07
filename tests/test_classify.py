@@ -21,13 +21,11 @@ from autobill.categories.provider import (
 from autobill.categories.rules import UNCATEGORISED, load_rules
 from autobill.cli import app
 from autobill.config import AiConfig, Config, FxConfig
-from autobill.fetch.source import DirectorySource
 from autobill.fx import FxRates
 from autobill.notify import alerts
-from autobill.pipeline import process
 from autobill.report.statement import build_view
 from autobill.service import auto_classify
-from autobill.store.db import connect, load_bill
+from autobill.store.db import load_bill
 
 FIXTURES = Path(__file__).parent / "fixtures"
 RATES = {("USD", "2026-09-02"): "6.7215", ("USD", "2026-09-04"): "6.7109",
@@ -55,11 +53,8 @@ class FakeModel:
 
 
 @pytest.fixture
-def db(isolated_data_dir):
-    conn = connect(isolated_data_dir / "autobill.db")
-    for mail in DirectorySource(FIXTURES).iter_new():
-        process(conn, isolated_data_dir, mail)
-    return conn
+def db(sample_db):
+    return sample_db(FIXTURES)
 
 
 def names(conn, n):
@@ -269,11 +264,10 @@ runner = CliRunner()
 
 
 @pytest.fixture
-def cli_env(isolated_data_dir, monkeypatch):
+def cli_env(isolated_data_dir, sample_db, monkeypatch):
     monkeypatch.setattr(fx_module, "http_fetch", FakeFrankfurter(RATES))
-    runner.invoke(app, ["import-dir", "--no-send", str(FIXTURES)])
+    conn = sample_db(FIXTURES)
     (isolated_data_dir / "config.yaml").write_text("ai:\n  provider: fake\n", encoding="utf-8")
-    conn = connect(isolated_data_dir / "autobill.db")
     first = names(conn, 1)[0]
     model = FakeModel(known={first: Verdict("餐饮", "high", "拉面店")})
     provider.register("fake", lambda c: model)
@@ -312,16 +306,14 @@ def test_classify_without_provider(isolated_data_dir):
 
 
 @pytest.fixture
-def run_env(isolated_data_dir, monkeypatch):
+def run_env(isolated_data_dir, sample_db, monkeypatch):
     """The sample statements imported and not reported yet, an empty mailbox, fake SMTP."""
     monkeypatch.setattr(fx_module, "http_fetch", FakeFrankfurter(RATES))
     monkeypatch.setattr("smtplib.SMTP", FakeSMTP)
     monkeypatch.setattr("imaplib.IMAP4_SSL", FakeIMAP.factory({"AutoBill": (7, {})}))
     monkeypatch.setenv("AUTOBILL_IMAP_PASSWORD", "app-password")
     FakeSMTP.instances.clear()
-    conn = connect(isolated_data_dir / "autobill.db")
-    for mail in DirectorySource(FIXTURES).iter_new():
-        process(conn, isolated_data_dir, mail)
+    conn = sample_db(FIXTURES)
     yield isolated_data_dir, conn
     provider._PROVIDERS.pop("fake", None)
 

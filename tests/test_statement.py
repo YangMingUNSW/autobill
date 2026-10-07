@@ -18,12 +18,10 @@ from autobill import fx as fx_module
 from autobill.categories.rules import load_rules
 from autobill.cli import app
 from autobill.config import FxConfig
-from autobill.fetch.source import DirectorySource
 from autobill.fx import FxRates
-from autobill.pipeline import process
 from autobill.report import pdf
 from autobill.report.statement import build_view, render_statement_html
-from autobill.store.db import connect, load_bill
+from autobill.store.db import load_bill
 
 FIXTURES = Path(__file__).parent / "fixtures"
 D = Decimal
@@ -33,10 +31,8 @@ NOW = datetime(2026, 9, 19, 8, 0)
 
 
 @pytest.fixture
-def db(isolated_data_dir):
-    conn = connect(isolated_data_dir / "autobill.db")
-    for mail in DirectorySource(FIXTURES).iter_new():
-        process(conn, isolated_data_dir, mail)
+def db(sample_db):
+    conn = sample_db(FIXTURES)
     return conn, FxRates(conn, FxConfig(), FakeFrankfurter(RATES))
 
 
@@ -254,9 +250,9 @@ runner = CliRunner()
 
 
 @pytest.fixture
-def cli_env(isolated_data_dir, monkeypatch):
+def cli_env(isolated_data_dir, sample_db, monkeypatch):
     monkeypatch.setattr(fx_module, "http_fetch", FakeFrankfurter(RATES))
-    runner.invoke(app, ["import-dir", "--no-send", str(FIXTURES)])
+    sample_db(FIXTURES).close()
     return isolated_data_dir
 
 

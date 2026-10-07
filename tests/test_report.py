@@ -9,12 +9,9 @@ import pytest
 from fakes import FakeFrankfurter
 
 from autobill.config import FxConfig
-from autobill.fetch.source import DirectorySource
 from autobill.fx import FxRates, Rate
 from autobill.ledger import month_bounds
-from autobill.pipeline import process
 from autobill.report.monthly import Line, MonthlySummary, monthly_summary, render_text
-from autobill.store.db import connect
 
 FIXTURES = Path(__file__).parent / "fixtures"
 D = Decimal
@@ -22,10 +19,8 @@ RATES = {("USD", "2026-09-02"): "6.7215", ("USD", "2026-09-04"): "6.7109"}
 
 
 @pytest.fixture
-def summary_for(isolated_data_dir):
-    conn = connect(isolated_data_dir / "autobill.db")
-    for mail in DirectorySource(FIXTURES / "abc").iter_new():
-        process(conn, isolated_data_dir, mail)
+def summary_for(sample_db):
+    conn = sample_db(FIXTURES / "abc")
     fx = FxRates(conn, FxConfig(), FakeFrankfurter(RATES))
     return lambda month: monthly_summary(conn, month, fx)
 

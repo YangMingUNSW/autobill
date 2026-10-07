@@ -62,16 +62,9 @@ def reset_fake():
 SAMPLES = [FIXTURES / name for name in ("abc", "abc_2025", "boc", "ccb")]
 
 
-def load(conn, data_dir, folder=None):
-    for source in [folder] if folder else SAMPLES:
-        for mail in DirectorySource(source).iter_new():
-            process(conn, data_dir, mail)
-
-
 @pytest.fixture
-def db(isolated_data_dir):
-    conn = connect(isolated_data_dir / "autobill.db")
-    load(conn, isolated_data_dir)
+def db(sample_db):
+    conn = sample_db(*SAMPLES)
     return conn, FxRates(conn, FxConfig(), FakeFrankfurter(RATES))
 
 
@@ -386,9 +379,8 @@ def test_cycle_complete_agrees_with_the_built_report(db, cycle, today):
     assert cycle_complete(conn, cycle, PORTFOLIO, today) is report(conn, fx, cycle, today).complete
 
 
-def test_statements_arriving_together_share_one_email(isolated_data_dir):
-    conn = connect(isolated_data_dir / "autobill.db")
-    load(conn, isolated_data_dir, FIXTURES / "abc")
+def test_statements_arriving_together_share_one_email(sample_db):
+    conn = sample_db(FIXTURES / "abc")
     fx = FxRates(conn, FxConfig(), FakeFrankfurter(RATES))
     result = send(conn, fx, date(2026, 9, 30))
     assert result.emails == 1 and len(result.sent) == 3

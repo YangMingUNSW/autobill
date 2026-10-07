@@ -14,12 +14,10 @@ from autobill import fx as fx_module
 from autobill.categories.rules import load_rules
 from autobill.cli import app
 from autobill.config import FxConfig, SmtpReportConfig
-from autobill.fetch.source import DirectorySource
 from autobill.fx import FxRates
 from autobill.model import Bill, BillBalance, Transaction, TxnType, make_txn_id
 from autobill.notify.mail import Mailer
 from autobill.notify.reports import send_year_review
-from autobill.pipeline import process
 from autobill.report.charts import trend_svg
 from autobill.report.cycle import MonthBar, Segment
 from autobill.report.cycle_mail import record_sent
@@ -50,19 +48,15 @@ def sent_messages():
     return [m for s in FakeSMTP.instances for m in s.sent]
 
 
-def load_samples(conn, data_dir):
-    # ICBC's samples (two closed accounts, 2025-03 to 2026-06) are left out: these tests are
-    # written around the other banks' months.
-    for name in ("abc", "abc_2025", "boc", "ccb"):
-        for mail in DirectorySource(FIXTURES / name).iter_new():
-            process(conn, data_dir, mail)
+# ICBC's samples (two closed accounts, 2025-03 to 2026-06) are left out: these tests are
+# written around the other banks' months.
+SAMPLES = [FIXTURES / name for name in ("abc", "abc_2025", "boc", "ccb")]
 
 
 @pytest.fixture
-def samples(isolated_data_dir):
+def samples(sample_db):
     """The anonymised sample statements: their 2026 transactions run from May to September."""
-    conn = connect(isolated_data_dir / "autobill.db")
-    load_samples(conn, isolated_data_dir)
+    conn = sample_db(*SAMPLES)
     return conn, FxRates(conn, FxConfig(), FakeFrankfurter(RATES)), load_rules(conn)
 
 
@@ -419,7 +413,7 @@ def test_a_failed_review_is_tried_again_next_run(samples):
 
 
 @pytest.fixture
-def mail_config(isolated_data_dir, monkeypatch):
+def mail_config(isolated_data_dir, sample_db, monkeypatch):
     monkeypatch.setattr(fx_module, "http_fetch", FakeFrankfurter(RATES))
     monkeypatch.setattr("smtplib.SMTP", FakeSMTP)
     monkeypatch.setenv("AUTOBILL_IMAP_PASSWORD", "app-password")
@@ -429,9 +423,7 @@ def mail_config(isolated_data_dir, monkeypatch):
         "    to_addr: me@example.invalid\n",
         encoding="utf-8",
     )
-    conn = connect(isolated_data_dir / "autobill.db")
-    load_samples(conn, isolated_data_dir)
-    return conn
+    return sample_db(*SAMPLES)
 
 
 def test_year_review_prints_the_year_or_writes_it_as_html(mail_config, tmp_path):

@@ -164,19 +164,13 @@ def test_empty_word_keyword_is_ignored():
     assert rules.categorize("anything") == UNCATEGORISED
 
 
-def test_new_rules_cover_most_sample_purchases(isolated_data_dir):
+def test_new_rules_cover_most_sample_purchases(sample_db):
     """The trade words must keep most real purchases out of 未分类 (86 of 181 before;
     186 since the sample of the ABC template until June 2025)."""
-    from autobill.fetch.source import DirectorySource
-    from autobill.pipeline import process
-    from autobill.store.db import connect
-
-    conn = connect(isolated_data_dir / "autobill.db")
     # ICBC's samples are left out: 21 of their 48 purchases are shops the rules do not know
     # yet (on the server the AI categorises them), which says nothing about these words.
-    for name in ("abc", "abc_2025", "boc", "ccb"):
-        for mail in DirectorySource(Path(__file__).parent / "fixtures" / name).iter_new():
-            process(conn, isolated_data_dir, mail)
+    fixtures = Path(__file__).parent / "fixtures"
+    conn = sample_db(*(fixtures / name for name in ("abc", "abc_2025", "boc", "ccb")))
     rules = load_rules()
     rows = conn.execute(
         "SELECT description_raw, merchant FROM transactions WHERE txn_type = 'purchase'"
