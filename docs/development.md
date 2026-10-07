@@ -57,7 +57,7 @@ uv run autobill --help        # 运行程序本身
 公开仓库可以免费使用 GitHub Actions。在 M0 建立 `.github/workflows/ci.yml`，每次推送和开 PR 时自动执行：
 
 1. `uv run ruff check .` 和 `uv run ruff format --check .`；规则在 `pyproject.toml` 的 `[tool.ruff.lint]`，除了基本的错误和风格，还查笼统的 `except Exception`（BLE）、可以简化的写法（SIM、C4、RET）和测试写法（PT）；
-2. `uv run pytest --cov`：顺带统计覆盖率，CI 日志里有一张表（只列没全覆盖的文件），不设门槛；
+2. `uv run pytest`；合并到 main 时加 `--cov` 顺带统计覆盖率，CI 日志里有一张表（只列没全覆盖的文件），不设门槛。PR 上不统计：会让测试慢一倍，PR 的结果要多等四五分钟；
 3. **身份信息扫描**：
    - 用 gitleaks 扫描；
    - 自定义规则：拦截 18 位证件号、11 位手机号、16 位以上的卡号；
