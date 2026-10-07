@@ -124,7 +124,7 @@ def _import(conn, mails) -> list:
 
 
 def _alerts_for(outcomes, known_accounts: set[str]) -> list[alerts.Alert]:
-    """What the author should hear about from this run (docs/notify.md#提醒邮件)."""
+    """What you should hear about from this run (docs/notify.md#提醒邮件)."""
     found: list[alerts.Alert] = []
     for o in outcomes:
         if o.status == "UNRECOGNIZED":

@@ -102,7 +102,7 @@ def _new_profile() -> Path:
     """A throw-away browser profile folder, so printing is independent of any browser window
     the user has open. Not tempfile.TemporaryDirectory: since Python 3.12.4 it makes the
     folder on Windows accessible to the current user only, the browser's sandboxed processes
-    cannot use it, and nothing gets printed (seen with Edge 154, 2026-10-05). Elsewhere the
+    cannot use it, and nothing gets printed (seen with Edge 154). Elsewhere the
     folder stays private to the user, as before."""
     profile = Path(tempfile.gettempdir()) / f"autobill-pdf-{uuid.uuid4().hex[:12]}"
     if os.name == "nt":

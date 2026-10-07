@@ -39,12 +39,12 @@ class SmtpReportConfig(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    enabled: bool = False  # off until the author has filled in a real mailbox
+    enabled: bool = False  # off until a real mailbox is filled in
     smtp_server: str = ""
     smtp_port: int = 465
     security: Literal["ssl", "starttls"] = "ssl"  # 465 = ssl (QQ/163); 587 = starttls (iCloud)
     username: str = ""  # the sending (central) mailbox
-    to_addr: str = ""  # the author's primary mailbox
+    to_addr: str = ""  # your primary mailbox
 
     @property
     def ready(self) -> bool:
@@ -87,7 +87,7 @@ class StatementConfig(BaseModel):
 
     output_dir: str | None = None  # default: <data dir>/statements
     pdf_browser: str | None = None  # Edge/Chrome executable; found automatically if unset
-    # Attach each new statement's PDF to the progress e-mail. Off by default (2026-09-19):
+    # Attach each new statement's PDF to the month's e-mail. Off by default:
     # the original statements are in the mailbox anyway, and printing needs a browser,
     # which the Docker image does not carry.
 

@@ -14,7 +14,7 @@ only the letters and digits kept ("mcdonalds"). A whole-word keyword is compared
 word instead; there, anything but a letter or digit separates words, and so do Chinese
 characters and kana, which have no spaces between words.
 
-The author's rules.yaml comes first and the built-in rules after it, so the author's own
+Your rules.yaml comes first and the built-in rules after it, so your own
 keywords win and every built-in keyword still applies. A merchant no rule matches may
 still have an AI answer (autobill/classify.py), used last.
 
@@ -158,7 +158,7 @@ def default_rules_text() -> str:
 
 
 def load_rules(conn: sqlite3.Connection | None = None) -> Rules:
-    """The author's rules.yaml (if present) first, then the built-in rules (identical to
+    """Your rules.yaml (if present) first, then the built-in rules (identical to
     rules.example.yaml in the repository); with `conn`, then the stored AI answers. A
     merchant the AI could not place is 其他: it was asked once and is not asked again."""
     rules = Rules.from_yaml(default_rules_text(), "built-in rules")

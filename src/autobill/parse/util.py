@@ -173,7 +173,7 @@ def parse_directed_amount(text: str, *, blank_is_zero: bool = False) -> tuple[De
     The label gives the direction, so the amount itself must not carry a sign.
     A blank cell (when allowed) is zero and reported as DEBIT. So is a bare zero: BOC
     prints an exactly-zero balance as plain "0.00", since zero has no direction (seen on
-    the author's 2025-12 to 2026-02 statements). A bare non-zero amount is still an error.
+    real statements). A bare non-zero amount is still an error.
     """
     s = _clean(text)
     if s in _BLANK_AMOUNTS and blank_is_zero:

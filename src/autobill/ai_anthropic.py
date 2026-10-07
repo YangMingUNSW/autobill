@@ -124,7 +124,7 @@ class AnthropicClassifier:
     ) -> dict[str, Verdict]:
         body: dict = {
             "model": self.model,
-            # DeepSeek thinks before answering: better answers, and on the author's data up
+            # DeepSeek thinks before answering: better answers, and on real data up
             # to ~1,000 tokens a merchant. A cut-off batch is split and asked again.
             "max_tokens": min(MAX_OUTPUT, 4000 + 1500 * len(merchants)),
             "temperature": 0,

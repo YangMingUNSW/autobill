@@ -12,7 +12,7 @@ Checks:
     message/rfc822 parts and PDF attachments, because base64 bodies hide
     their content from a plain text search.
 
-  * Private terms (local only): the author's own list of strings that must never be
+  * Private terms (local only): your own list of strings that must never be
     committed - real card last-4 digits, mailbox addresses, names - read from
     private-terms.txt in the AutoBill data directory (or AUTOBILL_PRIVATE_TERMS). The
     list itself never enters the repository; CI, which has no list, skips this check.

@@ -63,7 +63,7 @@ TYPE_EMOJI = {
     "分期本金": "📅",
     "调整": "🧮",
 }
-DEFAULT_EMOJI = "🔖"  # a category the author added to rules.yaml
+DEFAULT_EMOJI = "🔖"  # a category of your own in rules.yaml
 
 
 def emoji_for(category: str, tag: str = "") -> str:

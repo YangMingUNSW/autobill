@@ -29,7 +29,7 @@ What each check can and cannot do, since the buckets are only worth as much as t
     WeChat or Alipay payment prints the channel in the description, so the name travels
     with a word from that list.
   * "No transaction has this name as a merchant" only catches rows whose `merchant` column
-    is NULL. On the author's data 195 of 1,807 transactions store the whole raw description
+    is NULL. On real data 195 of 1,807 transactions store the whole raw description
     in `merchant` instead, and those rows pass this check - hence the raw-description test
     in the review bucket above.
   * Neither check knows a personal name written in Latin letters (a sole trader billing
@@ -196,7 +196,7 @@ def split(
 
 
 def remarks(item: Export) -> list[str]:
-    """What the author needs to know about this line beyond the fields themselves."""
+    """What you need to know about this line beyond the fields themselves."""
     out = []
     if item.variants > 1:
         out.append(f"覆盖 {item.variants} 种写法")

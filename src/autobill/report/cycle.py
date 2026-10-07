@@ -6,9 +6,8 @@ the statement date, as the banks name their statements. The month's e-mail goes 
 every card is accounted for - issued, or more than GRACE past its usual day ("可能无账单")
 - and covers all of them: amount due and due date per card, due dates in order, the
 categories across every card, and a summary of each new statement. Until then the month's
-statements wait, so the author gets one e-mail a month instead of one per card
-(2026-09-20; a delivered e-mail cannot be corrected, so only the final one is worth
-sending).
+statements wait, so you get one e-mail a month instead of one per card (a delivered
+e-mail cannot be corrected, so only the final one is worth sending).
 
 A month that gets a second e-mail - a statement arriving late, or `autobill resend` after
 a fix - shares the first one's subject and points at it with In-Reply-To and References,
@@ -280,11 +279,10 @@ def trend_svg(bars: list[MonthBar], name: str = "") -> Markup:
     """One column per statement month, Apple Card's monthly activity: this month in the
     accent, the months before in grey (emphasis, not categories). Marks follow the dataviz
     spec: 4px rounded top, square base, one hairline baseline. Every month's value is
-    written over its column (2026-09-29, the author: the difference should read in
-    numbers too), this month's in the label colour and bold, the others in grey; they are
-    also in the aria-label and the plain-text part. A month without statements is a dash,
-    so the months stay evenly spaced. `name` is what the aria-label calls the chart
-    (default "近 6 期消费")."""
+    written over its column (the difference should read in numbers too), this month's in the
+    label colour and bold, the others in grey; they are also in the aria-label and the
+    plain-text part. A month without statements is a dash, so the months stay evenly spaced.
+    `name` is what the aria-label calls the chart (default "近 6 期消费")."""
     if not bars:
         return Markup("")
     # viewBox units: text is sized ~20 so it is ~11px when a phone scales 600 to ~330.
@@ -426,7 +424,7 @@ def _amount_text(bill: Bill, view: StatementView) -> str:
 
 
 def _amount_orig(bill: Bill, view: StatementView) -> str:
-    """What a foreign card itself asks for, next to the converted CNY: the author repays
+    """What a foreign card itself asks for, next to the converted CNY: you repay
     the bank in that currency, so the number the bank shows has to be in the e-mail too."""
     if view.nothing_due or view.due_cny is None:  # nothing owed, or the CNY is missing and
         return ""  # _amount_text already shows the original
@@ -558,8 +556,8 @@ def latest_bills(conn: sqlite3.Connection, cycle: str) -> dict[str, int]:
 
 def statement_window(conn: sqlite3.Connection, bill: Bill) -> tuple[date, date] | None:
     """The days a statement covers: its printed period, or (BOC prints only the statement
-    date) from the day after the card's statement before it, as every BOC statement of
-    the author's runs (32 of them in the database, 2026-10-06). Without that one, the
+    date) from the day after the card's statement before it, as every BOC statement on
+    record runs (32 of them were checked). Without that one, the
     card's first or with a month missing, from its first purchase. None: neither."""
     if bill.period_start and bill.period_end:
         return bill.period_start, bill.period_end

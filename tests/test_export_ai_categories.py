@@ -80,7 +80,7 @@ def test_payment_channel_names_are_held_back(merchant):
 @pytest.mark.parametrize("merchant", [PERSON, PERSON3, "古茗", "海底捞"])
 def test_bare_chinese_names_wait_for_the_author(merchant):
     """Two or three Chinese characters is the shape of a person AND of many chains, so
-    these are neither exported nor dropped: the author sorts them with --review."""
+    these are neither exported nor dropped: you sort them with --review."""
     conn = db([(merchant, "餐饮", "high", None)])
     safe, review, held = split(ex.rows_of(conn))
     assert safe == [], f"{merchant} 不该自动公开"
@@ -113,7 +113,7 @@ def test_a_raw_description_is_held_even_when_it_looks_like_a_shop():
 
 def test_a_chinese_description_stored_as_the_merchant_waits_for_the_author():
     """The parser stores the whole description in `merchant` when it cannot split a shop
-    out (195 of 1,807 transactions on the author's data), so "no transaction has this
+    out (195 of 1,807 transactions on real data), so "no transaction has this
     merchant" does not catch those. A Chinese one could have a person's name in it."""
     conn = db(
         [("网上消费 某某商户", "餐饮", "high", None)],
@@ -198,7 +198,7 @@ def test_cleaning_never_turns_a_held_name_into_an_exported_one():
 
 
 def test_cleaning_can_uncover_a_bare_personal_name():
-    """ "网上消费 李四" cleans to "李四", which is for the author to judge, not to publish."""
+    """ "网上消费 李四" cleans to "李四", which is for you to judge, not to publish."""
     conn = db([(f"网上消费 {PERSON}", "餐饮", "high", None)])
     safe, review, _ = split(ex.rows_of(conn))
     assert safe == [] and len(review) == 1
@@ -207,7 +207,7 @@ def test_cleaning_can_uncover_a_bare_personal_name():
 
 def test_a_transaction_number_is_flagged_but_not_cut_off():
     """Cutting "TOTAL 4375372" down to "TOTAL" would make exactly the kind of ambiguous
-    keyword the rules deliberately leave out, so the author decides."""
+    keyword the rules deliberately leave out, so you decide."""
     conn = db([("TOTAL 4375372", "交通", "high", "FR")])
     safe, _, _ = split(ex.rows_of(conn))
     assert [e.name for e in safe] == ["TOTAL 4375372"] and safe[0].noisy

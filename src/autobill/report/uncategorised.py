@@ -65,7 +65,7 @@ def uncategorised_merchants(
 
 
 def rules_snippet(unknowns: list[Unknown]) -> str:
-    """YAML to paste into rules.yaml: each merchant listed for the author to sort."""
+    """YAML to paste into rules.yaml: each merchant listed for you to sort."""
     out = [
         "# 复制到 rules.yaml（数据目录里没有这个文件就新建一个；内置规则照样生效）。",
         '# 可以把商户名改短，或者改成通用词，比如 "word:KELLYS"。见 docs/notify.md#分类规则',

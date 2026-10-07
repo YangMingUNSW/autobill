@@ -159,7 +159,7 @@ def test_due_total_adds_the_issued_statements_in_cny(db):
 
 
 def test_a_foreign_card_shows_what_the_bank_itself_asks_for(db):
-    """The CNY figure is a conversion; the author repays the bank in its own currency."""
+    """The CNY figure is a conversion; you repay the bank in its own currency."""
     conn, fx = db
     r = report(conn, fx, cycle="2025-06", today=date(2025, 7, 30))
     boc = next(c for c in r.cards if c.bank == "中国银行" and c.amount_orig)
@@ -253,7 +253,7 @@ def test_the_footer_names_the_version_that_made_the_email(db, monkeypatch):
         assert f"版本 {__version__} (15fe0d7)" in msg.get_body((body,)).get_content(), body
 
 
-# --- a bill, not a calendar month (2026-10-06) -------------------------------------------
+# --- a bill, not a calendar month -------------------------------------------------------
 
 
 def test_the_month_is_called_a_bill_and_says_when_its_money_was_spent(db):
@@ -298,7 +298,7 @@ def test_a_month_without_spending_names_no_days(db):
 
 def test_a_statement_without_a_printed_period_starts_after_the_one_before(db):
     """BOC prints only the statement date. Each of its statements starts the day after the
-    card's statement before it, as the author's database shows; without that one (the
+    card's statement before it, as real statements show; without that one (the
     card's first, or a month missing) it starts at its first purchase."""
     conn, fx = db
     june = {b.account_id: b for b in (load_bill(conn, i) for i in ids(conn, "2025-06"))}
@@ -415,7 +415,7 @@ def test_a_late_statement_continues_the_conversation(isolated_data_dir):
 def test_a_late_statement_with_nothing_on_it_gets_no_email(db):
     """A card on a later statement day issues an empty statement after the month's e-mail
     went out (nothing spent, nothing to pay): it counts as reported without an e-mail of
-    its own (2026-10-06). The month's next e-mail still shows it."""
+    its own. The month's next e-mail still shows it."""
     conn, fx = db
     send(conn, fx, date(2026, 9, 30))  # September goes out without the BOC cards
     before = len(sent_messages())
@@ -503,7 +503,7 @@ def test_every_transaction_is_in_the_email_but_folded_away(db):
     ).fetchone()[0]
     assert len(lines) == counts == 7 + 119 + 8
     assert html.count('id="tx"') == 1  # all three cards in one list now
-    # closed by default: a grid row of height 0 that opens on the spring (2026-09-29)
+    # closed by default: a grid row of height 0 that opens on the spring
     assert ".pan { display: grid; grid-template-rows: 0fr;" in html
     assert ".acc:checked + label + .pan { grid-template-rows: 1fr; }" in html
     toggle = r'<input type="checkbox" id="tx" class="acc">\s*<label for="tx"[^>]*>'
@@ -541,7 +541,7 @@ def test_the_trend_chart_highlights_this_month_and_writes_every_value(db):
     assert [b.value > 0 for b in r.trend[2:5]] == [True, False, False]
     assert chart.count('class="bar"') == 1 and chart.count('class="bar now"') == 1
     assert chart.count('class="gap"') == 2  # April and May have no statements: a dash
-    # every month with statements has its value over it (2026-09-29), this month's stands out
+    # every month with statements has its value over it, this month's stands out
     assert chart.count('class="value now"') == 1
     assert chart.count('class="value"') == sum(1 for b in r.trend[:-1] if b.value is not None)
     for bar in r.trend:

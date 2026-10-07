@@ -1,4 +1,4 @@
-"""ICBC parser (docs/banks/icbc.md): the author's anonymised statements of two accounts,
+"""ICBC parser (docs/banks/icbc.md): anonymised real statements of two accounts,
 2025-03 to 2026-06, plus edits of them for cases they do not cover."""
 
 import dataclasses
