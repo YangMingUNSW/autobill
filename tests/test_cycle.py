@@ -15,7 +15,8 @@ from autobill.config import FxConfig, PortfolioCard, SmtpReportConfig
 from autobill.fetch.source import DirectorySource
 from autobill.fx import FxRates
 from autobill.notify.mail import Mailer
-from autobill.pipeline import process, send_pending_reports
+from autobill.notify.reports import send_pending_reports
+from autobill.pipeline import process
 from autobill.report.charts import donut_svg
 from autobill.report.cycle import (
     MonthTotals,

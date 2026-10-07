@@ -16,20 +16,14 @@ from autobill.categorize import load_rules
 from autobill.classify import classify_merchants, forget_unsure
 from autobill.config import data_dir, load_config
 from autobill.fetch.imap import PASSWORD_ENV as IMAP_PASSWORD_ENV
-from autobill.fetch.imap import ImapSource, Mailbox, MailboxError, imap_password
-from autobill.fetch.mime import split_forwarded
-from autobill.fetch.source import DirectorySource, RawMail
+from autobill.fetch.imap import MailboxError
+from autobill.fetch.source import DirectorySource
 from autobill.fx import FxRates
 from autobill.ledger import CHINA, month_bounds
-from autobill.notify import alerts
 from autobill.notify.mail import PASSWORD_ENV, Mailer, smtp_password
 from autobill.pipeline import (
-    outdated_emails,
-    process,
     record_parsers,
     reparse,
-    send_pending_reports,
-    send_year_review,
 )
 from autobill.report.cycle_mail import build_cycle_email, preview_cycle_html, record_sent
 from autobill.report.monthly import monthly_summary, render_text
@@ -38,7 +32,16 @@ from autobill.report.statement import render_statement_html
 from autobill.report.uncategorised import rules_snippet, uncategorised_merchants
 from autobill.report.year import build_year_report
 from autobill.report.year_mail import build_year_email, render_year_html, year_plain_text
-from autobill.store.db import connect, load_bill
+from autobill.service import (
+    NotReady,
+    import_mails,
+    open_database,
+    open_mailbox,
+    report_mailer,
+    run_once,
+    send_reports,
+)
+from autobill.store.db import load_bill
 from autobill.suggest import SuggesterUnavailable, get_suggester
 
 _sleep = time.sleep  # tests replace it
@@ -69,10 +72,6 @@ def main(
     """AutoBill: summarise credit-card statement e-mails into spending reports."""
 
 
-def _db():
-    return connect(data_dir() / "autobill.db")
-
-
 @app.command("import-dir")
 def import_dir(
     path: Annotated[Path, typer.Argument(help="Directory of .eml files (searched recursively).")],
@@ -81,71 +80,15 @@ def import_dir(
     ] = True,
 ) -> None:
     """Import every .eml file in a directory (offline; e-mails already imported are skipped)."""
-    conn = _db()
-    if not _import(conn, DirectorySource(path).iter_new()):
+    conn = open_database()
+    if not import_mails(conn, DirectorySource(path).iter_new(), typer.echo):
         typer.echo("目录里没有 .eml 文件")
     typer.echo(f"数据目录：{data_dir()}")
     if send:
-        _send_reports(conn)
+        if not send_reports(conn, typer.echo):
+            raise typer.Exit(1)
     else:
         typer.echo("按 --no-send 的要求，没有发送报表邮件。")
-
-
-def _import(conn, mails) -> list:
-    """Process each mail (forwarded-as-attachment ones unwrapped first); print one line per
-    original e-mail and a summary. Returns the outcomes."""
-    aliases = load_config().cards.card_aliases
-    counts: dict[str, int] = {}
-    outcomes = []
-    for mail in mails:
-        parts = split_forwarded(mail.data)
-        for i, data in enumerate(parts):
-            source = mail.source if len(parts) == 1 else f"{mail.source}#{i + 1}"
-            outcome = process(conn, data_dir(), RawMail(data, source), aliases)
-            outcomes.append(outcome)
-            counts[outcome.status] = counts.get(outcome.status, 0) + 1
-            name = source.rsplit("/", 1)[-1]
-            accounts = ", ".join(b.account_id for b in outcome.bills)
-            detail = accounts or outcome.error or ""
-            typer.echo(f"{outcome.status:<12} {name}  {detail}")
-    if counts:
-        summary = "，".join(f"{status} {n}" for status, n in sorted(counts.items()))
-        typer.echo("")
-        typer.echo(f"共 {sum(counts.values())} 封：{summary}")
-    return outcomes
-
-
-def _alerts_for(outcomes, known_accounts: set[str]) -> list[alerts.Alert]:
-    """What you should hear about from this run (docs/notify.md#提醒邮件)."""
-    found: list[alerts.Alert] = []
-    for o in outcomes:
-        if o.status == "UNRECOGNIZED":
-            found.append(alerts.unrecognized(o.message_id, o.subject, o.from_addr))
-        elif o.status == "FAILED":
-            found.append(alerts.failed(o.message_id, o.subject, o.bank, o.error))
-        # On the very first import every card is new: that is not news.
-        if known_accounts:
-            for bill in o.bills:
-                if bill.account_id not in known_accounts:
-                    found.append(alerts.new_card(bill.account_id))
-    return found
-
-
-def _mailbox(config) -> Mailbox:
-    """The configured central mailbox, or exit saying what is missing."""
-    fetcher = config.mail_fetcher
-    if not fetcher.ready:
-        typer.echo("还没有配置收账单的邮箱（config.yaml 的 mail_fetcher），见 docs/setup.md。")
-        raise typer.Exit(1)
-    if fetcher.bad_folders:
-        names = "、".join(fetcher.bad_folders)
-        typer.echo(f"文件夹名只能用英文和数字（{names}），请在邮箱里改名，比如 AutoBill。")
-        raise typer.Exit(1)
-    password = imap_password()
-    if password is None:
-        typer.echo(f"没有找到环境变量 {IMAP_PASSWORD_ENV}（App 专用密码或授权码）。")
-        raise typer.Exit(1)
-    return Mailbox(fetcher, password)
 
 
 @app.command("check-mailbox")
@@ -154,7 +97,7 @@ def check_mailbox() -> None:
     config = load_config()
     ok = True
     try:
-        with _mailbox(config) as box:
+        with open_mailbox(config) as box:
             typer.echo(f"✓ 收信邮箱登录成功：{config.mail_fetcher.username}")
             wanted = config.mail_fetcher.folders
             found, missing = box.resolve(wanted)
@@ -167,6 +110,9 @@ def check_mailbox() -> None:
             if not found:
                 ok = False
                 typer.echo("✗ 配置的文件夹一个都没找到。检查 config.yaml 的 mail_fetcher.folders。")
+    except NotReady as exc:
+        typer.echo(str(exc))
+        raise typer.Exit(1) from None
     except MailboxError as exc:
         typer.echo(f"✗ 收信邮箱：{exc}")
         typer.echo("  检查 imap_server、username 和 App 专用密码（改过 Apple ID 密码要重新生成）")
@@ -188,6 +134,12 @@ def check_mailbox() -> None:
     if not ok:
         raise typer.Exit(1)
     typer.echo("全部正常。")
+
+
+def _run_once(send: bool = True, rescan: bool = False) -> int:
+    """One run with its lines printed; `run` and `serve` share it (and serve's tests
+    replace it)."""
+    return run_once(send=send, rescan=rescan, say=typer.echo)
 
 
 @app.command()
@@ -221,9 +173,7 @@ def serve(
         started = datetime.now(CHINA).strftime("%Y-%m-%d %H:%M")
         typer.echo(f"—— {started}（北京时间）开始运行 ——")
         try:
-            code = _run_once()
-        except typer.Exit as exc:  # e.g. no mailbox configured yet: say so, keep waiting
-            code = exc.exit_code
+            code = _run_once()  # not configured yet: it says so and returns 1
         except Exception:  # noqa: BLE001 - one bad run must not stop the service
             traceback.print_exc()
             code = 1
@@ -232,170 +182,6 @@ def serve(
             raise typer.Exit(code)
         typer.echo(f"下次运行在 {interval} 分钟后。")
         _sleep(interval * 60)
-
-
-def _run_once(send: bool = True, rescan: bool = False) -> int:
-    """One fetch-process-report cycle, shared by run and serve. Returns the exit code."""
-    config = load_config()
-    conn = _db()
-    if rescan:
-        # Harmless: e-mails already processed are skipped by Message-ID; failed ones retried.
-        conn.execute("DELETE FROM folder_cursors")
-        typer.echo("从头重读文件夹：处理过的邮件会跳过，之前失败或不认识的会重新处理。")
-    known = {r[0] for r in conn.execute("SELECT DISTINCT account_id FROM bills")}
-    _reparse_outdated(conn, config, known)
-    try:
-        with _mailbox(config) as box:
-            alerts.clear(conn, "mailbox", "login")  # logged in: an old login alert is over
-            source = ImapSource(box, conn)
-            outcomes = _import(conn, source.iter_new())
-            total = len(outcomes)
-            alerts.record(conn, _alerts_for(outcomes, known))
-            if source.stats.missing_folders:
-                names = "、".join(source.stats.missing_folders)
-                typer.echo(f"邮箱里还没有这些文件夹，已跳过：{names}")
-            skipped = "，".join(f"{why} {n} 封" for why, n in source.stats.skipped.items())
-            line = f"邮箱里的新邮件 {source.stats.seen} 封，处理了 {total} 封"
-            typer.echo(line + (f"；跳过：{skipped}" if skipped else ""))
-    except MailboxError as exc:
-        typer.echo(f"收信失败：{exc}")
-        alerts.record(conn, [alerts.mailbox(str(exc))])
-        if send:
-            _send_alerts(conn)  # may fail too when both use the same password
-        return 1
-    waiting = _auto_classify(conn, config)
-    if not send:
-        typer.echo("按 --no-send 的要求，没有发送报表和提醒邮件。")
-        return 0
-    if waiting:  # the e-mails would show these merchants as 未分类: send them once all are asked
-        typer.echo(
-            f"AI 分类还有 {waiting} 个新商户排着队（每轮问 {config.ai.per_run} 个）："
-            "账单邮件等全部分完再发。"
-        )
-        _send_alerts(conn)
-        return 0
-    try:
-        _send_reports(conn)
-    except typer.Exit as exc:  # a report could not be sent; it is retried next run
-        _send_alerts(conn)
-        return exc.exit_code
-    _send_alerts(conn)
-    return 0
-
-
-def _reparse_outdated(conn, config, known: set[str]) -> None:
-    """After an update that changed a parser, read again the stored e-mails it would read
-    differently, so no `reparse` by hand (docs/pipeline.md#运行层). Bills keep reported_at,
-    so nothing is sent twice; a statement read for the first time is reported as new."""
-    outdated = outdated_emails(conn)
-    if outdated.email_ids:
-        aliases = config.cards.card_aliases
-        outcomes = [reparse(conn, data_dir(), i, aliases) for i in outdated.email_ids]
-        counts: dict[str, int] = {}
-        for o in outcomes:
-            counts[o.status] = counts.get(o.status, 0) + 1
-        why = "、".join(outdated.changed)
-        why = f"解析器更新了（{why}）" if why else "有账单是旧版解析器读的"
-        summary = "，".join(f"{status} {n}" for status, n in sorted(counts.items()))
-        typer.echo(f"{why}：重新解析了 {len(outcomes)} 封：{summary}。")
-        alerts.record(conn, _alerts_for(outcomes, known))
-    if outdated.changed:
-        record_parsers(conn)
-
-
-def _auto_classify(conn, config) -> int:
-    """Let the AI classify new merchants before the reports are built (ai.auto_classify).
-    A failure is alerted once and never stops the run: those merchants stay 未分类.
-
-    Returns how many new merchants are still waiting for a later run (ai.per_run) when
-    this run asked some and went well; the reports wait for them, so a batch of history
-    never goes out full of 未分类 (docs/notify.md#ai-分类). 0 when the AI is off, failed
-    or asked nothing: the reports are never held by an AI that is not getting anywhere."""
-    if not (config.ai.provider and config.ai.auto_classify):
-        return 0
-    try:
-        suggester = get_suggester(config.ai)
-    except SuggesterUnavailable as exc:
-        typer.echo(f"AI 分类没有完成：{exc}")
-        alerts.record(conn, [alerts.ai(str(exc))])
-        return 0
-    result = classify_merchants(conn, suggester, load_rules(conn), config.ai)
-    if result.verdicts:
-        line = f"AI 分类：问了 {len(result.verdicts)} 个新商户，分好 {len(result.used)} 个"
-        typer.echo(line + (f"，还有 {result.left} 个下次再问" if result.left else ""))
-    if result.error is not None:
-        typer.echo(f"AI 分类没有完成：{result.error}")
-        alerts.record(conn, [alerts.ai(str(result.error))])
-        return 0
-    alerts.clear(conn, "ai", "error")
-    return result.left if result.verdicts else 0
-
-
-def _send_alerts(conn) -> None:
-    """E-mail pending alerts, if a mailbox is configured; failures are reported, not raised."""
-    config = load_config()
-    smtp = config.notifier.smtp_report
-    password = smtp_password()
-    waiting = len(alerts.pending(conn))
-    if not waiting:
-        return
-    if not smtp.ready or password is None:
-        typer.echo(f"有 {waiting} 条提醒，但没有配置发信，这次没发出去。")
-        return
-    try:
-        n = alerts.send_pending(conn, Mailer(smtp, password))
-        typer.echo(f"已发送提醒邮件（{n} 条提醒），收件人 {smtp.to_addr}。")
-    except (smtplib.SMTPException, OSError) as exc:
-        typer.echo(f"提醒邮件发送失败：{type(exc).__name__}: {exc}。下次运行会再发。")
-
-
-def _mailer(config) -> Mailer | None:
-    """The mailer for reports, or None with the reason printed."""
-    smtp = config.notifier.smtp_report
-    if not smtp.ready:
-        typer.echo("没有配置报表邮箱（config.yaml 的 notifier.smtp_report），这次不发送报表。")
-        return None
-    password = smtp_password()
-    if password is None:
-        missing = f"{PASSWORD_ENV} 或 {IMAP_PASSWORD_ENV}"
-        typer.echo(f"没有找到环境变量 {missing}（邮箱密码），这次不发送报表。")
-        return None
-    return Mailer(smtp, password)
-
-
-def _send_reports(conn) -> None:
-    """E-mail every statement month that is complete and not reported yet, then last
-    year's review once its January has gone out complete."""
-    config = load_config()
-    mailer = _mailer(config)
-    if mailer is None:
-        return
-    fx, rules = FxRates(conn, config.fx), load_rules(conn)
-    result = send_pending_reports(
-        conn,
-        mailer,
-        fx,
-        rules,
-        portfolio=config.cards.portfolio,
-        backup=config.backup,
-    )
-    sent = f"已发送报表邮件 {result.emails} 封（新账单 {len(result.sent)} 份）"
-    typer.echo(f"{sent}，收件人 {mailer.config.to_addr}。")
-    if result.quiet:
-        quiet = len(result.quiet)
-        typer.echo(f"另有 {quiet} 份迟到的账单没有消费、也不用还钱，已记下，不单独发邮件。")
-    for cycle, error in result.backup_errors:
-        typer.echo(f"数据库备份失败（{cycle} 账单月）：{error}。报表照常发出，下个月会再备份。")
-    if result.failed:
-        cycle, error = result.failed
-        typer.echo(f"发送失败（{cycle} 账单月）：{error}。没发出去的下次运行会再发。")
-        raise typer.Exit(1)
-    year, error = send_year_review(conn, mailer, fx, rules)
-    if error is not None:
-        typer.echo(f"{year} 年度回顾发送失败：{error}。下次运行会再发。")
-        raise typer.Exit(1)
-    if year is not None:
-        typer.echo(f"已发送 {year} 年度回顾，收件人 {mailer.config.to_addr}。")
 
 
 @app.command()
@@ -408,7 +194,7 @@ def resend(
     were 未分类 when the month's e-mail went out. The new e-mail joins the same
     conversation; which statements count as reported does not change.
     """
-    conn = _db()
+    conn = open_database()
     try:
         month_bounds(cycle)
     except ValueError as exc:
@@ -418,7 +204,7 @@ def resend(
     ).fetchone():
         raise typer.BadParameter(f"{cycle} 没有出账的账单。")
     config = load_config()
-    mailer = _mailer(config)
+    mailer = report_mailer(config, typer.echo)
     if mailer is None:
         raise typer.Exit(1)
     message, report = build_cycle_email(
@@ -447,7 +233,7 @@ def preview_email(
     ] = None,
 ) -> None:
     """Write the next progress e-mail of a statement month as an HTML file (sends nothing)."""
-    conn = _db()
+    conn = open_database()
     if cycle is None:
         row = conn.execute("SELECT MAX(statement_date) FROM bills").fetchone()
         if row[0] is None:
@@ -487,7 +273,7 @@ def year_review(
     It goes out by itself once a year (docs/notify.md#年度回顾); --send is for looking at
     the year so far on the phone, or for sending it again after a fix, and is not recorded.
     """
-    conn = _db()
+    conn = open_database()
     has_spending = conn.execute(
         "SELECT 1 FROM transactions WHERE substr(trans_date, 1, 4) = ?", (str(year),)
     ).fetchone()
@@ -497,7 +283,7 @@ def year_review(
     fx, rules = FxRates(conn, config.fx), load_rules(conn)
     mailer = None
     if send:
-        mailer = _mailer(config)
+        mailer = report_mailer(config, typer.echo)
         if mailer is None:
             raise typer.Exit(1)
         message, report = build_year_email(
@@ -529,7 +315,7 @@ def report(
         month_bounds(month)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from None
-    conn = _db()
+    conn = open_database()
     summary = monthly_summary(conn, month, FxRates(conn, load_config().fx))
     typer.echo(render_text(summary))
 
@@ -541,7 +327,7 @@ def reparse_command(
     ] = False,
 ) -> None:
     """Parse stored e-mails again with the current parsers and card aliases (after a fix)."""
-    conn = _db()
+    conn = open_database()
     aliases = load_config().cards.card_aliases
     query = "SELECT id FROM emails"
     if not every:
@@ -576,7 +362,7 @@ def uncategorised(
             month_bounds(cycle)
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from None
-    conn = _db()
+    conn = open_database()
     config = load_config()
     rules = load_rules(conn)  # merchants the AI has classified are not listed
     unknowns = uncategorised_merchants(conn, FxRates(conn, config.fx), rules, cycle)
@@ -610,7 +396,7 @@ def classify(
     ] = None,
 ) -> None:
     """Classify merchants the rules miss with the configured AI (see docs/notify.md)."""
-    conn = _db()
+    conn = open_database()
     config = load_config()
     ai = config.ai if searches is None else config.ai.model_copy(update={"max_searches": searches})
     try:
@@ -664,7 +450,7 @@ def statement(
     """Write standard statements (one unified HTML + PDF per bill, every transaction)."""
     if not every and not account:
         raise typer.BadParameter("请用 --account 指定一张卡，或用 --all 生成全部账单。")
-    conn = _db()
+    conn = open_database()
     query, args = "SELECT id, account_id, statement_date FROM bills", []
     conditions = []
     if account:

@@ -1,6 +1,6 @@
 # 处理流水线、去重与部署
 
-对应代码：`autobill/pipeline.py`、`autobill/store/`、`autobill/cli.py`。
+对应代码：`autobill/pipeline.py`（一封邮件进数据库）、`autobill/store/`、`autobill/service.py`（一次运行的各个步骤）、`autobill/notify/reports.py`（什么时候发报表）、`autobill/cli.py`（命令行，只读参数、调用、打印）。
 
 ## 状态机
 **原则**：fetch → process → report 三段，每段都幂等、都可以重跑。任何一步崩溃，下次运行都能从数据库状态接着处理。
@@ -26,7 +26,7 @@ FETCHED ──解析通过──▶ OK / WARN / UNVERIFIED ──▶ 发报表�
   - 整体替换这份账单的流水；
   - 更新 `emails.status`。
 - **report**：给还没有 `reported_at` 的账单发报表邮件，发送成功后再写入 `reported_at`。这样重复运行不会重发；发送失败的，下次运行会再发一次。
-  - 实现在 `pipeline.send_pending_reports()`（M7；M7c 改为按账单月，2026-09-20 改为收齐才发）：还没报告的账单按账单月分组，**这个月收齐了才发一封**（每张应有的卡已出账或已超时），没收齐就先攒着；不同账单月从早到晚各一封（见 [notify.md](notify.md#账单月邮件)）。**遇到第一次失败就停下**（授权码错或服务器不通时，后面的也都会失败），命令以非零状态退出。
+  - 实现在 `notify/reports.py` 的 `send_pending_reports()`（M7；M7c 改为按账单月，2026-09-20 改为收齐才发）：还没报告的账单按账单月分组，**这个月收齐了才发一封**（每张应有的卡已出账或已超时），没收齐就先攒着；不同账单月从早到晚各一封（见 [notify.md](notify.md#账单月邮件)）。**遇到第一次失败就停下**（授权码错或服务器不通时，后面的也都会失败），命令以非零状态退出。
   - 邮件发出后，在同一个事务里写 `reported_at` 和 `cycle_threads`（这个月已发邮件的 Message-ID，用来折叠对话）。
   - 以后接 IMAP 回填 12 个月历史账单时，每个账单月一封，大约 12 封。M8 再决定要不要先 `--no-send` 导入。
 

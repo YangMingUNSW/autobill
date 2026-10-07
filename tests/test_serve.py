@@ -1,7 +1,6 @@
 """`autobill serve` (the Docker default): keeps running, one bad run never stops it."""
 
 import pytest
-import typer
 from typer.testing import CliRunner
 
 from autobill import cli
@@ -43,7 +42,7 @@ def test_a_crashing_run_does_not_stop_the_service(monkeypatch, sleeps):
 
 def test_not_configured_yet_keeps_waiting(monkeypatch, sleeps):
     def not_ready():
-        raise typer.Exit(1)  # what _mailbox does when config.yaml has no mailbox yet
+        return 1  # what run_once does when config.yaml has no mailbox yet
 
     monkeypatch.setattr(cli, "_run_once", not_ready)
     result = runner.invoke(app, ["serve", "--times", "2"])
