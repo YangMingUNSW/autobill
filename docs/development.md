@@ -61,9 +61,12 @@ uv run autobill --help        # 运行程序本身
 3. **身份信息扫描**：
    - 用 gitleaks 扫描；
    - 自定义规则：拦截 18 位证件号、11 位手机号、16 位以上的卡号；
-   - `.eml`、`.pdf` 只允许出现在 `tests/fixtures/` 下。
+   - `.eml`、`.pdf` 只允许出现在 `tests/fixtures/` 下；
+4. **Docker 镜像**：前三项都通过才构建。PR 上只构建并冒烟测试，合并到 main 和打版本标签时发布到 ghcr.io。
 
-任何一项不通过，PR 就不能合并。本地的 pre-commit 跑的是同一套检查（前两项和身份扫描），这样在提交之前就能发现问题。
+这些都在同一个工作流里，所以每个 PR、每次合并到 main 都只有一个结果，GitHub 只发一条通知（App 推送）。
+
+前三项是 main 的分支保护要求的，任何一项不通过，PR 就不能合并；镜像那一步不在要求里，失败了会在同一条通知里看到。本地的 pre-commit 跑的是同一套检查（前两项和身份扫描），这样在提交之前就能发现问题。
 
 ## 5. 里程碑：第一版（M0–M8）
 第一版的范围见 [project.md](project.md#2-第一版mvp范围)。**顺序是：先用农行把整条链路打通（M2–M3），再加别的银行。**这样尽早就能看到能用的结果，后面每加一家银行，只是往已经跑通的链路上加一个解析器。
@@ -187,7 +190,7 @@ uv run autobill --help        # 运行程序本身
 - **交付**：
   - `notify/alerts.py`：不认识的邮件、解析失败、新卡号、邮箱登录失败时发提醒邮件，同一个问题只发一次（`alerts` 表，表结构版本 4）；
   - **Docker**：`Dockerfile`（两阶段构建，只有 Python 3.12 和 AutoBill，约 330 MB，普通用户运行）、`compose.yaml`、`autobill.env.example`，`autobill serve` 每 30 分钟运行一次；进度邮件默认不附 PDF；
-  - `.github/workflows/docker.yml`：每个 PR 构建并做冒烟测试（导入样本、生成一封月度邮件、确认镜像里没有个人文件）；合并到 main 和打版本标签时发布 amd64 + arm64 镜像到 ghcr.io；
+  - `.github/workflows/docker.yml`（现在并进了 `ci.yml`）：每个 PR 构建并做冒烟测试（导入样本、生成一封月度邮件、确认镜像里没有个人文件）；合并到 main 和打版本标签时发布 amd64 + arm64 镜像到 ghcr.io；
   - 备选：`deploy/systemd/` 的 oneshot 服务和定时器；
   - [deploy.md](deploy.md)：两种部署方式、日常命令。
 - **做完的标准**：服务器上 `docker compose run --rm autobill check-mailbox` 全部正常；`docker compose up -d` 后按时运行；一封真实账单发到别名后，30 分钟内收到进度邮件；重复运行不会重复发送。
