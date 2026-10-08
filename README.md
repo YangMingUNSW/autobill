@@ -40,27 +40,16 @@ AutoBill reads the credit-card e-statements that Chinese banks (ABC, CCB, BOC an
 > [!NOTE]
 > **Status:** in daily use, running in Docker every 30 minutes. Four banks are supported, with one e-mail per statement month, the year in review, alert e-mails and optional AI categorisation of merchants the rules miss. The latest release is `v0.2.0`; what has landed since is in the [changelog](CHANGELOG.md), and the [roadmap](docs/project.md#6-分期路线) is in Chinese.
 
-## Contents
-- [Features](#features)
-- [What the e-mails show](#what-the-e-mails-show)
-- [How it works](#how-it-works)
-- [Privacy](#privacy)
-- [Supported banks](#supported-banks)
-- [Getting started](#getting-started)
-- [Documentation](#documentation)
-- [FAQ](#faq)
-- [Contributing](#contributing) · [Security](#security) · [Acknowledgements](#acknowledgements) · [License](#license)
-
 ## Features
-- **Deterministic parsing.** Every statement is parsed with fixed rules, never AI, and checked item by item against the totals the bank prints on it. Any mismatch is reported, never silently ignored. After an update that changes a parser, the statements already stored are read again automatically.
-- **One e-mail per statement month.** Sent once every expected card has issued its statement, so you get one complete picture instead of one e-mail per card. It reads as a bill: the dates its spending covers are under the title, while the year in review counts each purchase by its own date.
-- **Tap for details.** Categories, top merchants and the transaction list open in place, and the year in review filters by month and category. It is all CSS, with no scripts and nothing loaded from the web, so it works in Apple Mail, and offline once the e-mail has downloaded.
-- **Multi-currency.** Original currencies are kept and converted to CNY at the exchange rate of the statement e-mail's date ([Frankfurter](https://frankfurter.dev)).
-- **Categories.** Keyword rules first; merchants the rules miss can optionally be categorised by an AI endpoint you configure, which only ever sees merchant name, location and currency.
-- **Read-only mailbox.** Messages are never deleted, moved or marked as read.
-- **Alerts.** An unrecognised e-mail, a statement that fails to parse, a new card or a mailbox login failure sends one alert, never repeated.
-- **Backups.** Each monthly e-mail carries a compressed copy of the database.
-- **Year in review.** Once a year, when January's statements have brought in December's spending, one e-mail sums up the calendar year in the same style: a column per month, categories, top merchants, the shops you go back to, the currencies you paid in and each card. `autobill year-review` previews it any time.
+- **Deterministic parsing**: fixed rules, never AI, and every statement checked against the bank's own totals.
+- **One e-mail per statement month**, sent once every card's statement is in, not one per card.
+- **Tap for details**: categories, merchants and transactions open in place; pure CSS, nothing loaded from the web.
+- **Multi-currency**: original currencies kept, converted to CNY at the rate of the statement e-mail's date ([Frankfurter](https://frankfurter.dev)).
+- **Categories**: keyword rules first, then optionally an AI endpoint of yours for the merchants they miss.
+- **Read-only mailbox**: nothing is deleted, moved or marked as read.
+- **Alerts** for unrecognised e-mails, parsing failures, new cards and login failures, each sent once.
+- **Backups**: each monthly e-mail carries a compressed copy of the database.
+- **Year in review** each January: a column per month, categories, top merchants, currencies and cards.
 
 ## What the e-mails show
 <table>
@@ -70,10 +59,14 @@ AutoBill reads the credit-card e-statements that Chinese banks (ABC, CCB, BOC an
       <p><b>Spending</b> by category, compared with the previous statement. A category clearly off its usual level (the median of the previous three statements) gets a quiet note, whether up or down. Tap a category, or one of the top merchants, to see every purchase behind it.</p>
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/email-trend.png" alt="Last six statements: one column per statement with its amount, the current one highlighted">
-      <p><b>Last six statements</b>: one column per statement month with its amount, the current one highlighted, and the average.</p>
       <img src="docs/images/email-transactions.png" alt="All transactions grouped by day, each showing its card and category">
       <p><b>All transactions</b> from every card in one list by day, collapsed until tapped. Foreign purchases show the local currency first, with the CNY equivalent.</p>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">
+      <img src="docs/images/email-trend.png" width="480" alt="Last six statements: one column per statement with its amount, the current one highlighted">
+      <p><b>Last six statements</b>: one column per statement month with its amount, the current one highlighted, and the average.</p>
     </td>
   </tr>
 </table>
@@ -193,12 +186,6 @@ Nothing, unless you configure an endpoint. If you do, it only receives the name,
 
 Each monthly e-mail carries a compressed copy of the database, so your mailbox is the off-site backup. Restoring it is described in [docs/deploy.md](docs/deploy.md) (Chinese).
 </details>
-
-## Contributing
-Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first; everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
-
-## Security
-Please report vulnerabilities privately as described in [SECURITY.md](SECURITY.md). Do not open a public issue.
 
 ## Acknowledgements
 - [Frankfurter](https://frankfurter.dev) for free exchange rates, from the European Central Bank's reference rates.
