@@ -53,7 +53,7 @@ uv run autobill --help
 |---|---|
 | `docs/project.md` | 总览、第一版范围、决策、架构、分期、待定事项、风险 |
 | `docs/architecture.md` | 代码结构：每一步在哪个文件、入口函数，想改什么去哪里 |
-| `docs/development.md` | 开发流程、里程碑 M0–M8、测试规范、Git、CI、版本发布 |
+| `docs/development.md` | 开发流程、测试规范、Git、CI、版本发布、常用流程 |
 | `docs/banks/` | 各家银行的格式规格、注册表、样本覆盖矩阵（**写解析器之前必读**） |
 | `docs/data-model.md` | 模型、符号约定、分项对账、汇率、SQLite 表 |
 | `docs/parsing.md` / `fetcher.md` / `pipeline.md` / `notify.md` / `statement.md` | 各模块的设计 |
