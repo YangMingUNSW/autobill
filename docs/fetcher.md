@@ -18,7 +18,7 @@ class MailSource(Protocol):
 测试时用 `DirectorySource` 指向 `tests/fixtures/`，不需要真实邮箱，也不需要模拟 IMAP 服务器。
 
 ### 解析器看到的邮件：`RawMessage`
-`autobill/fetch/message.py`（M2）。一封邮件解码一次，交给识别和解析：
+`autobill/fetch/message.py`。一封邮件解码一次，交给识别和解析：
 
 | 字段 | 内容 |
 |---|---|
@@ -29,11 +29,11 @@ class MailSource(Protocol):
 | `html_parts`、`text_parts` | 解码后的正文，按声明的字符集解码，失败时用 GB18030 兜底 |
 | `attachments` | 其余部件；`is_pdf` 按内容判断 |
 
-转发件里的 `message/rfc822` 要在这之前拆开（M8 的 `ImapSource`），一个 `RawMessage` 永远只对应一封原始邮件。
+转发件里的 `message/rfc822` 要在这之前拆开（`fetch/mime.py` 的 `split_forwarded()`，在 `service.import_mails()` 里调用），一个 `RawMessage` 永远只对应一封原始邮件。
 
 ## 邮件从哪来
-**中心邮箱 = 一个只给 AutoBill 用的 iCloud 邮箱**（2026-09-19 定）：
-- **新账单：银行直接发到一个 iCloud 别名**（在各家银行把电子账单邮箱改成它，2026-09-19 定）；iCloud 规则把发给别名的邮件移进 `AutoBill` 文件夹。不经过任何转发，收到的就是银行原件（发件人、DKIM 签名都在），也不用维护转发规则。
+**中心邮箱 = 一个只给 AutoBill 用的 iCloud 邮箱**：
+- **新账单：银行直接发到一个 iCloud 别名**（在各家银行把电子账单邮箱改成它）；iCloud 规则把发给别名的邮件移进 `AutoBill` 文件夹。不经过任何转发，收到的就是银行原件（发件人、DKIM 签名都在），也不用维护转发规则。
 - **历史账单**：在原来的邮箱（比如 QQ 网页邮箱）里勾选历史账单，**分小批**"作为附件"手动转发到同一个别名；转发被退回时，导出 `.eml` 用 `import-dir` 导入。一次转发太多，QQ 会把附件变成会过期的"超大附件"链接，程序拿不到原件。
 - **回填范围**：最近 12 个月（`backfill_months: 12`，以后接上）。
 - 报表发回同一个 iCloud 的**主地址**，出现在收件箱；原始账单留在 `AutoBill` 文件夹，互不干扰。
@@ -50,7 +50,7 @@ class MailSource(Protocol):
 | **自己的 iCloud 邮箱 + 别名 + App 专用密码** | **采用**：不用新账号；iCloud 收发都稳；这个邮箱只用于 AutoBill，泄露面小（见 [security.md](security.md#密钥)） |
 
 ## IMAP
-实现在 `autobill/fetch/imap.py`（M8a），用标准库 `imaplib`，不另装依赖。
+实现在 `autobill/fetch/imap.py`，用标准库 `imaplib`，不另装依赖。
 
 - **iCloud**：`imap.mail.me.com`，993 端口 SSL；用户名是完整的 @icloud.com 地址；密码是 App 专用密码（环境变量 `AUTOBILL_IMAP_PASSWORD`）。
 - **只读**：用 `EXAMINE` 打开文件夹，用 `BODY.PEEK[]` 抓取，不改动邮箱里的任何状态（不标已读、不移动、不删除；测试里的假服务器遇到其他命令会直接报错）。
@@ -66,7 +66,7 @@ class MailSource(Protocol):
 
 ## MIME 处理
 - **拆附件**：每个 `message/rfc822` 部件都当作一封独立的原始邮件，递归处理、各自去重。
-  - **QQ 邮箱的"作为附件转发"不用 `message/rfc822`**，而是把原邮件当成普通文件附件（`application/octet-stream`），文件名是编码过的中文 `<主题>.eml`（2026-09-19 实测发现）。所以文件名以 `.eml` 结尾、内容开头是邮件头的附件也当作原始邮件，**原样取出**，字节和银行原件完全一样。
+  - **QQ 邮箱的"作为附件转发"不用 `message/rfc822`**，而是把原邮件当成普通文件附件（`application/octet-stream`），文件名是编码过的中文 `<主题>.eml`（实测发现）。所以文件名以 `.eml` 结尾、内容开头是邮件头的附件也当作原始邮件，**原样取出**，字节和银行原件完全一样。
 - **解码**：按部件声明的 charset 解码，失败时用 GB18030 兜底。农行、建行、中行的样本都是 UTF-8 + base64；工行是 GBK + quoted-printable（字符集声明正确）。其他银行可能是 GBK 并且标错字符集。
 - **PDF 按内容识别**（`%PDF-` 开头），原因见 [parsing.md](parsing.md#通用工具)。
 - 原始邮件以 sha256 命名落盘，见 [pipeline.md](pipeline.md)。

@@ -29,11 +29,11 @@ uv run autobill --help        # 运行程序本身
 6. **记 CHANGELOG**：用一句话写下这一步做了什么（见 §8）。
 7. **提交并开 PR**（见 §3）。
 
-**数据先行**（2026-09-29，issue #45）：做新的报表功能之前，先确认它要用的账单都已经导入、全部解析成功：没有收到"不认识的邮件""账单解析失败"的提醒，或者运行 `reparse`（它会列出所有没读成功的邮件并重读一遍）。#39（农行旧模板）和 #43（几种入账记错了类型）都是年度回顾做完、导入历史账单之后才发现的，年度回顾差点用了错误的数据。
+**数据先行**：做新的报表功能之前，先确认它要用的账单都已经导入、全部解析成功：没有收到"不认识的邮件""账单解析失败"的提醒，或者运行 `reparse`（它会列出所有没读成功的邮件并重读一遍）。不然功能做完、导入历史账单之后才发现有账单没读对，报表就用了错误的数据（农行旧模板 #39、几种入账记错类型 #43 都是这样才发现的）。
 
 ## 3. Git 流程
 - **`main` 分支始终可以运行**。任何改动都不直接提交到 `main`。
-- **每一步开一个分支**，命名为 `类型/里程碑-简述`，例如：`feat/m2-abc-parser`、`fix/abc-fx-sign`、`docs/notify-timing`。
+- **每一步开一个分支**，命名为 `类型/简述`，例如：`feat/icbc-parser`、`fix/abc-fx-sign`、`docs/notify-timing`。
 - **提交信息**采用 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 格式，写成"类型: 做了什么"：
 
   | 类型 | 用于 | 例子 |
@@ -47,14 +47,14 @@ uv run autobill --help        # 运行程序本身
   提交要小，一次提交只做一件事，失败时容易回退。
 - **合并流程**：
   1. `git push` 推送分支，然后在 GitHub 上开 PR；
-  2. 等 CI 全绿（§4）。`main` 开了分支保护（2026-09-29）：`lint, test, identity scan` 和 `gitleaks` 没过就合不了，也不能直接推送到 `main`；不需要别人批准（仓库只有你一个人，GitHub 不让 PR 的作者批准自己的 PR）；
+  2. 等 CI 全绿（§4）。`main` 开了分支保护：`lint, test, identity scan` 和 `gitleaks` 没过就合不了，也不能直接推送到 `main`；不需要别人批准（仓库只有你一个人，GitHub 不让 PR 的作者批准自己的 PR）；
   3. 自己看一遍：至少读 PR 描述里"改变了什么行为"；改了邮件外观或 README 的，先看预览（`preview-email`、`year-review -o`）或截图，确认了再合并。也可以让 Claude 用 `/code-review` 审一遍；
-  4. **你自己点合并**。AI 不负责合并。
-- 做到一半想放弃的工作，保留在分支上，不删。合并完的分支也不自动删，什么时候删、删哪些由你决定（2026-09-29）。
-- **什么时候先开 issue**（2026-09-29，issue #45）：bug（写清楚现象、哪封账单或哪个月、期望的结果）和要分几个 PR 才能做完的需求，先开 issue，PR 里写 `Fixes #编号` 或 `Refs #编号`；小改动直接开 PR，把"为什么、改变了什么行为"写进 PR 描述。需求和决定不要只留在聊天记录里。
+  4. **你自己点合并**：只开了 Squash and merge，一个 PR 在 `main` 上是一个提交（PR 只有一个提交时，用它的英文提交说明）。AI 不负责合并。
+- 做到一半想放弃的工作，保留在分支上，不删。合并完的分支也不自动删，什么时候删、删哪些由你决定。
+- **什么时候先开 issue**：bug（写清楚现象、哪封账单或哪个月、期望的结果）和要分几个 PR 才能做完的需求，先开 issue，PR 里写 `Fixes #编号` 或 `Refs #编号`；小改动直接开 PR，把"为什么、改变了什么行为"写进 PR 描述。需求和决定不要只留在聊天记录里。
 
 ## 4. CI（自动检查）
-公开仓库可以免费使用 GitHub Actions。在 M0 建立 `.github/workflows/ci.yml`，每次推送和开 PR 时自动执行：
+公开仓库可以免费使用 GitHub Actions。`.github/workflows/ci.yml` 在每次推送和开 PR 时自动执行：
 
 1. `uv run ruff check .` 和 `uv run ruff format --check .`；规则在 `pyproject.toml` 的 `[tool.ruff.lint]`，除了基本的错误和风格，还查笼统的 `except Exception`（BLE）、可以简化的写法（SIM、C4、RET）和测试写法（PT）；
 2. `uv run pytest`；合并到 main 时加 `--cov` 顺带统计覆盖率，CI 日志里有一张表（只列没全覆盖的文件），不设门槛。PR 上不统计：统计覆盖率会让测试慢一倍；
@@ -69,139 +69,14 @@ uv run autobill --help        # 运行程序本身
 前三项是 main 的分支保护要求的，任何一项不通过，PR 就不能合并；镜像那一步不在要求里，失败了会在同一条通知里看到。本地的 pre-commit 跑的是同一套检查（前两项和身份扫描），这样在提交之前就能发现问题。
 
 ## 5. 里程碑：第一版（M0–M8）
-第一版的范围见 [project.md](project.md#2-第一版mvp范围)。**顺序是：先用农行把整条链路打通（M2–M3），再加别的银行。**这样尽早就能看到能用的结果，后面每加一家银行，只是往已经跑通的链路上加一个解析器。
-
-每一步都是一个分支、一个 PR。"怎么验证"写的是你自己能执行的命令，以及应该看到的结果。
-
-### M0 项目骨架
-- **交付**：
-  - `pyproject.toml`（uv + hatchling，包名 `autobill`，`requires-python >= 3.12`）、`src/autobill/__init__.py`、`tests/test_smoke.py`；
-  - ruff、pytest 配置；`.pre-commit-config.yaml`；`.github/workflows/ci.yml`；
-  - `config.example.yaml`（内容见 [security.md](security.md#配置示例configexampleyaml入库实际使用的-configyaml-不入库)）、`rules.example.yaml`（见 [notify.md](notify.md#分类规则)）。
-- **做完的标准**：CI 在 GitHub 上是绿的。
-- **怎么验证**：`uv sync`，然后 `uv run pytest` 全部通过（冒烟测试 1 个 + 身份扫描测试 12 个）；`uv run autobill --help` 能打印出帮助信息；`uv run pre-commit run --all-files` 全部 Passed。
-
-### M1 数据模型和工具函数
-- **交付**：`model.py`（按 [data-model.md](data-model.md)）；`parse/util.py`（金额、日期、空白规范化，按 [parsing.md](parsing.md#通用工具)）。
-- **做完的标准**：parsing.md "通用工具"里列出的**每一种**金额格式和日期格式，都至少有一个测试用例。
-- **怎么验证**：`uv run pytest tests/test_util.py -v`，全部通过。
-
-### M2 农行解析器 + 对账
-- **交付**：`parse/abc.py`（按 [banks/abc.md](banks/abc.md)）；`reconcile.py`（分项对账和合成调整）；3 个快照 `tests/snapshots/abc/*.json`。
-- **做完的标准**：
-  - 3 份农行样本的快照已经**人工核对过**；
-  - 分项对账全部通过，银联卡生成了一条 −0.62 的合成调整；
-  - 删掉"账务说明"标题的样本会抛出 `TemplateChanged`；
-  - 农行的支出在我们这里是正数。
-- **怎么验证**：`uv run pytest tests/test_abc.py -v`；打开快照，和 [banks/abc.md §8](banks/abc.md) 的对账表逐项比对。
-
-### M3 第一条完整链路（用农行打通）
-- **交付**：
-  - `store/`（SQLite 表结构，用唯一键保证导入幂等）；
-  - `fetch/source.py` 里的 `DirectorySource`；
-  - `fx.py`（Frankfurter + `fx_rates` 缓存 + 兜底汇率）；
-  - CLI 命令 `import-dir`、`report --month`（终端输出）。
-- **做完的标准**：
-  - 同一个目录导入两次，数据库内容不变（幂等）；
-  - 月报能显示分币种合计和人民币总计，并注明汇率日期；
-  - 测试里不联网。
-- **怎么验证**：
-  ```powershell
-  $env:AUTOBILL_DATA_DIR = "$env:TEMP\autobill-dev"
-  uv run autobill import-dir tests/fixtures/abc
-  uv run autobill report --month 2026-08
-  ```
-  能看到 8 月各卡的支出合计；再执行一次 `import-dir`，报表的数字不变。
-
-### M4 建行解析器
-- **交付**：`parse/ccb.py`（按 [banks/ccb.md](banks/ccb.md)）+ 快照。
-- **做完的标准**：同 M2；"卡号只在交易行"的回退逻辑有测试；消费相关的部分，在文档里仍然标为"推断"。
-
-### M5 中行 PDF 解析器 → 打 `v0.1.0`
-- **交付**：`parse/boc.py`（pdfplumber + `dedupe_chars()`，按 [banks/boc.md](banks/boc.md)）+ 快照。
-- **做完的标准**：同 M2；零欠款、到期还款日为空的情况处理正确。
-- **完成后**：打 `v0.1.0` 标签，表示离线解析三家都完成了。
-
-### M6 分类和报表完善
-- **交付**：分类规则引擎；终端月报增加分类占比、按卡分布、近 6 个月趋势、Top 商户、未分类商户列表。
-- **做完的标准**：用样本跑出来的报表，每一节都有内容；"财付通"等消费归入"微信 / 支付宝（未细分）"。
-
-### M7 邮件报表
-- **交付**（M7c 已替换为账单月进度邮件）：`report/mail_report.py`（Jinja2 + MJML 模板，所有可视化都是 HTML 横条，不用图片）、`notify/mail.py`（SMTP 465）、`autobill preview-email`（本地预览）。每导入一份账单就发一封邮件（见 [notify.md](notify.md#账单月邮件)）。
-- **先看预览**：真实发信之前，`uv run autobill preview-email -o preview.html` 生成报表，用浏览器打开、按 F12 切到手机尺寸检查排版。
-- **做完的标准**：用 `import-dir` 导入一份样本后，主邮箱收到报表，**用手机打开**排版正常，图片能显示。
-- **测试**：SMTP 用假对象代替，测试不真正发信；真实发信只在手动验证时做一次。
-
-### M7b 标准账单（2026-09-19 插入）
-- **交付**：`report/statement.py` 和模板 `statement.html.j2`、`report/pdf.py`（用本机的 Edge/Chrome 打印 PDF）、命令 `autobill statement`。设计见 [statement.md](statement.md)。
-- **做完的标准**：
-  - 8 份样本账单都能生成 HTML，本机有浏览器时也生成 PDF；
-  - 每一笔流水都在；账户摘要等于对账恒等式；没有脚本和外部资源；
-  - 在 iPhone 的"文件"App 里打开看过。
-- **怎么验证**：
-  ```powershell
-  $env:AUTOBILL_DATA_DIR = "$env:TEMP\autobill-dev"
-  uv run autobill import-dir tests/fixtures --no-send
-  uv run autobill statement --all -o "$env:USERPROFILE\iCloudDrive\AutoBill-预览"
-  ```
-  然后在 iPhone 的"文件"App → iCloud 云盘 → AutoBill-预览 里打开 HTML 和 PDF。
-
-### M7c 账单月进度邮件（2026-09-19 插入）
-- **交付**：`report/cycle.py` + 模板 `cycle_report.html.j2`（只为 iPhone 苹果邮件排版）、`report/style.py`（共用配色和横条）、卡包配置 `cards.portfolio`、`cycle_threads` 表、`preview-email --cycle`。替换 M7 的"每份账单一封"。设计见 [notify.md](notify.md#账单月邮件)（2026-09-20 改为收齐才发一封）。
-- **做完的标准**：
-  - 按样本导入：每个账单月一封，同一次运行的 3 份农行账单合成一封，各附一份标准账单 PDF；
-  - 待出账 / 可能无账单按通常账单日 + 7 天判断；超时后补发"已齐"，已齐的月份不再发；
-  - 第二封起带 `In-Reply-To` / `References`；
-  - M8a 设好 iCloud 后，真实发一封到 iCloud 邮箱，在 iPhone 上看折叠、深色模式和附件。
-- **怎么验证**：
-  ```powershell
-  uv run autobill import-dir tests/fixtures --no-send
-  uv run autobill preview-email -o "$env:TEMP\cycle.html"
-  ```
-  用 WebKit 内核（Playwright WebKit，和 iOS 同内核）在 390 像素宽下截浅色、深色图检查。
-
-### M7d 分类覆盖率和 AI 接口（2026-09-19 插入）
-- **交付**：
-  - 分类规则支持整词匹配 `word:`，原始描述和商户名一起匹配；
-  - 默认规则加上行业通用词和"烟酒"分类；
-  - `autobill uncategorised`：列出未分类的商户，生成可以复制进 `rules.yaml` 的 YAML；
-  - AI 接口 `autobill/suggest.py`（现在是 `autobill/categories/provider.py`）+ `config.yaml` 的 `ai`，`--suggest` 调用；这一步不接任何 AI。
-  - 设计见 [notify.md](notify.md#分类规则)。
-- **做完的标准**：样本里未分类的消费从 86 笔降到 40 笔以内；每条新词都核对过没有误分；AI 只收到商户名和分类名，建议不会自动写进 `rules.yaml`。
-- **怎么验证**：
-  ```powershell
-  uv run autobill import-dir tests/fixtures --no-send
-  uv run autobill uncategorised --limit 10
-  ```
-
-### M8a iCloud 收信（2026-09-19 拆分）
-- **交付**：
-  - `fetch/imap.py`：只读的 `Mailbox` 和 `ImapSource`，文件夹游标（`folder_cursors` 表）、只处理发给别名的邮件、跳过自己的报表；
-  - `fetch/mime.py`：拆开"作为附件"转发的邮件；
-  - 发信支持 587 端口 + STARTTLS（iCloud）；发信密码没设时用收信密码；
-  - 命令 `check-mailbox`、`run [--no-send]`；
-  - setup.md 改成 iCloud 版本的操作步骤。设计见 [fetcher.md](fetcher.md#imap)。
-- **做完的标准**：
-  - 测试（假 IMAP 服务器）：只读、处理完才前进、UIDVALIDITY 变了重读、只处理发给别名的、拆附件、STARTTLS；
-  - 按 setup.md 设好后，在自己电脑上 `check-mailbox` 全部正常；转发一封真实账单，`run` 解析成功，iPhone 收到邮件；再运行一次不重复发送。
-- **怎么验证**：见 [setup.md 第 5 步](setup.md#5-先在自己电脑上试运行)。
-
-### M8b 服务器定时运行和提醒 → 打 `v0.2.0`（第一版可用）
-- **交付**：
-  - `notify/alerts.py`：不认识的邮件、解析失败、新卡号、邮箱登录失败时发提醒邮件，同一个问题只发一次（`alerts` 表，表结构版本 4）；
-  - **Docker**：`Dockerfile`（两阶段构建，只有 Python 3.12 和 AutoBill，约 330 MB，普通用户运行）、`compose.yaml`、`autobill.env.example`，`autobill serve` 每 30 分钟运行一次；进度邮件默认不附 PDF；
-  - `.github/workflows/docker.yml`（现在并进了 `ci.yml`）：每个 PR 构建并做冒烟测试（导入样本、生成一封月度邮件、确认镜像里没有个人文件）；合并到 main 和打版本标签时发布 amd64 + arm64 镜像到 ghcr.io；
-  - 备选：`deploy/systemd/` 的 oneshot 服务和定时器；
-  - [deploy.md](deploy.md)：两种部署方式、日常命令。
-- **做完的标准**：服务器上 `docker compose run --rm autobill check-mailbox` 全部正常；`docker compose up -d` 后按时运行；一封真实账单发到别名后，30 分钟内收到进度邮件；重复运行不会重复发送。
-- **完成后**：打 `v0.2.0` 标签（会自动发布 `0.2.0` 版镜像），**第一版可用**。
+第一版按 M0–M8 分步做完：先用农行把整条链路打通（M0–M3），再加建行、中行（M4–M5，`v0.1.0`），然后是分类、邮件报表、标准账单、iCloud 收信和服务器定时运行（M6–M8，`v0.2.0`）。每一步做了什么见 [CHANGELOG](../CHANGELOG.md) 和 Git 历史。之后的改动不再按里程碑编号：一个 PR 做一件事，按 §2 的节奏来。
 
 **补样本（P1b）**：随时穿插进行，不单独占一个步骤。拿到新样本后按 [security.md 的检查清单](security.md#以后加入新样本时的检查清单) 脱敏，加进 `tests/fixtures/`，补上快照，并更新[样本覆盖矩阵](banks/README.md#样本覆盖矩阵)。
 
 ## 6. 测试规范
 - **测试不联网**：汇率接口用假数据代替，SMTP 和 IMAP 也用假对象代替。联网的验证只在手动检查时做。
 - **不碰真实数据**：用 pytest 的 `tmp_path` 作为 `AUTOBILL_DATA_DIR`。每个测试都用一个全新的空目录。
-  - **测试里不要用 `monkeypatch.undo()`**：它会把临时数据目录的设置也一起撤销（2026-09-19 真出过一次，碰到了真实的数据库）。要恢复某个被替换的函数，就再 `setattr` 一次原来的函数。
+  - **测试里不要用 `monkeypatch.undo()`**：它会把临时数据目录的设置也一起撤销（真出过一次，碰到了真实的数据库）。要恢复某个被替换的函数，就再 `setattr` 一次原来的函数。
   - 最后一道保险（`tests/conftest.py`）：测试里一旦用到真实的数据目录，或者真的去连 SMTP（465/587）或 IMAP，都会直接报错。
 - **要用样本账单，就用 `sample_db` 取一份**（`tests/conftest.py`）：`sample_db(FIXTURES / "abc")` 返回一个数据库连接，里面是导入好的这些样本。同一组样本整个测试过程只导入一次，每个测试拿到的是自己的复制品，改了也不影响别的测试。不要在每个测试里自己导入一遍：一次要一秒多，测试一多，整套就要好几分钟。只有测导入本身的测试才自己导入。
 - **快照**：
@@ -225,11 +100,11 @@ uv run autobill --help        # 运行程序本身
 2. 按 [security.md 的检查清单](security.md#以后加入新样本时的检查清单) 脱敏，放进 `tests/fixtures/<代码>/`。
 3. 照着现有几家的格式，写 `docs/banks/<代码>.md` 格式规格。
 4. 把它加进 [banks/README.md](banks/README.md) 的注册表和样本覆盖矩阵。
-5. 写 `parse/<代码>.py` 和快照测试（流程同 M2）。
+5. 照着现有的解析器写 `parse/<代码>.py` 和快照测试（见 [parsing.md](parsing.md)），在 `parse/registry.py` 登记。
 
 **新增样本**：只做上面的第 2 步，再加上快照测试和覆盖矩阵的更新。
 
-**更新 README 的图片**（`docs/images/`，2026-09-24 加截图，2026-09-30 加动画和插图）：月度邮件或年度回顾的样式改了之后，重新生成截图和动画，和样式改动放在同一个 PR 里（2026-09-28 到 09-29 的几次改版漏了这一步，2026-09-30 补上；PR 模板里有这一条）。
+**更新 README 的图片**（`docs/images/`）：月度邮件或年度回顾的样式改了之后，重新生成截图和动画，和样式改动放在同一个 PR 里（PR 模板里有这一条）。
 ```powershell
 uv run --with playwright playwright install chromium   # 第一次用时装一次
 uv run --with playwright --with pillow python scripts/demo_screenshots.py   # 截图 + 动画
@@ -246,7 +121,7 @@ uv run --with playwright python scripts/readme_art.py                        # �
 - Playwright 和 Pillow 只是这两个脚本用，不是项目依赖；已经有 Chrome/Chromium 时可以用 `--browser <路径>` 跳过安装。
 
 ## 10. 用 AI（Claude）开发的注意事项
-- **一个对话只做一个里程碑步骤**。开头告诉它"做 M2，先读 CLAUDE.md 和 docs/banks/abc.md"。
+- **一个对话只做一件事**。开头告诉它要做什么、先读哪些文档，比如"加一家银行，先读 CLAUDE.md 和 docs/banks/README.md"。
 - **先让它给出计划，看过之后再让它动手。**
 - **自己读 diff 和测试**：看不懂的地方就让它解释。测试就是最好的说明书，它写明了"输入什么、应该得到什么"。
 - **命令自己跑一遍**，不要只看 AI 说"通过了"。
