@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-XX
+
 ### Added
 - 中国工商银行（ICBC）解析器 `icbc_html`：一封邮件一个账户（可以有几张卡），每个币种一个账户；Visa 餐饮返现和刷卡金算返现，溢缴款转出算调整；2025 年 6 月以前的旧版面和销户那期也能读。格式规格见 `docs/banks/icbc.md`，附 6 份脱敏样本。
 - 年度回顾：1 月那封月度邮件收齐发出后，自动发一封上一个自然年的回顾，只在 1–3 月发、一年一次。每笔交易按交易日期归月，和 `report --month` 同一口径。可以点柱子选月份、点分类筛选，全部用 CSS，没有脚本。`autobill year-review --year 2026` 随时预览，`--send` 立刻发一封。
@@ -96,6 +98,7 @@
 - M3 第一条完整链路：SQLite 存储 `store/db.py`、`DirectorySource`、银行注册表、`pipeline.py`、汇率 `fx.py`（Frankfurter + 缓存 + 配置兜底）、配置 `config.py`；命令 `autobill import-dir` 和 `autobill report --month`。
 - M4 建行解析器 `parse/ccb.py`（锚点定位、全 0 外币行跳过、取不到卡号时记为 `CCB:unknown`），加入注册表；建行样本快照。
 
-[Unreleased]: https://github.com/YangMingUNSW/autobill/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/YangMingUNSW/autobill/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/YangMingUNSW/autobill/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/YangMingUNSW/autobill/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/YangMingUNSW/autobill/releases/tag/v0.1.0

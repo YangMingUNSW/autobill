@@ -5,8 +5,8 @@ AutoBill is released from `main`. Only the latest release receives security fixe
 
 | Version | Supported |
 |---|---|
-| 0.2.x (latest) | ✅ |
-| < 0.2 | ❌ |
+| 0.3.x (latest) | ✅ |
+| < 0.3 | ❌ |
 
 ## Reporting a vulnerability
 Please **do not** open a public issue for a security problem.
