@@ -38,7 +38,7 @@
 <p align="center"><sub>动画和截图使用编造的演示数据，不是任何人的真实账单。</sub></p>
 
 > [!NOTE]
-> **开发进度**：已经在日常使用，用 Docker 每 30 分钟运行一次。支持四家银行，每个账单月一封邮件，还有年度回顾、提醒邮件和可选的 AI 商户分类。最新版本是 `v0.2.0`，之后合并的改动见 [CHANGELOG](CHANGELOG.md)，路线见 [docs/project.md](docs/project.md#6-分期路线)。
+> **开发进度**：已经在日常使用，用 Docker 每 30 分钟运行一次。支持四家银行，每个账单月一封邮件，还有年度回顾、提醒邮件和可选的 AI 商户分类。最新版本是 `v0.3.0`，之后合并的改动见 [CHANGELOG](CHANGELOG.md)，路线见 [docs/project.md](docs/project.md#6-分期路线)。
 
 ## 目录
 - [功能](#功能)
