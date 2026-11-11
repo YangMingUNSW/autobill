@@ -40,6 +40,7 @@
   .card { background: var(--card); border-radius: 14px; padding: 16px; }
   .group { background: var(--card); border-radius: 14px; overflow: hidden; }
   .caption { font-size: 13px; color: var(--label2); line-height: 1.35; }
+  .nb { white-space: nowrap; }  /* a caption's parts break between them, never inside */
 
   /* money, Apple Card style: big rounded figures with small cents */
   .hero { font-family: ui-rounded, -apple-system, "SF Pro Rounded", "PingFang SC", sans-serif;
@@ -51,7 +52,8 @@
 
   /* donut: one arc per share, the total in the middle */
   .donut-wrap { text-align: center; margin: 6px 0 10px; }
-  svg.donut { display: inline-block; width: 180px; height: 180px; max-width: 100%; }
+  svg.donut { display: block; margin: 0 auto; width: 180px; height: 180px; max-width: 100%; }
+  .donut-wrap .change { margin-top: 10px; }  /* under the ring, not beside it */
   svg.donut circle { fill: none; stroke-width: 30; }
   svg.donut .track { stroke: var(--fill); }
   svg.donut .s1 { stroke: var(--s1); } svg.donut .s2 { stroke: var(--s2); }
@@ -59,6 +61,8 @@
   svg.donut .other { stroke: var(--other); }
   svg.donut .none { stroke: var(--other); opacity: .45; }
   svg.donut .donut-num { fill: var(--label); font-size: 24px; font-weight: 700; font-family: ui-rounded, -apple-system, sans-serif; font-variant-numeric: tabular-nums; }
+  /* a longer figure is set smaller, so it stays inside the ring (charts.donut_svg) */
+  svg.donut .donut-num.long { font-size: 20px; } svg.donut .donut-num.longer { font-size: 18px; }
   svg.donut .donut-cap { fill: var(--label2); font-size: 12px; font-weight: 500; }
   /* spending trend: this month in the accent, earlier months grey (validated pair) */
   svg.trend { width: 100%; height: auto; display: block; margin: 6px 0 8px; }
@@ -112,7 +116,9 @@
   .rows .rbody { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 10px 0; }
   .rows .row + .row .rbody { border-top: .5px solid var(--sep); }
   .rows .name { flex: 1; min-width: 0; font-size: 15px; }
-  .rows .note { display: block; font-size: 12px; color: var(--label2); margin-top: 2px; }
+  /* a name with a colour key hangs: a second line and the note start under the name */
+  .rows .name:has(> .key) { padding-left: 12px; text-indent: -12px; }
+  .rows .note { display: block; font-size: 12px; color: var(--label2); margin-top: 2px; text-indent: 0; }
   .rows .pct { font-size: 13px; color: var(--label2); width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
   .rows .amt { font-size: 15px; min-width: 84px; text-align: right; }
 

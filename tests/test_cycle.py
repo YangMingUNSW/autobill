@@ -1,6 +1,7 @@
 """The statement month's e-mail (docs/notify.md#账单月邮件), offline."""
 
 import json
+import math
 import re
 from datetime import date
 from decimal import Decimal
@@ -662,6 +663,27 @@ def test_merchant_names_in_the_donut_are_escaped():
     donut = str(donut_svg([segment], "¥1", "本期消费"))
     assert 'aria-label="本期消费：Bar &#34;Q&#34; &amp; &lt;Grill&gt; 100%"' in donut
     assert "<Grill>" not in donut
+
+
+def test_the_merchants_ring_is_as_full_as_their_share(db):
+    """The top shops are a part of the month's spending: each arc is as long as the share
+    its row says, and what the others spent stays empty ring."""
+    conn, fx = db
+    r = report(conn, fx)
+    arcs = [float(a) for a in re.findall(r'stroke-dasharray="([\d.]+) ', str(r.merchant_donut))]
+    ring = 2 * math.pi * 75
+    whole = sum(s.weight for s in r.segments)
+    for arc, shop in zip(arcs, r.merchants, strict=True):
+        assert arc == pytest.approx(float(shop.weight / whole) * ring - 2, abs=0.01)  # 2: the gap
+    assert sum(arcs) < ring * 0.99  # the five do not make up the month
+
+
+def test_a_long_figure_in_the_donut_is_set_smaller():
+    """ "¥59,053.12" is as wide as the ring's hole at the full size."""
+    segment = Segment("超市", "1.00", "100%", Decimal("1"), "s1")
+    assert 'class="donut-num"' in donut_svg([segment], "¥7,267.30", "本期消费")
+    assert 'class="donut-num long"' in donut_svg([segment], "¥59,053.12", "本期消费")
+    assert 'class="donut-num longer"' in donut_svg([segment], "¥123,456.78", "本期消费")
 
 
 def test_stacked_categories_name_four_and_fold_the_rest(db):

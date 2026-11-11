@@ -104,7 +104,7 @@
       {% endif %}
       {% endfor %}
     </div>
-    <div class="caption">{{ r.arrived }} 张卡合计 · 已扣返现和退款 · 外币折人民币{% if r.has_notes %} · 平时指前 3 期的中位数{% endif %}</div>
+    <div class="caption"><span class="nb">{{ r.arrived }} 张卡合计 ·</span> <span class="nb">已扣返现和退款 ·</span> <span class="nb">外币折人民币{% if r.has_notes %} ·</span> <span class="nb">平时指前 3 期的中位数{% endif %}</span></div>
   </section>
   <div class="sf">轻点分类，看这一类本期的每一笔。</div>
   {% if r.segments[-1].tone == "none" %}<div class="sf">未分类的商户：在电脑上运行 autobill uncategorised，补进 rules.yaml，下次就能归类。</div>{% endif %}

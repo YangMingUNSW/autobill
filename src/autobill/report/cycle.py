@@ -249,7 +249,7 @@ class CycleReport:
         top = sum((m.weight for m in self.merchants), ZERO)
         total = sum((s.weight for s in self.segments), ZERO)
         center = share(top, total) if total > 0 else ""
-        return donut_svg(self.merchants, center, f"前 {len(self.merchants)} 名占比")
+        return donut_svg(self.merchants, center, f"前 {len(self.merchants)} 名占比", whole=total)
 
 
 @dataclass
