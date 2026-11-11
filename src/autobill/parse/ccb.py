@@ -16,8 +16,8 @@ import re
 from decimal import Decimal
 
 from autobill.fetch.message import RawMessage
-from autobill.model import ZERO, Bill, BillBalance, Transaction, TxnType, make_txn_id
-from autobill.parse.base import BaseParser, TemplateChanged
+from autobill.model import ZERO, Bill, BillBalance, Transaction, TxnType
+from autobill.parse.base import BaseParser, TemplateChanged, with_txn_ids
 from autobill.parse.util import (
     CurrencyError,
     FormatError,
@@ -106,7 +106,7 @@ class _Statement:
             due_date=self.due_date,
             email_date=email_date,
             balances=balances,
-            transactions=self._with_account(transactions, account_id),
+            transactions=with_txn_ids("CCB", account_id, transactions),
             status="OK",  # decided by reconcile()
             warnings=self.warnings,
             source_message_id=self.msg.message_id,
@@ -241,7 +241,7 @@ class _Statement:
         last4 = m.group(1) if m else ""
         return Transaction(
             line_no=line_no,
-            txn_id="",  # set in _with_account once the account is known
+            txn_id="",  # set by with_txn_ids once the account is known
             trans_date=trans_date,
             post_date=parse_date(pdate) if pdate else None,
             txn_type=txn_type,
@@ -253,19 +253,6 @@ class _Statement:
             merchant=description if txn_type == TxnType.PURCHASE else None,
             card_last4=last4 or None,
         )
-
-    @staticmethod
-    def _with_account(transactions: list[Transaction], account_id: str) -> list[Transaction]:
-        return [
-            t.model_copy(
-                update={
-                    "txn_id": make_txn_id(
-                        "CCB", account_id, t.trans_date, t.amount, t.description_raw, t.line_no
-                    )
-                }
-            )
-            for t in transactions
-        ]
 
 
 def _classify(description: str, amount: Decimal) -> TxnType:

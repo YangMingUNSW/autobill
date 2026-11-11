@@ -10,7 +10,8 @@ outside, no links, no script.
 
 Over a year one shop shows up under several names, because the bank glues its payment
 markers to the name ("Woolworths OnlineAUSVISA Apple Pay", "跨行消费 ..."); the year's
-lists put them together under the name without the markers (categories/names.py).
+lists put them together under the name without the markers (categories/names.py,
+in report/year_explorer.py).
 
 The first three cards filter the year by month and category, two groups of radio buttons
 and one CSS rule per value, no script ("punched card coding"): every choice is written into
@@ -31,9 +32,8 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from autobill import build_label
-from autobill.categories.names import shown_name
 from autobill.categories.rules import TYPE_CATEGORIES, UNCATEGORISED, Rules
-from autobill.fx import FxRates, RateUnavailable
+from autobill.fx import FxRates
 from autobill.ledger import CHINA, REDUCING_TYPES, SPENDING_TYPES, cents
 from autobill.model import ZERO, Bill, Transaction, TxnType
 from autobill.report import drill
@@ -46,8 +46,8 @@ from autobill.report.cycle import (
     make_segment,
 )
 from autobill.report.statement import StatementView, build_view
-from autobill.report.style import amount_with_symbol, card_label, emoji_for, money, share
-from autobill.report.year_explorer import TOP_MERCHANTS, TOP_VISITS, Explorer, build_explorer
+from autobill.report.style import amount_with_symbol, card_label, money, share
+from autobill.report.year_explorer import Explorer, Shop, build_explorer
 from autobill.store.db import load_bill
 
 REVIEW_UNTIL = (3, 31)  # a year's review goes out in the next year's first quarter, or never
@@ -58,17 +58,6 @@ CURRENCY_NAMES = {
     "HKD": "港币", "MOP": "澳门元", "TWD": "新台币", "CHF": "瑞士法郎", "THB": "泰铢",
     "SGD": "新加坡元", "NZD": "新西兰元", "CAD": "加元", "KRW": "韩元", "MYR": "马来西亚林吉特",
 }  # fmt: skip
-
-
-@dataclass
-class Visit:
-    """A shop you kept going back to: how often, and what it came to in CNY."""
-
-    name: str
-    count: int
-    amount: str
-    emoji: str
-    tone: str
 
 
 @dataclass
@@ -87,9 +76,6 @@ class YearReport:
     spend: Decimal  # the twelve months added up
     purchases: int
     categories: list[Segment]  # every category, largest first; beyond NAMED in grey
-    segments: list[Segment]  # the donut: NAMED categories, the rest as 其他, 未分类 last
-    merchants: list[Segment]
-    visits: list[Visit]
     currencies: list[Segment]  # purchases by the currency they were paid in
     cards: list[CardYear]
     rebates: Decimal  # cashback, a positive amount (spend already has it taken off)
@@ -108,6 +94,16 @@ class YearReport:
     @property
     def subject(self) -> str:
         return f"📊 {self.year} 年信用卡年度回顾"
+
+    @property
+    def merchants(self) -> list[Shop]:
+        """Where the money went over the year, as the filter lists it."""
+        return self.explorer.shops[(0, 0)] if self.explorer else []
+
+    @property
+    def visits(self) -> list[Shop]:
+        """The shops gone back to most often, as the filter lists them."""
+        return self.explorer.visits if self.explorer else []
 
     @property
     def months(self) -> int:
@@ -155,34 +151,12 @@ class YearReport:
         return f"{self.year} 年每个月的消费（人民币）：{said}"
 
     @property
-    def trend_caption(self) -> str:
-        """ "最多：5月 ¥59,053 · 最少：8月 ¥16,482"."""
-        have = [b for b in self.bars if b.value is not None]
-        if len(have) < 2:
-            return ""
-        high = max(have, key=lambda b: b.value)
-        low = min(have, key=lambda b: b.value)
-        return f"最多：{high.label} ¥{high.value:,.0f} · 最少：{low.label} ¥{low.value:,.0f}"
-
-    @property
     def rebates_text(self) -> str:
         return money(cents(self.rebates))
 
     @property
     def charges_text(self) -> str:
         return money(cents(self.charges))
-
-
-def _rates(bill: Bill, fx: FxRates) -> dict[str, Decimal]:
-    """CNY per unit of each currency on the bill, the rates build_view uses; a currency
-    without a rate is left out, as build_view leaves it out of the totals."""
-    rates: dict[str, Decimal] = {}
-    for currency in {t.currency for t in bill.transactions}:
-        try:
-            rates[currency] = fx.rate(currency, bill.email_date).rate_to_cny
-        except RateUnavailable:
-            continue
-    return rates
 
 
 def _pieces(
@@ -229,9 +203,6 @@ def build_year_report(
     purchases = 0
     through: date | None = None
     categories: dict[str, Decimal] = {}
-    merchants: dict[str, Decimal] = {}  # shop (payment markers taken off) -> CNY
-    shop_category: dict[str, str] = {}  # shop -> the category its spending is counted under
-    visits: dict[str, list] = {}  # shop -> [purchases, CNY]
     paid_in: dict[str, list[Decimal]] = {}  # currency paid in -> [CNY, amount in it]
     cards: dict[str, Decimal] = {}
     spent: list[tuple[int, drill.Spent]] = []  # (month, line): what the filter lists
@@ -241,29 +212,18 @@ def build_year_report(
         cards[bill.account_id] = cards.get(bill.account_id, ZERO) + view.spend_cny_value
         for name, value in view.categories.items():
             categories[name] = categories.get(name, ZERO) + value
-        for name, value in view.merchants.items():
-            shop = shown_name(name)
-            merchants[shop] = merchants.get(shop, ZERO) + value
-        rates = _rates(bill, fx)
+        rates = drill.rates(bill, fx)
         spent += [(month, s) for s in drill.spent(bill, fx, rules, txns)]
         for t in txns:
             through = max(through, t.trans_date) if through else t.trans_date
             if t.currency not in rates:
                 continue
             value = t.amount * rates[t.currency]
-            shop = shown_name(t.merchant or t.description_raw)
             if t.txn_type == TxnType.REBATE:
                 rebates -= value  # stored negative
-            if t.txn_type in SPENDING_TYPES:  # as build_view files it: cash, fees too
-                shop_category.setdefault(
-                    shop, rules.categorize(t.description_raw, t.txn_type, t.merchant)
-                )
             if t.txn_type == TxnType.PURCHASE:
                 purchases += 1
                 bought[month] = bought.get(month, 0) + 1
-                visit = visits.setdefault(shop, [0, ZERO])
-                visit[0] += 1
-                visit[1] += value
                 if t.orig_currency and t.orig_amount is not None:  # what the shop charged
                     currency, amount = t.orig_currency, t.orig_amount
                 else:
@@ -276,8 +236,7 @@ def build_year_report(
     have = [b for b in bars if b.value is not None]
     if have:  # the year's biggest month is the one in the accent, with its value on it
         max(have, key=lambda b: b.value).current = True
-    segments = category_segments(categories)
-    tones = {s.name: s.tone for s in segments}
+    tones = {s.name: s.tone for s in category_segments(categories)}
     explorer = build_explorer(spent, spend_by_month, bought, tones)
     return YearReport(
         year=year,
@@ -285,9 +244,6 @@ def build_year_report(
         spend=sum(spend_by_month.values(), ZERO),
         purchases=purchases,
         categories=_category_rows(categories),
-        segments=segments,
-        merchants=_top_merchants(merchants, shop_category, rules, tones),
-        visits=_visits(visits, shop_category, tones),
         currencies=_currencies(paid_in),
         cards=_cards(cards),
         rebates=rebates,
@@ -314,40 +270,6 @@ def _category_rows(categories: dict[str, Decimal]) -> list[Segment]:
     ]
     if uncategorised:
         rows.append(make_segment(UNCATEGORISED, uncategorised, total, "none"))
-    return rows
-
-
-def _top_merchants(
-    merchants: dict[str, Decimal],
-    shop_category: dict[str, str],
-    rules: Rules,
-    tones: dict[str, str],
-) -> list[Segment]:
-    """Where the money went, each shop with the emoji and colour of the category its
-    purchases were counted under."""
-    total = sum((v for v in merchants.values() if v > 0), ZERO)
-    ranked = sorted(((k, v) for k, v in merchants.items() if v > 0), key=lambda kv: -kv[1])
-    rows = []
-    for name, value in ranked[:TOP_MERCHANTS]:
-        category = shop_category.get(name) or rules.categorize(name, TxnType.PURCHASE)
-        rows.append(
-            make_segment(name, value, total, tones.get(category, "other"), emoji_for(category))
-        )
-    return rows
-
-
-def _visits(
-    visits: dict[str, list], shop_category: dict[str, str], tones: dict[str, str]
-) -> list[Visit]:
-    """The shops gone back to most often; a tie goes to the one that came to more."""
-    ranked = sorted(visits.items(), key=lambda kv: (-kv[1][0], -kv[1][1]))
-    rows = []
-    for name, (count, value) in ranked[:TOP_VISITS]:
-        if count < 2:  # once is not "going back"
-            break
-        category = shop_category.get(name, UNCATEGORISED)
-        tone = tones.get(category, "other")
-        rows.append(Visit(name, count, money(cents(value)), emoji_for(category), tone))
     return rows
 
 
@@ -380,9 +302,6 @@ def _cards(cards: dict[str, Decimal]) -> list[CardYear]:
         bank, _, last4 = label.partition(" ")
         rows.append(CardYear(label, bank, last4, money(cents(value)), share(value, total)))
     return rows
-
-
-# --- the filter by month and category -----------------------------------------------------
 
 
 def due_year(conn: sqlite3.Connection, today: date) -> int | None:

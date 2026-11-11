@@ -8,6 +8,7 @@ from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 
 from autobill.categories.rules import Rules, load_rules
+from autobill.fetch.mime import REPORT_HEADER
 from autobill.fx import FxRates
 from autobill.report.render import env
 from autobill.report.year import YearReport, build_year_report
@@ -78,7 +79,7 @@ def build_year_email(
     msg["To"] = to_addr
     msg["Date"] = formatdate(localtime=True)
     msg["Message-ID"] = make_msgid(domain="autobill.invalid")
-    msg["X-AutoBill-Report"] = "true"  # never parsed as a statement (fetch/mime.py)
+    msg[REPORT_HEADER] = "true"  # never parsed as a statement
     msg.set_content(year_plain_text(report))
     msg.add_alternative(render_year_html(report), subtype="html")
     return msg, report

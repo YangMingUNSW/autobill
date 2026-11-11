@@ -26,7 +26,7 @@ from autobill.report.cycle import (
     cycle_complete,
     cycle_title,
     expected_cards,
-    month_spend_cny,
+    month_totals,
     period_text,
     statement_window,
 )
@@ -114,7 +114,7 @@ def test_progress_while_cards_are_still_to_come(db):
         "农业银行 0003": "arrived", "中国银行 0005": "pending", "中国银行 0006": "pending",
     }  # fmt: skip
     assert [c.label for c in r.cards][:3] == ["农业银行 0001", "农业银行 0002", "建设银行 0004"]
-    assert r.progress == "已出账 3/6" and not r.complete
+    assert (r.arrived, len(r.cards)) == (3, 6) and not r.complete
     assert r.status_line == "还有 2 张待出账，1 张可能无账单"
     assert r.subject == "📊 2026年9月账单"
 
@@ -520,7 +520,7 @@ def test_the_trend_is_six_statement_months_ending_with_this_one(db):
     assert [b.current for b in r.trend] == [False] * 5 + [True]
     assert r.trend[0].value is None and r.trend[1].value is None  # a gap, not skipped
     for bar in r.trend[2:5]:
-        assert bar.value == month_spend_cny(conn, bar.cycle, fx, load_rules())
+        assert bar.value == month_totals(conn, bar.cycle, fx, load_rules()).spend
     # This month's column is exactly the 本期消费 figure above it.
     assert f"{r.trend[-1].value:,.2f}" == r.spend_total
 

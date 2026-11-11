@@ -22,10 +22,9 @@ from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 from html import escape
 
+from autobill.fetch.mime import REPORT_HEADER  # alerts are ours too: never parsed as statements
 from autobill.report.style import card_label
 from autobill.store.db import now
-
-REPORT_HEADER = "X-AutoBill-Report"  # alerts are ours too: never parsed as statements
 
 
 @dataclass(frozen=True)

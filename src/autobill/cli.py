@@ -53,6 +53,15 @@ app = typer.Typer(
 )
 
 
+def _month(value: str) -> str:
+    """ "2026-08" as it is, or a usage error saying what a month looks like."""
+    try:
+        month_bounds(value)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from None
+    return value
+
+
 def _print_version(value: bool) -> None:
     if value:
         typer.echo(f"autobill {build_label()}")
@@ -195,10 +204,7 @@ def resend(
     conversation; which statements count as reported does not change.
     """
     conn = open_database()
-    try:
-        month_bounds(cycle)
-    except ValueError as exc:
-        raise typer.BadParameter(str(exc)) from None
+    _month(cycle)
     if not conn.execute(
         "SELECT 1 FROM bills WHERE substr(statement_date, 1, 7) = ?", (cycle,)
     ).fetchone():
@@ -239,10 +245,7 @@ def preview_email(
         if row[0] is None:
             raise typer.BadParameter("数据库里还没有账单，先运行 import-dir。")
         cycle = row[0][:7]
-    try:
-        month_bounds(cycle)
-    except ValueError as exc:
-        raise typer.BadParameter(str(exc)) from None
+    _month(cycle)
     config = load_config()
     has_bills = conn.execute(
         "SELECT 1 FROM bills WHERE substr(statement_date, 1, 7) = ?", (cycle,)
@@ -254,7 +257,7 @@ def preview_email(
         conn, cycle, FxRates(conn, config.fx), portfolio=config.cards.portfolio
     )
     target.write_text(html, encoding="utf-8")
-    typer.echo(f"已生成 {cycle} 账单月的进度邮件预览：{target}")
+    typer.echo(f"已生成 {cycle} 账单月的邮件预览：{target}")
     typer.echo("用浏览器打开，按 F12 切到手机尺寸，就能看到手机上的排版。")
 
 
@@ -311,10 +314,7 @@ def report(
     month: Annotated[str, typer.Option("--month", help="Month to summarise, e.g. 2026-08.")],
 ) -> None:
     """Print the spending summary of one month in the terminal."""
-    try:
-        month_bounds(month)
-    except ValueError as exc:
-        raise typer.BadParameter(str(exc)) from None
+    _month(month)
     conn = open_database()
     summary = monthly_summary(conn, month, FxRates(conn, load_config().fx))
     typer.echo(render_text(summary))
@@ -358,10 +358,7 @@ def uncategorised(
 ) -> None:
     """List merchants no rule matches, with a snippet to paste into rules.yaml."""
     if cycle:
-        try:
-            month_bounds(cycle)
-        except ValueError as exc:
-            raise typer.BadParameter(str(exc)) from None
+        _month(cycle)
     conn = open_database()
     config = load_config()
     rules = load_rules(conn)  # merchants the AI has classified are not listed

@@ -168,7 +168,7 @@ def test_the_biggest_month_is_the_one_in_the_accent(samples):
     current = [b for b in report.bars if b.current]
     assert len(current) == 1
     assert current[0].value == max(b.value for b in report.bars if b.value is not None)
-    assert report.trend_caption.startswith(f"最多：{current[0].label} ¥")
+    assert report.explorer.captions[0].startswith(f"最多：{current[0].label} ¥")
     assert not report.complete  # no January 2027 statements yet
     assert report.span.endswith(f"截至 {report.through.month}月{report.through.day}日")
 

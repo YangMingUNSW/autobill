@@ -52,7 +52,6 @@ MAX_SATELLITE_GAP = 25.0  # a wrapped description line lies this close to its da
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 AMOUNT_RE = re.compile(r"^-?[\d,]+\.\d{2}$")
-CARD_RE = re.compile(r"^\d{4}$")
 MASKED_CARD_RE = re.compile(r"\d{4} \d{4} \*{4} (\d{4})")
 SECTION_RE = re.compile(r"\(卡号[:：](\d{4})\)")
 FOOTER_RE = re.compile(r"^第[\s\d]+页/共[\s\d]+页$")  # "第 10 页/共1 2 页" happens too

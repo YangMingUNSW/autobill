@@ -2,8 +2,8 @@
 # linux/arm64 and published as ghcr.io/yangmingunsw/autobill; nothing personal is inside:
 # configuration, password and data all come from outside at run time.
 #
-# No browser inside: progress e-mails carry no PDF by default (statement.email_pdf), the
-# original statements are in the mailbox. That keeps the image small and the memory low.
+# No browser inside: the e-mails carry no PDF, the original statements are in the mailbox.
+# That keeps the image small and the memory low.
 #
 #   docker compose up -d        # with compose.yaml: runs `autobill serve` (every 30 minutes)
 #   docker run --rm -v "$PWD/data:/data" --env-file autobill.env <image> check-mailbox

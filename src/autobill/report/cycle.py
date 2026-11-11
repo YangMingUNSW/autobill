@@ -4,8 +4,8 @@ and how it compares with the months before. See docs/notify.md#账单月邮件.
 Every card issues one statement a month. The statement month ("账单月") is the month of
 the statement date, as the banks name their statements. The month's e-mail goes out once
 every card is accounted for - issued, or more than GRACE past its usual day ("可能无账单")
-- and covers all of them: amount due and due date per card, due dates in order, the
-categories across every card, and a summary of each new statement. Until then the month's
+- and covers all of them: amount due and due date per card, the categories and the top
+shops across every card, and every transaction in one list. Until then the month's
 statements wait, so you get one e-mail a month instead of one per card (a delivered
 e-mail cannot be corrected, so only the final one is worth sending).
 
@@ -53,9 +53,8 @@ from autobill.store.db import load_bill
 
 GRACE = timedelta(days=7)  # this long past a card's usual day, it may have no statement
 EXPECTED_WINDOW = timedelta(days=62)  # without a portfolio: cards with a statement this close
-WEEKDAYS = "一二三四五六日"
 CHIPS = {"arrived": "已出账", "pending": "待出账", "missing": "可能无账单"}
-NAMED = 4  # categories named in the stacked bar; 4 + grey passes the palette validator
+NAMED = 4  # categories with a colour of their own; 4 + grey passes the palette validator
 TREND_MONTHS = 6  # statement months in the spending trend, this one included
 # A category is compared with its median over the months just before this one ("平时"),
 # and noted only when it is clearly off: by both this much money and this share.
@@ -128,12 +127,12 @@ class CardState:
 
 @dataclass
 class Segment:
-    """One category of the stacked spending bar and its legend row."""
+    """One slice of a donut and its legend row: a category, a shop, a currency."""
 
     name: str
     amount: str
     share: str
-    weight: Decimal  # flex-grow: the bar is split in proportion to the amounts
+    weight: Decimal  # the amount itself: slices are sized in proportion to it
     tone: str  # CSS class: s1..s4 (fixed categorical order), other, none (未分类)
     emoji: str = ""
     note: str = ""  # "比平时多 ¥800": only when this category is clearly off its usual
@@ -190,10 +189,6 @@ class CycleReport:
     @property
     def missing(self) -> int:
         return self._count("missing")
-
-    @property
-    def progress(self) -> str:
-        return f"已出账 {self.arrived}/{len(self.cards)}"
 
     @property
     def status_line(self) -> str:
@@ -272,7 +267,7 @@ def make_segment(name: str, value: Decimal, total: Decimal, tone: str, emoji: st
 
 
 def category_segments(categories: dict[str, Decimal]) -> list[Segment]:
-    """The month's categories as one stacked bar: the NAMED largest in the fixed
+    """The month's categories, largest first: the NAMED largest in the fixed
     categorical order, the rest folded into one grey row that lists them, 未分类 last
     (grey, hatched)."""
     values = {k: v for k, v in categories.items() if v > 0}
@@ -362,14 +357,6 @@ def month_totals(
         for name, value in view.categories.items():
             categories[name] = categories.get(name, ZERO) + value
     return MonthTotals(spend, categories)
-
-
-def month_spend_cny(
-    conn: sqlite3.Connection, cycle: str, fx: FxRates, rules: Rules
-) -> Decimal | None:
-    """CNY spent in a statement month; None when that month has no statements at all."""
-    totals = month_totals(conn, cycle, fx, rules)
-    return totals.spend if totals is not None else None
 
 
 def category_notes(

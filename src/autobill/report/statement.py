@@ -16,13 +16,13 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from jinja2 import Environment, PackageLoader, select_autoescape
 from markupsafe import Markup
 
 from autobill.categories.rules import Rules, load_rules
 from autobill.fx import FxRates, Rate, RateUnavailable
 from autobill.ledger import SPENDING_TYPES, cents
 from autobill.model import ZERO, Bill, BillBalance, Transaction, TxnType
+from autobill.report.render import env
 from autobill.report.style import (
     BANK_NAMES,
     COLORS,
@@ -135,7 +135,7 @@ class StatementView:
     generated_at: str
     transaction_count: int = field(default=0)
     currencies: str = ""
-    # Unformatted values, for the progress e-mail that adds bills up
+    # Unformatted values, for the month's e-mail that adds bills up
     due_cny_value: Decimal | None = None
     spend_cny_value: Decimal = ZERO
     categories: dict[str, Decimal] = field(default_factory=dict)
@@ -146,7 +146,7 @@ def day_label(day: date) -> str:
     return f"{day.month} 月 {day.day} 日 · 周{WEEKDAYS[day.weekday()]}"
 
 
-def _line(
+def txn_line(
     t: Transaction,
     category: str,
     show_card: bool,
@@ -329,7 +329,7 @@ def build_view(bill: Bill, fx: FxRates, rules: Rules, now: datetime | None = Non
     for t in sorted(bill.transactions, key=lambda t: (t.trans_date, t.line_no)):
         category = rules.categorize(t.description_raw, t.txn_type, t.merchant)
         by_ai = rules.by_ai(t.description_raw, t.txn_type, t.merchant)
-        line = _line(
+        line = txn_line(
             t, category, show_card, show_currency, by_ai, card_name, cny(t.amount, t.currency)
         )
         groups.setdefault(t.trans_date, []).append(line)
@@ -389,16 +389,8 @@ def build_view(bill: Bill, fx: FxRates, rules: Rules, now: datetime | None = Non
     )
 
 
-_env = Environment(
-    loader=PackageLoader("autobill.report", "templates"),
-    autoescape=select_autoescape(default=True, default_for_string=True),
-    trim_blocks=True,
-    lstrip_blocks=True,
-)
-
-
 def render_statement_html(
     bill: Bill, fx: FxRates, rules: Rules | None = None, now: datetime | None = None
 ) -> str:
     view = build_view(bill, fx, rules or load_rules(), now)
-    return _env.get_template("statement.html.j2").render(v=view, c=COLORS)
+    return env.get_template("statement.html.j2").render(v=view, c=COLORS)

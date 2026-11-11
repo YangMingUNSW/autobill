@@ -21,6 +21,7 @@ from email.utils import formatdate, make_msgid
 
 from autobill.categories.rules import Rules, load_rules
 from autobill.config import PortfolioCard
+from autobill.fetch.mime import REPORT_HEADER
 from autobill.fx import FxRates
 from autobill.report.cycle import CycleReport, build_cycle_report
 from autobill.report.render import env
@@ -109,7 +110,7 @@ def build_cycle_email(
     if previous:  # Apple Mail threads on these headers, not only on the subject
         msg["In-Reply-To"] = previous[-1]
         msg["References"] = " ".join(previous)
-    msg["X-AutoBill-Report"] = "true"  # second guard against ever parsing our own reports
+    msg[REPORT_HEADER] = "true"  # second guard against ever parsing our own reports
     msg.set_content(plain_text(report))
     msg.add_alternative(render_cycle_html(report), subtype="html")
     return msg, report
