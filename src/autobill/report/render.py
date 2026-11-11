@@ -1,4 +1,5 @@
-"""The Jinja environment both e-mails render with: the templates in report/templates,
+"""The Jinja environment the e-mails and the standard statement render with: the
+templates in report/templates,
 HTML escaped by default, and the two filters the templates use."""
 
 from __future__ import annotations

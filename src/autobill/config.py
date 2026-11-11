@@ -1,7 +1,6 @@
 """Where data lives and what the (optional) config.yaml says.
 
-See docs/security.md. Secrets never live in config.yaml; they come from the environment
-or the Windows credential store (later milestones).
+See docs/security.md. Secrets never live in config.yaml; they come from the environment.
 """
 
 from __future__ import annotations
@@ -87,9 +86,6 @@ class StatementConfig(BaseModel):
 
     output_dir: str | None = None  # default: <data dir>/statements
     pdf_browser: str | None = None  # Edge/Chrome executable; found automatically if unset
-    # Attach each new statement's PDF to the month's e-mail. Off by default:
-    # the original statements are in the mailbox anyway, and printing needs a browser,
-    # which the Docker image does not carry.
 
 
 class PortfolioCard(BaseModel):

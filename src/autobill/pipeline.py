@@ -1,7 +1,7 @@
 """Processing one raw e-mail into the database. See docs/pipeline.md#状态机.
 
-M3 covers the offline path (import-dir): store the original, recognise the bank, parse,
-and write the e-mail row and its bills in one transaction.
+Store the original, recognise the bank, parse, and write the e-mail row and its bills in
+one transaction; the same for an e-mail from the mailbox and one from a folder.
 """
 
 from __future__ import annotations

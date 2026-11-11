@@ -16,7 +16,7 @@ from autobill.categories.rules import Rules
 from autobill.fx import FxRates, RateUnavailable
 from autobill.ledger import SPENDING_TYPES, cents
 from autobill.model import ZERO, Bill, TxnType
-from autobill.report.statement import _line
+from autobill.report.statement import txn_line
 from autobill.report.style import BANK_NAMES, money
 
 
@@ -86,7 +86,7 @@ def spent(bill: Bill, fx: FxRates, rules: Rules, transactions=None) -> list[Spen
         category = rules.categorize(t.description_raw, t.txn_type, t.merchant)
         value = t.amount * have[t.currency]
         by_ai = rules.by_ai(t.description_raw, t.txn_type, t.merchant)
-        shown = _line(t, category, False, False, by_ai, card, value)
+        shown = txn_line(t, category, False, False, by_ai, card, value)
         shop = t.merchant or t.description_raw
         out.append(
             Spent(

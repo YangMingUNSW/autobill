@@ -5,8 +5,8 @@ principal, repayments, FX transfers and adjustments are not spending. Transactio
 to the calendar month of their transaction date. Each bill's amounts are converted to CNY
 with the rate of that bill's e-mail date, so one card can contribute several lines.
 
-Besides the per-bill lines (M3) the summary has categories, rebates/refunds, spending per
-card, a six-month trend, top merchants and uncategorised merchants (M6). Only totals are
+Besides the per-bill lines the summary has categories, rebates/refunds, spending per
+card, a six-month trend, top merchants and uncategorised merchants. Only totals are
 shown, never single transactions.
 """
 

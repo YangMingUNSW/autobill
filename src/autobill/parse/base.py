@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from autobill.fetch.message import RawMessage
-from autobill.model import Bill
+from autobill.model import Bill, Transaction, make_txn_id
 
 
 class TemplateChanged(Exception):
@@ -30,3 +30,18 @@ class BaseParser(ABC):
 
         Raises TemplateChanged when a key section or field cannot be found; never returns [].
         """
+
+
+def with_txn_ids(bank: str, account_id: str, transactions: list[Transaction]) -> list[Transaction]:
+    """The transactions with their ids filled in, for a statement whose account is only
+    known once its rows are read (the id is made from the account)."""
+    return [
+        t.model_copy(
+            update={
+                "txn_id": make_txn_id(
+                    bank, account_id, t.trans_date, t.amount, t.description_raw, t.line_no
+                )
+            }
+        )
+        for t in transactions
+    ]

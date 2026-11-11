@@ -21,8 +21,8 @@ from decimal import Decimal
 from bs4 import BeautifulSoup
 
 from autobill.fetch.message import RawMessage
-from autobill.model import ZERO, Bill, BillBalance, Transaction, TxnType, make_txn_id
-from autobill.parse.base import BaseParser, TemplateChanged
+from autobill.model import ZERO, Bill, BillBalance, Transaction, TxnType
+from autobill.parse.base import BaseParser, TemplateChanged, with_txn_ids
 from autobill.parse.util import (
     FormatError,
     normalize_ws,
@@ -104,7 +104,7 @@ class _Statement:
             due_date=due_date,
             email_date=email_date,
             balances=balances,
-            transactions=_with_account(transactions, account_id),
+            transactions=with_txn_ids("ICBC", account_id, transactions),
             status="OK",  # decided by reconcile()
             warnings=self.warnings,
             source_message_id=self.msg.message_id,
@@ -286,7 +286,7 @@ class _Statement:
             raise FormatError(f"unexpected card number {card!r}")
         return Transaction(
             line_no=line_no,
-            txn_id="",  # set in _with_account once the account is known
+            txn_id="",  # set by with_txn_ids once the account is known
             trans_date=parse_date(tdate),
             post_date=parse_date(pdate) if pdate else None,
             txn_type=txn_type,
@@ -337,16 +337,3 @@ def _amount(text: str) -> tuple[Decimal, str]:
     """ "1,424.08/AUD" -> (Decimal("1424.08"), "AUD"); ICBC writes the yuan as RMB."""
     value, code = parse_amount_currency(text)
     return value, parse_currency(code)
-
-
-def _with_account(transactions: list[Transaction], account_id: str) -> list[Transaction]:
-    return [
-        t.model_copy(
-            update={
-                "txn_id": make_txn_id(
-                    "ICBC", account_id, t.trans_date, t.amount, t.description_raw, t.line_no
-                )
-            }
-        )
-        for t in transactions
-    ]

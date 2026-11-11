@@ -1,4 +1,4 @@
-"""Presentation helpers shared by the progress e-mail and the standard statement:
+"""Presentation helpers shared by the e-mails and the standard statement:
 bank names, colours, money formatting and ranked bar rows."""
 
 from __future__ import annotations

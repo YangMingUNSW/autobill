@@ -79,7 +79,7 @@
   .cell { display: flex; align-items: center; gap: 12px; padding-left: 16px; position: relative; }
   .cell .body { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px;
                 padding: 11px 16px 11px 0; min-height: 60px; }
-  .cell + .cell .body, .panel .cell .body, .panel + .cell .body { border-top: .5px solid var(--sep); }
+  .cell + .cell .body { border-top: .5px solid var(--sep); }
   .text { min-width: 0; }
   .title { font-size: 17px; line-height: 22px; overflow-wrap: anywhere; }
   .sub { font-size: 13px; line-height: 18px; color: var(--label2); margin-top: 1px; overflow-wrap: anywhere; }
@@ -91,8 +91,6 @@
   .state.missing { color: var(--orange); }
   .ico { width: 12px; height: 12px; vertical-align: -1px; margin-right: 3px; }
   .cell.pending .title, .cell.missing .title { color: var(--label2); }
-  .badge { display: inline-block; font-size: 11px; font-weight: 600; line-height: 16px; padding: 0 6px; border-radius: 8px;
-           background: var(--accent); color: #ffffff; vertical-align: 2px; margin-left: 4px; }
 
   /* Wallet-style card thumbnail (no bank branding: bank initial and last digits only) */
   .thumb { width: 44px; height: 29px; border-radius: 5px; background: var(--thumb); flex-shrink: 0; position: relative;
@@ -130,13 +128,7 @@
   .acc:checked + label .when-closed { display: none; }
   .when-open { display: none; }
   .acc:checked + label .when-open { display: inline; }
-  .panel { display: none; }
-  .acc:checked + label + .panel { display: block; }
   .day { font-size: 13px; font-weight: 600; color: var(--label2); padding: 14px 16px 6px; background: var(--bg); }
-  .panel .cell .body { min-height: 52px; padding-top: 9px; padding-bottom: 9px; }
-  .panel .title { font-size: 15px; line-height: 20px; }
-  .panel .sub { font-size: 12px; line-height: 16px; }
-  .panel .amt { font-size: 15px; }
   .amt.credit { color: var(--green); }
   .cell.excluded .title, .cell.excluded .amt { color: var(--label2); }
   .tag { font-size: 11px; color: var(--label2); background: var(--fill); border-radius: 4px; padding: 0 4px; margin-right: 4px; vertical-align: 1px; }
