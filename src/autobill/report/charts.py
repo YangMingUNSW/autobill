@@ -6,6 +6,7 @@ light and dark mode; every number a chart shows is in its aria-label too.
 from __future__ import annotations
 
 import math
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from markupsafe import Markup, escape
@@ -72,14 +73,18 @@ def trend_svg(bars: list[MonthBar], name: str = "") -> Markup:
     return Markup("".join(parts))
 
 
-def donut_svg(segments: list[Segment], center: str, caption: str) -> Markup:
+def donut_svg(
+    segments: list[Segment], center: str, caption: str, whole: Decimal | None = None
+) -> Markup:
     """The shares as a ring, one arc per segment, clockwise from 12 o'clock in the order of
     the legend below it. Colours come from CSS classes, so the chart follows light and dark
     mode; a 2px gap keeps neighbouring slices apart. Every slice is named with its share in
     the legend, so a slice too thin to see is never the only place a number appears.
     Merchant names come from the statement, so every text is escaped ("H&M", a quote).
+    With `whole`, the segments are a part of it (the top shops out of all spending): the
+    arcs are as long as their shares of the whole and the rest of the ring stays empty.
     """
-    total = sum((s.weight for s in segments), ZERO)
+    total = max(sum((s.weight for s in segments), ZERO), whole or ZERO)
     if not segments or total <= 0:
         return Markup("")
     size, stroke = 180, 30
@@ -104,8 +109,11 @@ def donut_svg(segments: list[Segment], center: str, caption: str) -> Markup:
         offset += length
     parts.append("</g>")
     if center:
+        # "¥59,053.12" is as wide as the hole at the full size, a sixth digit wider
+        size_class = " longer" if len(center) > 10 else " long" if len(center) > 9 else ""
         parts.append(
-            f'<text class="donut-num" x="50%" y="49%" text-anchor="middle">{escape(center)}</text>'
+            f'<text class="donut-num{size_class}" x="50%" y="49%" text-anchor="middle">'
+            f"{escape(center)}</text>"
             f'<text class="donut-cap" x="50%" y="63%" text-anchor="middle">{escape(caption)}</text>'
         )
     parts.append("</svg>")
